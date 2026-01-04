@@ -61,7 +61,7 @@ def get_realtime_model(provider: str = None):
     if provider == "google":
         # Aoede: Elegant and refined, perfect for Aria's sophisticated sass
         return google.realtime.RealtimeModel(
-            model="gemini-2.5-flash",  # Latest available
+            model="gemini-2.5-flash-native-audio-preview-12-2025",  # Native audio model for Live API
             voice="Aoede",
             temperature=0.9,  # A little unpredictable, just like her wit
         )
