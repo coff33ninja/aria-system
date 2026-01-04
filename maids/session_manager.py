@@ -328,8 +328,8 @@ class MaidSessionManager:
                 self._session.update_agent(self._aria_agent)
                 
                 # Wait for realtime session to fully reinitialize
-                # This is critical - the session needs time to establish
-                await asyncio.sleep(2.0)
+                # The Gemini API needs significant time to reconnect after agent swap
+                await asyncio.sleep(4.0)
                 logger.info("🎭 Aria agent swap complete")
             else:
                 logger.error("🎭 Aria agent is None! Cannot swap back.")
@@ -350,7 +350,7 @@ class MaidSessionManager:
             result = await retry_on_disconnect(
                 do_aria_greeting,
                 max_retries=3,
-                base_delay=1.5,
+                base_delay=2.5,
                 operation_name="Aria's return greeting"
             )
             if result:
