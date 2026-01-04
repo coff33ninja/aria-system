@@ -32,23 +32,28 @@ Aria commands a household of specialized maids, each a fully independent agent w
 |------|-----------|-------|------|-------------|
 | **Aria** | Head Maid (orchestration) | Aoede | 0.9 | Elegant, sassy, devastatingly witty |
 | **Sophia** | Research & Knowledge | Kore | 0.7 | Bookish, thorough, slightly nervous |
-| **Luna** | Entertainment & Media | Charon | 0.95 | Playful, dramatic, expressive |
+| **Luna** | Entertainment & Media | Leda | 0.95 | Playful, dramatic, expressive |
 | **Rose** | Scheduling & Organization | Fenrir | 0.5 | Strict, efficient, authoritative |
 | **Mei** | Smart Home & IoT | Puck | 0.6 | Quiet, precise, soft-spoken |
 | **Clara** | Communication & Social | Aoede | 0.85 | Warm, friendly, diplomatic |
 
 ### Voice Handoffs
 
-When you summon a maid for conversation, the entire agent swaps — including voice, personality, tools, and memory context. This uses LiveKit's `session.update_agent()` with connection-aware retry logic to handle Gemini's realtime API reconnections gracefully.
+Voice handoffs use LiveKit's native agent handoff system via `@function_tool` returns. When a summon tool returns a maid Agent instance, LiveKit automatically:
+1. Calls `on_exit()` on the current agent
+2. Swaps to the new agent with its configured voice
+3. Calls `on_enter()` on the new agent for introduction
 
 ```
-User: "Let me talk to Sophia"
-→ Aria announces the handoff
-→ Session swaps to Sophia's agent (different voice, tools, personality)
-→ Sophia introduces herself and takes over
-→ User: "Back to Aria" / "Dismiss"
-→ Sophia says farewell
-→ Session swaps back to Aria
+User: "Can you research quantum computing?"
+→ Aria: "I'll have Sophia look into that~"
+→ summon_sophia returns Sophia agent instance
+→ LiveKit swaps agent (voice changes to Kore)
+→ Sophia.on_enter(): "H-hello! I'll research that for you!"
+→ User: "Thanks, back to Aria"
+→ return_to_aria returns Aria agent instance
+→ LiveKit swaps back (voice changes to Aoede)
+→ Aria.on_enter(): "Welcome back~"
 ```
 
 ---
@@ -80,13 +85,15 @@ User: "Let me talk to Sophia"
 - `tell_joke` — Aria-style humor
 - `motivate` — Backhanded encouragement
 
-### Maid Delegation
-- `delegate_to_maid` — Quick task handoff (maid responds through Aria)
-- `call_maid` — Execute maid tools without voice switch
-- `talk_to_maid` — Full voice handoff to maid
-- `dismiss_maid` — Return to Aria
-- `list_staff` — Show available maids
-- `suggest_maid` — Recommend maid for a task
+### Maid Voice Handoffs
+- `summon_sophia` — Handoff to Research maid (voice switches)
+- `summon_luna` — Handoff to Entertainment maid
+- `summon_rose` — Handoff to Scheduling maid
+- `summon_mei` — Handoff to Smart Home maid
+- `summon_clara` — Handoff to Communication maid
+- `summon_maid_by_name` — Summon any maid by name
+- `suggest_and_summon_maid` — Auto-select best maid for a task
+- `list_available_maids` — Show available maids and specialties
 
 ---
 
@@ -156,7 +163,7 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 | `LIVEKIT_URL` | LiveKit server URL |
 | `LIVEKIT_API_KEY` | LiveKit API key |
 | `LIVEKIT_API_SECRET` | LiveKit API secret |
-| `LLM_PROVIDER` | `openai` or `google` (default: openai) |
+| `LLM_PROVIDER` | `openai` or `google` (default: google) |
 | `OPENAI_API_KEY` | Required for OpenAI provider |
 | `GEMINI_API_KEYS` | Comma-separated keys for Google provider |
 
@@ -185,8 +192,8 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 ├── maids/
 │   ├── __init__.py       # Maid registry & delegation
 │   ├── base.py           # BaseMaid class & MaidMemory
-│   ├── memory_tools.py   # Shared memory tools + dismiss
-│   ├── session_manager.py # Voice handoff orchestration
+│   ├── memory_tools.py   # Shared memory tools (remember, recall, learn)
+│   ├── handoff_tools.py  # Native LiveKit voice handoff tools
 │   ├── sophia/           # Research maid (8 tools)
 │   ├── luna/             # Entertainment maid
 │   ├── rose/             # Scheduling maid

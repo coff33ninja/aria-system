@@ -23,15 +23,9 @@ from tools import (
     tell_joke,
     motivate,
     ReminderScheduler,
-    # Phase 2: Maid delegation
-    delegate_to_maid,
-    call_maid,
-    talk_to_maid,
-    dismiss_maid,
-    return_to_aria,
-    list_staff,
-    suggest_maid,
 )
+# Phase 2: Proper voice handoff tools (return Agent instances)
+from maids.handoff_tools import HANDOFF_TOOLS
 from mcp_client import MCPServerSse, MCPServerStdio
 from mcp_client.agent_tools import MCPToolsIntegration
 import os
@@ -338,8 +332,17 @@ class Aria(Agent):
     She'll handle your tasks with grace while making sure you know exactly how
     helpless you'd be without her.
     
-    Research tasks are delegated to Sophia.
+    Voice handoffs to maids are handled via @function_tool returns:
+    - summon_sophia, summon_luna, etc. return maid Agent instances
+    - LiveKit automatically switches voice when handoff occurs
+    - Each maid's on_enter() introduces them in their own voice
     """
+    
+    # Aria's voice configuration (for reference and handoff back)
+    voice_openai = "shimmer"
+    voice_google = "Aoede"
+    temperature = 0.9
+    
     def __init__(self, chat_ctx=None, llm_provider: str = None) -> None:
         super().__init__(
             instructions=AGENT_INSTRUCTION,
@@ -363,16 +366,24 @@ class Aria(Agent):
                 # Personality
                 tell_joke,
                 motivate,
-                # Phase 2: Maid staff delegation
-                delegate_to_maid,
-                call_maid,
-                talk_to_maid,
-                dismiss_maid,
-                return_to_aria,
-                list_staff,
-                suggest_maid,
+                # Phase 2: Voice handoff tools (return Agent instances)
+                *HANDOFF_TOOLS,
             ],
             chat_ctx=chat_ctx
+        )
+    
+    async def on_enter(self) -> None:
+        """Called when Aria becomes active (e.g., after returning from a maid)."""
+        logger = logging.getLogger("aria")
+        logger.info("🎭 Aria is now active")
+        
+        # Generate a welcome back message
+        self.session.generate_reply(
+            instructions=(
+                "You are Aria, the Head Maid. You just returned to the conversation "
+                "(possibly after a maid finished helping). Welcome the user back briefly "
+                "with your signature elegance and sass. Keep it short - one or two sentences."
+            )
         )
 
 
@@ -381,10 +392,20 @@ async def entrypoint(ctx: agents.JobContext):
     The grand entrance — where Aria takes the stage.
     She'll remember everything about you, for better or worse.
     All memories are stored locally — no cloud dependencies.
+    
+    Voice handoffs to maids are handled natively by LiveKit:
+    - Aria's summon_* tools return maid Agent instances
+    - LiveKit automatically switches voice on handoff
+    - Maids have return_to_aria tool to hand back to Aria
     """
 
     # Setup API key in the job subprocess (critical for Google provider)
     _setup_api_key()
+    
+    # Register Aria class with maids module for handoff back
+    from maids import set_aria_class
+    set_aria_class(Aria)
+    logging.info("Aria class registered for maid handoffs")
 
     # Initialize memory system (MCP or local fallback)
     memory = None
@@ -498,10 +519,11 @@ async def entrypoint(ctx: agents.JobContext):
 
     await ctx.connect()
 
-    # Initialize the maid session manager for voice handoffs
-    from maids.session_manager import MaidSessionManager
-    MaidSessionManager.initialize(session, agent)
-    logging.info("Maid session manager ready for voice handoffs~")
+    # Note: Voice handoffs are now handled natively by LiveKit
+    # - Aria's summon_* tools return maid Agent instances
+    # - LiveKit automatically switches voice on handoff
+    # - No manual session manager needed!
+    logging.info("Voice handoffs ready via native LiveKit agent returns~")
 
     # Setup reminder callback so Aria speaks when reminders trigger
     async def on_reminder(message: str):

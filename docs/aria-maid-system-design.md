@@ -1151,13 +1151,28 @@ data/
 |-------|--------|--------------|
 | **Phase 0** | ✅ Done | Local MCP memory system |
 | **Phase 1** | ✅ Done | Aria's core tools (todos, notes, reminders, etc.) |
-| **Phase 2** | 🔜 Next | Maid architecture + base class + registry |
-| **Phase 3** | Planned | Mei (Smart Home) |
-| **Phase 4** | Planned | Sophia (Research) |
-| **Phase 5** | Planned | Rose (Scheduling) |
-| **Phase 6** | Planned | Luna (Entertainment) |
-| **Phase 7** | Planned | Clara (Communication) |
-| **Phase 8** | Future | Voice handoff, multi-session |
+| **Phase 2** | ✅ Done | Maid architecture + base class + registry |
+| **Phase 3** | ✅ Done | Mei (Smart Home) — stub tools |
+| **Phase 4** | ✅ Done | Sophia (Research) — full Wikipedia/web search |
+| **Phase 5** | ✅ Done | Rose (Scheduling) — stub tools |
+| **Phase 6** | ✅ Done | Luna (Entertainment) — stub tools |
+| **Phase 7** | ✅ Done | Clara (Communication) — stub tools |
+| **Phase 8** | ✅ Done | Voice handoff via native LiveKit agent returns |
+
+### Phase 8 Implementation Details
+
+Voice handoffs now use LiveKit's native agent handoff system:
+
+1. **Tool Return Handoffs** — `summon_*` tools in `maids/handoff_tools.py` return maid Agent instances
+2. **Each Maid Has Own Voice** — `llm=RealtimeModel(voice=...)` configured in `BaseMaid._create_realtime_model()`
+3. **on_enter() Introductions** — Maids introduce themselves after handoff via `session.generate_reply()`
+4. **return_to_aria Tool** — Auto-generated in `BaseMaid._create_return_to_aria_tool()` for each maid
+5. **Aria Registration** — `set_aria_class()` / `get_aria_class()` in `maids/__init__.py` for handoff back
+
+Key files:
+- `maids/handoff_tools.py` — Summon tools that return Agent instances
+- `maids/base.py` — BaseMaid with voice config and return_to_aria tool
+- `docs/livekit-voice-handoff-guide.md` — Full implementation reference
 
 ---
 

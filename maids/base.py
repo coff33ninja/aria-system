@@ -1,6 +1,11 @@
 """
 BaseMaid — Abstract base class for all maid sub-agents.
 Each maid has their own voice, temperature, specialized tools, and personal memory.
+
+Voice handoffs are handled by LiveKit's native agent handoff system:
+- Each maid defines their own `llm=` with voice configuration
+- Handoffs occur via @function_tool returns
+- on_enter() is called when a maid becomes active
 """
 from abc import ABC, abstractmethod
 from livekit.agents import Agent
@@ -13,7 +18,7 @@ import json
 
 logger = logging.getLogger("maids.base")
 
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "openai").lower()
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "google").lower()
 DATA_DIR = Path(os.environ.get("ARIA_DATA_DIR", "./data"))
 
 
@@ -111,10 +116,37 @@ class MaidMemory:
         logger.warning(f"{self.maid_name}'s memory cleared!")
 
 
+def _ensure_api_key() -> bool:
+    """Ensure the Google API key is set via key rotation."""
+    if os.environ.get("GOOGLE_API_KEY"):
+        return True
+    
+    try:
+        from key_manager import pick_and_set_key
+        key = pick_and_set_key()
+        if key:
+            logger.debug("API key set via key rotation")
+            return True
+    except Exception as e:
+        logger.warning(f"Key rotation failed: {e}")
+    
+    return False
+
+
 class BaseMaid(Agent, ABC):
     """
     Base class for all maid sub-agents.
-    Each maid has their own voice, temperature, specialized tools, and personal memory.
+    
+    Each maid has their own:
+    - Voice (via llm= RealtimeModel configuration)
+    - Temperature (personality variance)
+    - Specialized tools
+    - Personal memory
+    
+    Voice handoffs work automatically via LiveKit's agent system:
+    - Return a maid instance from @function_tool to trigger handoff
+    - on_enter() is called when maid becomes active
+    - on_exit() is called when maid is being replaced
     """
     
     # Override in subclass
@@ -133,16 +165,26 @@ class BaseMaid(Agent, ABC):
     def __init__(self, chat_ctx: Optional[Any] = None, provider: Optional[str] = None):
         provider = provider or LLM_PROVIDER
         
+        # Ensure API key is set before creating realtime model
+        _ensure_api_key()
+        
         # Initialize personal memory
         self._memory = MaidMemory(self.name)
         
+        # Get tools including memory tools
+        all_tools = self.get_all_tools()
+        
         super().__init__(
             instructions=self.get_instructions(),
-            llm=self._get_realtime_model(provider),
-            tools=self.get_all_tools(),
+            llm=self._create_realtime_model(provider),
+            tools=all_tools,
             chat_ctx=chat_ctx
         )
-        logger.info(f"{self.name} initialized (provider: {provider}, temp: {self.temperature}, memory: {self._memory.memory_file})")
+        logger.info(
+            f"{self.name} initialized (provider: {provider}, "
+            f"voice: {self.voice_google if provider == 'google' else self.voice_openai}, "
+            f"temp: {self.temperature})"
+        )
     
     @property
     def memory(self) -> MaidMemory:
@@ -151,8 +193,11 @@ class BaseMaid(Agent, ABC):
             self._memory = MaidMemory(self.name)
         return self._memory
     
-    def _get_realtime_model(self, provider: str):
-        """Get the realtime model with maid-specific voice and temperature."""
+    def _create_realtime_model(self, provider: str):
+        """
+        Create the realtime model with maid-specific voice and temperature.
+        This is the KEY to voice handoffs — each maid has their own model config.
+        """
         if provider == "google":
             return google.realtime.RealtimeModel(
                 model="gemini-2.5-flash-native-audio-preview-12-2025",
@@ -165,17 +210,68 @@ class BaseMaid(Agent, ABC):
                 temperature=self.temperature,
             )
     
+    async def on_enter(self) -> None:
+        """
+        Called when this maid becomes active (after handoff).
+        Override in subclass for custom introduction behavior.
+        """
+        logger.info(f"🎭 {self.name} is now active")
+        self.memory.remember("Summoned for conversation", category="conversations")
+        
+        # Generate introduction in maid's voice
+        self.session.generate_reply(
+            instructions=f"You are {self.name}. You just stepped forward to help. "
+                        f"Introduce yourself briefly in character: {self.personality}. "
+                        f"Then ask how you can help."
+        )
+    
+    async def on_exit(self) -> None:
+        """Called when this maid is being replaced."""
+        logger.info(f"🎭 {self.name} stepping back")
+        self.memory.remember("Dismissed, stepping back", category="conversations")
+    
     @abstractmethod
     def get_tools(self) -> List:
         """Return tools specific to this maid. Override in subclass."""
         pass
     
     def get_all_tools(self) -> List:
-        """Get all tools including memory tools. Called by __init__."""
+        """Get all tools including memory tools and return-to-aria tool."""
         from .memory_tools import create_memory_tools
         maid_tools = self.get_tools()
         memory_tools = create_memory_tools(self)
-        return maid_tools + memory_tools
+        
+        # Add the return_to_aria tool
+        return_tool = self._create_return_to_aria_tool()
+        
+        return maid_tools + memory_tools + [return_tool]
+    
+    def _create_return_to_aria_tool(self):
+        """Create a tool that returns control to Aria."""
+        from livekit.agents import function_tool, RunContext
+        
+        maid_self = self  # Capture reference for closure
+        
+        @function_tool
+        async def return_to_aria(context: RunContext):
+            """
+            Return control to Aria, the Head Maid.
+            Use this when you've completed your task or the user wants to speak with Aria.
+            """
+            # Import here to avoid circular imports
+            from maids import get_aria_class
+            
+            aria_class = get_aria_class()
+            if aria_class is None:
+                return "Unable to return to Aria at this time."
+            
+            logger.info(f"🎭 {maid_self.name} returning control to Aria")
+            maid_self.memory.remember("Returned control to Aria", category="handoffs")
+            
+            # Return Aria instance with chat context preserved
+            return aria_class(chat_ctx=maid_self.session.chat_ctx), f"{maid_self.name} has completed the task"
+        
+        return return_to_aria
     
     @abstractmethod
     def get_instructions(self) -> str:
@@ -185,12 +281,3 @@ class BaseMaid(Agent, ABC):
     def introduce(self) -> str:
         """Return a self-introduction for this maid."""
         return f"I am {self.name}, specializing in {self.specialty}. {self.personality}."
-    
-    async def handle_task(self, task: str) -> str:
-        """
-        Handle a delegated task. Override for custom behavior.
-        Default implementation logs, remembers the task, and returns acknowledgment.
-        """
-        logger.info(f"{self.name} handling task: {task}")
-        self.memory.remember(f"Task received: {task}", category="tasks")
-        return f"{self.name} is working on: {task}"

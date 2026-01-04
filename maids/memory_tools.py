@@ -92,19 +92,7 @@ def create_memory_tools(maid_instance):
             lines.append(f"  • {k['topic']}: {k['knowledge'][:80]}...")
         return "\n".join(lines)
     
-    @function_tool()
-    async def dismiss_me(
-        context: RunContext,
-    ) -> str:
-        """
-        Return control to Aria, the Head Maid.
-        Use when the user says goodbye, dismiss, back to Aria, or is done talking to you.
-        """
-        from maids.session_manager import get_session_manager
-        
-        logger.info(f"{maid_instance.name} dismissing self, returning to Aria")
-        manager = get_session_manager()
-        result = await manager.end_maid_conversation()
-        return result
+    # Note: dismiss_me / return_to_aria is now created in BaseMaid._create_return_to_aria_tool()
+    # It uses native LiveKit handoffs by returning an Agent instance
     
-    return [remember_this, recall_memories, learn_topic, get_knowledge, dismiss_me]
+    return [remember_this, recall_memories, learn_topic, get_knowledge]

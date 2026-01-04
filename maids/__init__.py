@@ -1,12 +1,20 @@
 """
 Aria's Maid Staff — Specialized sub-agents for the Head Maid.
 Each maid has their own voice, temperature, domain expertise, and personal memory.
+
+Voice handoffs are handled natively by LiveKit:
+- Each maid defines their own llm= with voice configuration
+- Handoffs occur via @function_tool returns
+- on_enter() is called when a maid becomes active
 """
 from .base import BaseMaid, MaidMemory
 from typing import Dict, Type, Optional
 
 # Registry populated after maid imports to avoid circular deps
 MAID_REGISTRY: Dict[str, Type[BaseMaid]] = {}
+
+# Reference to Aria class (set by agent.py to avoid circular imports)
+_ARIA_CLASS: Optional[Type] = None
 
 # Domain to maid mapping for delegation
 DELEGATION_MAP: Dict[str, str] = {
@@ -18,6 +26,8 @@ DELEGATION_MAP: Dict[str, str] = {
     "fact": "sophia",
     "learn": "sophia",
     "study": "sophia",
+    "wikipedia": "sophia",
+    "search": "sophia",
     
     # Rose's domains
     "calendar": "rose",
@@ -26,6 +36,8 @@ DELEGATION_MAP: Dict[str, str] = {
     "meeting": "rose",
     "organize": "rose",
     "plan": "rose",
+    "reminder": "rose",
+    "agenda": "rose",
     
     # Mei's domains
     "lights": "mei",
@@ -47,6 +59,7 @@ DELEGATION_MAP: Dict[str, str] = {
     "watch": "luna",
     "listen": "luna",
     "play": "luna",
+    "story": "luna",
     
     # Clara's domains
     "email": "clara",
@@ -86,6 +99,17 @@ def list_maids() -> Dict[str, str]:
     }
 
 
+def set_aria_class(aria_class: Type) -> None:
+    """Set the Aria class reference (called from agent.py)."""
+    global _ARIA_CLASS
+    _ARIA_CLASS = aria_class
+
+
+def get_aria_class() -> Optional[Type]:
+    """Get the Aria class for handoffs back to head maid."""
+    return _ARIA_CLASS
+
+
 # Import maids after registry is defined
 from .sophia import Sophia
 from .luna import Luna
@@ -114,4 +138,6 @@ __all__ = [
     "get_maid_for_task",
     "list_maids",
     "register_maid",
+    "set_aria_class",
+    "get_aria_class",
 ]
