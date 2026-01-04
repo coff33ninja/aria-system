@@ -6,9 +6,32 @@ import logging
 # Import from the installed mcp package
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 import mcp.types
-from mcp.types import CallToolResult, JSONRPCMessage, Tool as MCPTool
+from mcp.types import (
+    CallToolResult,
+    JSONRPCMessage,
+    Tool as MCPTool,
+    TextContent,
+    ServerCapabilities,
+)
 from mcp.client.sse import sse_client
 from mcp.client.session import ClientSession
+
+
+def get_all_mcp_content_types() -> Dict[str, Any]:
+    """
+    Returns a mapping of MCP content type names to their classes.
+    Useful for dynamic content type handling.
+    
+    Returns:
+        Dict mapping type names to mcp.types classes
+    """
+    return {
+        "TextContent": mcp.types.TextContent,
+        "ImageContent": mcp.types.ImageContent,
+        "AudioContent": mcp.types.AudioContent,
+        "EmbeddedResource": mcp.types.EmbeddedResource,
+    }
+
 
 # Base class for MCP servers
 class MCPServer:
@@ -125,6 +148,17 @@ class _MCPServerWithClientSession(MCPServer):
             self.logger.error(f"Error calling tool {tool_name}: {e}")
             raise
 
+    async def get_server_capabilities(self) -> Optional[ServerCapabilities]:
+        """
+        Get the server's capabilities after connection.
+        
+        Returns:
+            ServerCapabilities if connected and available, None otherwise
+        """
+        if not self.session:
+            return None
+        return self.session.get_server_capabilities()
+
     async def cleanup(self):
         """Cleanup the server."""
         async with self._cleanup_lock:
@@ -213,7 +247,10 @@ class MCPServerStdio(MCPServer):
         return tools
 
     async def call_tool(self, tool_name: str, arguments: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        return {"content": [f"Called {tool_name} with args {arguments} via Stdio"]}
+        """Call a tool on the Stdio server (minimal implementation)."""
+        # Create a response using mcp.types for consistency
+        content = TextContent(type="text", text=f"Called {tool_name} with args {arguments} via Stdio")
+        return {"content": [content.model_dump()]}
 
     async def cleanup(self):
         self.connected = False

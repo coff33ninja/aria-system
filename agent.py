@@ -17,6 +17,33 @@ import json
 import logging
 load_dotenv()
 
+# LLM Provider configuration
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "openai").lower()  # "openai" or "google"
+
+
+def get_realtime_model(provider: str = None):
+    """
+    Get the appropriate realtime model based on provider configuration.
+    
+    Args:
+        provider: Override provider ("openai" or "google"). Uses LLM_PROVIDER env var if not specified.
+        
+    Returns:
+        Configured realtime model instance (openai.realtime.RealtimeModel or google.realtime.RealtimeModel)
+    """
+    provider = provider or LLM_PROVIDER
+    
+    if provider == "google":
+        return google.realtime.RealtimeModel(
+            voice="Puck",
+            temperature=0.8,
+        )
+    else:
+        # Default to OpenAI
+        return openai.realtime.RealtimeModel(
+            voice="sage",
+        )
+
 # Pick a persistent Gemini API key (round-robin) and export it as OPENAI_API_KEY
 try:
     from key_manager import pick_and_set_key
@@ -29,20 +56,16 @@ except Exception:
 
 
 class Assistant(Agent):
-    def __init__(self, chat_ctx=None) -> None:
+    def __init__(self, chat_ctx=None, llm_provider: str = None) -> None:
         super().__init__(
             instructions=AGENT_INSTRUCTION,
-            llm=openai.realtime.RealtimeModel(
-                 voice="sage"
-             
-            ),
+            llm=get_realtime_model(llm_provider),
             tools=[
                 get_weather,
                 search_web,
                 send_email
             ],
             chat_ctx=chat_ctx
-
         )
         
 

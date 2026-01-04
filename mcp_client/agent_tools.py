@@ -11,7 +11,9 @@ from uuid import uuid4
 from .util import MCPUtil, FunctionTool
 from .server import MCPServer, MCPServerSse
 from livekit.agents import ChatContext, AgentSession, JobContext, FunctionTool as Tool
+from livekit.agents import mcp as livekit_mcp
 from mcp import CallToolRequest
+from mcp.types import CallToolRequestParams
 
 logger = logging.getLogger("mcp-agent-tools")
 
@@ -22,12 +24,32 @@ ToolResult = Union[str, Dict[str, Any]]
 ServerList = Sequence[MCPServer]
 
 
+def create_call_tool_request(tool_name: str, arguments: Dict[str, Any]) -> CallToolRequest:
+    """
+    Factory function to create a proper MCP CallToolRequest.
+    
+    Args:
+        tool_name: Name of the tool to call
+        arguments: Arguments dict for the tool
+        
+    Returns:
+        A CallToolRequest instance ready for MCP protocol use
+    """
+    params = CallToolRequestParams(name=tool_name, arguments=arguments)
+    return CallToolRequest(params=params)
+
+
 class ToolInvocationRequest:
-    """Wraps a tool invocation request using CallToolRequest semantics."""
+    """
+    Wraps a tool invocation request using CallToolRequest semantics.
+    Provides a request_id for tracking and can convert to MCP CallToolRequest.
+    """
     def __init__(self, tool_name: str, arguments: Dict[str, Any], request_id: str = ""):
         self.tool_name = tool_name
         self.arguments = arguments
         self.request_id = request_id or str(uuid4())
+        # Create the underlying MCP request
+        self._mcp_request = create_call_tool_request(tool_name, arguments)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -35,6 +57,10 @@ class ToolInvocationRequest:
             "tool_name": self.tool_name,
             "arguments": self.arguments
         }
+    
+    def to_mcp_request(self) -> CallToolRequest:
+        """Returns the underlying MCP CallToolRequest."""
+        return self._mcp_request
 
 
 def _validate_servers(mcp_servers: Optional[ServerList]) -> Tuple[int, int]:
@@ -278,25 +304,22 @@ class MCPToolsIntegration:
 
     @staticmethod
     async def register_with_agent(
-        agent: Any,
+        agent: AgentSession,
         mcp_servers: ServerList,
         convert_schemas_to_strict: bool = True,
         auto_connect: bool = True
-    ) -> List[Callable]:
+    ) -> List[Tool]:
         """
         Helper method to prepare and register MCP tools with a LiveKit agent.
         
-        The agent parameter can be a LiveKit Agent, AgentSession derivative, or any object
-        with a _tools attribute that accepts Tool-compatible callables.
-
         Args:
-            agent: The LiveKit agent instance (works with AgentSession, JobContext-aware agents, etc.)
+            agent: The LiveKit AgentSession instance
             mcp_servers: Sequence of MCPServer instances (ServerList = Sequence[MCPServer])
             convert_schemas_to_strict: Whether to convert schemas to strict format
             auto_connect: Whether to auto-connect to servers
 
         Returns:
-            List of Callable Tool instances that were registered
+            List of Tool (FunctionTool) instances that were registered
         """
         # Prepare the dynamic tools
         tools = await MCPToolsIntegration.prepare_dynamic_tools(
@@ -321,26 +344,26 @@ class MCPToolsIntegration:
 
     @staticmethod
     async def create_agent_with_tools(
-        agent_class: Type[Any],
+        agent_class: Type[AgentSession],
         mcp_servers: ServerList,
         agent_kwargs: Optional[Dict[str, Any]] = None,
         convert_schemas_to_strict: bool = True
-    ) -> Any:
+    ) -> AgentSession:
         """
-        Factory method to create and initialize an agent with MCP tools already loaded.
+        Factory method to create and initialize an AgentSession with MCP tools already loaded.
         
-        This method uses Type[Any] for the agent_class to allow flexible agent types,
+        This method uses Type[AgentSession] for the agent_class to allow flexible agent types,
         and returns an initialized agent instance that is compatible with
         LiveKit AgentSession, ChatContext, and JobContext workflows.
 
         Args:
-            agent_class: Agent class to instantiate (Type parameter for type safety)
+            agent_class: AgentSession class to instantiate (Type parameter for type safety)
             mcp_servers: Sequence of MCP servers to register with the agent
             agent_kwargs: Optional keyword arguments (Dict) to pass to the agent constructor
             convert_schemas_to_strict: Whether to convert JSON schemas to strict format
 
         Returns:
-            An initialized agent instance with MCP tools registered
+            An initialized AgentSession instance with MCP tools registered
         """
         # Connect to MCP servers
         for server in mcp_servers:
@@ -377,3 +400,77 @@ class MCPToolsIntegration:
                 logger.warning("Agent does not have a '_tools' attribute, tools were not registered")
 
         return agent
+
+
+    @staticmethod
+    async def setup_from_job_context(
+        job_ctx: JobContext,
+        mcp_servers: ServerList,
+        convert_schemas_to_strict: bool = True
+    ) -> List[Tool]:
+        """
+        Setup MCP tools integration from a LiveKit JobContext.
+        
+        This is useful when initializing tools within a job entrypoint where
+        you have access to the JobContext but need to prepare tools before
+        creating an AgentSession.
+
+        Args:
+            job_ctx: The LiveKit JobContext from the job entrypoint
+            mcp_servers: Sequence of MCP servers to fetch tools from
+            convert_schemas_to_strict: Whether to convert JSON schemas to strict format
+
+        Returns:
+            List of Tool instances ready to be passed to AgentSession
+        """
+        logger.info(f"Setting up MCP tools from JobContext (room: {job_ctx.room.name if job_ctx.room else 'unknown'})")
+        
+        tools = await MCPToolsIntegration.prepare_dynamic_tools(
+            mcp_servers,
+            convert_schemas_to_strict=convert_schemas_to_strict,
+            auto_connect=True
+        )
+        
+        logger.info(f"Prepared {len(tools)} tools for JobContext")
+        return tools
+
+    @staticmethod
+    def extract_tool_calls_from_chat(chat_ctx: ChatContext) -> List[Dict[str, Any]]:
+        """
+        Extract tool call information from a ChatContext's message history.
+        
+        Useful for debugging or logging what tools have been invoked during
+        a conversation session.
+
+        Args:
+            chat_ctx: The LiveKit ChatContext containing conversation history
+
+        Returns:
+            List of dicts containing tool call information from the chat history
+        """
+        tool_calls: List[Dict[str, Any]] = []
+        
+        for message in chat_ctx.items:
+            # Check if message has tool calls (assistant messages with function calls)
+            if hasattr(message, 'tool_calls') and message.tool_calls:
+                for tc in message.tool_calls:
+                    tool_calls.append({
+                        "tool_call_id": getattr(tc, 'id', None),
+                        "name": getattr(tc, 'name', None),
+                        "arguments": getattr(tc, 'arguments', None),
+                    })
+        
+        return tool_calls
+
+    @staticmethod
+    def get_livekit_mcp_server_class() -> Type[livekit_mcp.MCPServer]:
+        """
+        Returns the LiveKit native MCPServer class for direct integration.
+        
+        LiveKit agents have built-in MCP support via the mcp_servers parameter
+        in AgentSession. This helper provides access to the native class.
+
+        Returns:
+            The livekit.agents.mcp.MCPServer class
+        """
+        return livekit_mcp.MCPServer
