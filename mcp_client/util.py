@@ -35,6 +35,7 @@ class MCPUtil:
         schema = tool.inputSchema
 
         # Use a default argument to capture the current tool correctly in the closure
+        @functools.wraps(getattr(tool, 'on_invoke_tool', lambda *a, **k: None))
         async def invoke_tool(context: Any, input_json: str, current_tool_name=tool.name) -> str:
             try:
                 arguments = json.loads(input_json) if input_json else {}
