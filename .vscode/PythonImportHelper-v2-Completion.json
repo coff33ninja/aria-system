@@ -197,6 +197,22 @@
         "documentation": {}
     },
     {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
         "label": "Optional",
         "importPath": "typing",
         "description": "typing",
@@ -536,12 +552,12 @@
         "documentation": {}
     },
     {
-        "label": "random",
+        "label": "time",
         "kind": 6,
         "isExtraImport": true,
-        "importPath": "random",
-        "description": "random",
-        "detail": "random",
+        "importPath": "time",
+        "description": "time",
+        "detail": "time",
         "documentation": {}
     },
     {
@@ -584,6 +600,23 @@
         "description": "email.mime.text",
         "isExtraImport": true,
         "detail": "email.mime.text",
+        "documentation": {}
+    },
+    {
+        "label": "socket",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "socket",
+        "description": "socket",
+        "detail": "socket",
+        "documentation": {}
+    },
+    {
+        "label": "urlparse",
+        "importPath": "urllib.parse",
+        "description": "urllib.parse",
+        "isExtraImport": true,
+        "detail": "urllib.parse",
         "documentation": {}
     },
     {
@@ -686,12 +719,48 @@
         "documentation": {}
     },
     {
-        "label": "_gemini_keys",
+        "label": "pick_next_key",
+        "kind": 2,
+        "importPath": "key_manager",
+        "description": "key_manager",
+        "peekOfCode": "def pick_next_key(env_name: str = \"GEMINI_API_KEYS\", state_file: str = STATE_FILE, lock_file: str = LOCK_FILE) -> Optional[str]:\n    keys = _read_keys(env_name)\n    if not keys:\n        return None\n    # Acquire lock\n    locked = _acquire_lock(lock_file, timeout=5)\n    if not locked:\n        # fallback: pick a random key to avoid blocking\n        import random\n        return random.choice(keys)",
+        "detail": "key_manager",
+        "documentation": {}
+    },
+    {
+        "label": "pick_and_set_key",
+        "kind": 2,
+        "importPath": "key_manager",
+        "description": "key_manager",
+        "peekOfCode": "def pick_and_set_key(env_name: str = \"GEMINI_API_KEYS\") -> Optional[str]:\n    key = pick_next_key(env_name=env_name)\n    if key:\n        os.environ[\"OPENAI_API_KEY\"] = key\n    return key",
+        "detail": "key_manager",
+        "documentation": {}
+    },
+    {
+        "label": "STATE_FILE",
         "kind": 5,
-        "importPath": "agent",
-        "description": "agent",
-        "peekOfCode": "_gemini_keys = os.getenv(\"GEMINI_API_KEYS\")\nif _gemini_keys:\n    _choices = [k.strip() for k in _gemini_keys.split(\",\") if k.strip()]\n    if _choices:\n        selected_key = random.choice(_choices)\n        os.environ[\"OPENAI_API_KEY\"] = selected_key\n        logging.getLogger(__name__).info(\"Selected a Gemini API key from GEMINI_API_KEYS (value hidden)\")\nclass Assistant(Agent):\n    def __init__(self, chat_ctx=None) -> None:\n        super().__init__(",
-        "detail": "agent",
+        "importPath": "key_manager",
+        "description": "key_manager",
+        "peekOfCode": "STATE_FILE = \".gemini_key_idx\"\nLOCK_FILE = \".gemini_key_lock\"\nSTALE_SECONDS = 60\ndef _read_keys(env_name: str = \"GEMINI_API_KEYS\") -> List[str]:\n    raw = os.getenv(env_name, \"\") or \"\"\n    return [k.strip() for k in raw.split(\",\") if k.strip()]\ndef _acquire_lock(lock_path: str, timeout: int = 5) -> bool:\n    start = time.time()\n    while True:\n        try:",
+        "detail": "key_manager",
+        "documentation": {}
+    },
+    {
+        "label": "LOCK_FILE",
+        "kind": 5,
+        "importPath": "key_manager",
+        "description": "key_manager",
+        "peekOfCode": "LOCK_FILE = \".gemini_key_lock\"\nSTALE_SECONDS = 60\ndef _read_keys(env_name: str = \"GEMINI_API_KEYS\") -> List[str]:\n    raw = os.getenv(env_name, \"\") or \"\"\n    return [k.strip() for k in raw.split(\",\") if k.strip()]\ndef _acquire_lock(lock_path: str, timeout: int = 5) -> bool:\n    start = time.time()\n    while True:\n        try:\n            # Try to create the lock file atomically",
+        "detail": "key_manager",
+        "documentation": {}
+    },
+    {
+        "label": "STALE_SECONDS",
+        "kind": 5,
+        "importPath": "key_manager",
+        "description": "key_manager",
+        "peekOfCode": "STALE_SECONDS = 60\ndef _read_keys(env_name: str = \"GEMINI_API_KEYS\") -> List[str]:\n    raw = os.getenv(env_name, \"\") or \"\"\n    return [k.strip() for k in raw.split(\",\") if k.strip()]\ndef _acquire_lock(lock_path: str, timeout: int = 5) -> bool:\n    start = time.time()\n    while True:\n        try:\n            # Try to create the lock file atomically\n            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)",
+        "detail": "key_manager",
         "documentation": {}
     },
     {

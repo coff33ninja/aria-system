@@ -7,6 +7,9 @@ import smtplib
 from email.mime.multipart import MIMEMultipart  
 from email.mime.text import MIMEText
 from typing import Optional
+import json
+import socket
+from urllib.parse import urlparse
 
 @function_tool()
 async def get_weather(
@@ -110,3 +113,59 @@ async def send_email(
     except Exception as e:
         logging.error(f"Error sending email: {e}")
         return f"An error occurred while sending email: {str(e)}"
+
+
+@function_tool()
+async def health_check(
+    context: RunContext,  # type: ignore
+) -> str:
+    """
+    Perform a lightweight health check of key external dependencies.
+    Returns a JSON string with component statuses.
+    Checks:
+      - Required env vars present
+      - MCP server URL reachable (simple HTTP GET)
+      - DNS resolution for LiveKit URL host
+    """
+    status = {"ok": True, "checks": {}}
+
+    # Env var checks
+    required = [
+        "LIVEKIT_URL",
+        "N8N_MCP_SERVER_URL",
+        "MEM0_API_KEY",
+    ]
+    env_ok = {}
+    for k in required:
+        env_ok[k] = bool(os.getenv(k))
+        if not env_ok[k]:
+            status["ok"] = False
+    status["checks"]["env"] = env_ok
+
+    # MCP server reachability
+    mcp_url = os.getenv("N8N_MCP_SERVER_URL")
+    if mcp_url:
+        try:
+            r = requests.get(mcp_url, timeout=5)
+            status["checks"]["mcp"] = {"reachable": True, "status_code": r.status_code}
+        except Exception as e:
+            status["checks"]["mcp"] = {"reachable": False, "error": str(e)}
+            status["ok"] = False
+    else:
+        status["checks"]["mcp"] = {"reachable": False, "error": "N8N_MCP_SERVER_URL not set"}
+
+    # LiveKit host DNS resolution
+    livekit = os.getenv("LIVEKIT_URL")
+    if livekit:
+        try:
+            parsed = urlparse(livekit)
+            host = parsed.hostname or livekit
+            socket.gethostbyname(host)
+            status["checks"]["livekit_dns"] = {"resolved": True, "host": host}
+        except Exception as e:
+            status["checks"]["livekit_dns"] = {"resolved": False, "error": str(e)}
+            status["ok"] = False
+    else:
+        status["checks"]["livekit_dns"] = {"resolved": False, "error": "LIVEKIT_URL not set"}
+
+    return json.dumps(status)
