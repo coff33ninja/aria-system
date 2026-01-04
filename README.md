@@ -81,6 +81,16 @@ Memories are automatically saved when conversations end and loaded when Aria sta
 
 When `ARIA_USE_MCP_MEMORY=true`, Aria can connect to an MCP-compatible memory server for enhanced memory capabilities. Configure the server in `.kiro/settings/mcp.json`.
 
+### Testing the Memory System
+
+To verify the MCP memory system is working correctly:
+
+```bash
+python tests/test_mcp_memory.py
+```
+
+This will test entity creation, observations, search, and graph retrieval. If MCP fails, it automatically falls back to LocalMemory testing.
+
 
 ## Licenses
 
