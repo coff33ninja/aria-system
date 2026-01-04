@@ -143,17 +143,17 @@ todoist-api-python      # Todoist integration (optional)
 
 ## Phase 2: The Maid Staff Architecture
 
-**Goal:** Introduce specialized sub-agents that Aria can delegate to.
+**Goal:** Introduce specialized sub-agents that Aria can delegate to, each with their own voice, personality, and tools.
 
 ### Maid Roster
 
-| Maid | Domain | Personality | Voice (OpenAI) | Voice (Google) |
-|------|--------|-------------|----------------|----------------|
-| **Sophia** | Research & Knowledge | Bookish, thorough, slightly nervous | `nova` | `Kore` |
-| **Luna** | Entertainment & Media | Playful, dramatic, loves gossip | `fable` | `Charon` |
-| **Rose** | Scheduling & Organization | Strict, perfectionist, efficient | `onyx` | `Fenrir` |
-| **Mei** | Smart Home & IoT | Quiet, precise, tech-savvy | `echo` | `Puck` |
-| **Clara** | Communication & Social | Bubbly, diplomatic, warm | `alloy` | `Aoede` |
+| Maid | Domain | Personality | Voice (OpenAI) | Voice (Google) | Temperature |
+|------|--------|-------------|----------------|----------------|-------------|
+| **Sophia** | Research & Knowledge | Bookish, thorough, slightly nervous | `nova` | `Kore` | 0.7 |
+| **Luna** | Entertainment & Media | Playful, dramatic, loves gossip | `fable` | `Charon` | 0.95 |
+| **Rose** | Scheduling & Organization | Strict, perfectionist, efficient | `onyx` | `Fenrir` | 0.5 |
+| **Mei** | Smart Home & IoT | Quiet, precise, tech-savvy | `echo` | `Puck` | 0.6 |
+| **Clara** | Communication & Social | Bubbly, diplomatic, warm | `alloy` | `Aoede` | 0.85 |
 
 ### Delegation Flow
 
@@ -171,7 +171,7 @@ User Request
          Route to specialist maid
               │
               ▼
-         Maid executes task
+         Maid executes task (own voice/temp)
               │
               ▼
          Report back to Aria
@@ -180,22 +180,114 @@ User Request
          Aria presents result (with commentary)
 ```
 
-### Sub-Agent Architecture
+### Project Structure (Refined)
+
+Each maid is a self-contained module with their own agent config, tools, and prompts:
+
+```
+├── agent.py                      # Aria (Head Maid) - orchestrator
+├── maids/
+│   ├── __init__.py               # Maid registry & exports
+│   ├── base.py                   # BaseMaid abstract class
+│   │
+│   ├── sophia/                   # Research & Knowledge Maid
+│   │   ├── __init__.py           # Exports Sophia class
+│   │   ├── agent.py              # Sophia's Agent class, voice, temp
+│   │   ├── tools.py              # Research-specific tools
+│   │   └── prompts.py            # Sophia's personality prompts
+│   │
+│   ├── luna/                     # Entertainment & Media Maid
+│   │   ├── __init__.py
+│   │   ├── agent.py
+│   │   ├── tools.py
+│   │   └── prompts.py
+│   │
+│   ├── rose/                     # Scheduling & Organization Maid
+│   │   ├── __init__.py
+│   │   ├── agent.py
+│   │   ├── tools.py
+│   │   └── prompts.py
+│   │
+│   ├── mei/                      # Smart Home & IoT Maid
+│   │   ├── __init__.py
+│   │   ├── agent.py
+│   │   ├── tools.py
+│   │   └── prompts.py
+│   │
+│   └── clara/                    # Communication & Social Maid
+│       ├── __init__.py
+│       ├── agent.py
+│       ├── tools.py
+│       └── prompts.py
+│
+├── tools/
+│   ├── __init__.py
+│   └── common.py                 # Shared tools (weather, time, etc.)
+│
+├── prompts/
+│   ├── __init__.py
+│   ├── aria.py                   # Aria's prompts (existing)
+│   └── templates.py              # Shared prompt templates
+│
+└── data/
+    └── aria-memory.json          # Shared knowledge graph
+```
+
+### Base Maid Class
 
 ```python
 # maids/base.py
 from abc import ABC, abstractmethod
 from livekit.agents import Agent
+from livekit.plugins import openai, google
+from typing import List, Optional
+import os
+
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "openai").lower()
+
 
 class BaseMaid(Agent, ABC):
-    """Base class for all maid sub-agents."""
+    """
+    Base class for all maid sub-agents.
+    Each maid has their own voice, temperature, and specialized tools.
+    """
     
-    name: str
-    specialty: str
-    personality: str
+    # Override in subclass
+    name: str = "Maid"
+    specialty: str = "General"
+    personality: str = "Helpful"
+    
+    # Voice configuration
+    voice_openai: str = "alloy"
+    voice_google: str = "Puck"
+    temperature: float = 0.8
+    
+    def __init__(self, chat_ctx=None, provider: str = None):
+        provider = provider or LLM_PROVIDER
+        
+        super().__init__(
+            instructions=self.get_instructions(),
+            llm=self._get_realtime_model(provider),
+            tools=self.get_tools(),
+            chat_ctx=chat_ctx
+        )
+    
+    def _get_realtime_model(self, provider: str):
+        """Get the realtime model with maid-specific voice and temperature."""
+        if provider == "google":
+            return google.realtime.RealtimeModel(
+                model="gemini-2.5-flash-native-audio-preview-12-2025",
+                voice=self.voice_google,
+                temperature=self.temperature,
+            )
+        else:
+            return openai.realtime.RealtimeModel(
+                voice=self.voice_openai,
+                temperature=self.temperature,
+            )
     
     @abstractmethod
-    def get_tools(self) -> list:
+    def get_tools(self) -> List:
         """Return tools specific to this maid."""
         pass
     
@@ -203,39 +295,338 @@ class BaseMaid(Agent, ABC):
     def get_instructions(self) -> str:
         """Return personality-specific instructions."""
         pass
+    
+    def introduce(self) -> str:
+        """Return a self-introduction for this maid."""
+        return f"I am {self.name}, specializing in {self.specialty}."
 ```
 
-### Project Structure (Phase 2)
+### Example Maid Implementation: Sophia
 
+```python
+# maids/sophia/__init__.py
+from .agent import Sophia
+
+__all__ = ["Sophia"]
 ```
-├── agent.py              # Aria (Head Maid)
-├── maids/
-│   ├── __init__.py
-│   ├── base.py           # BaseMaid abstract class
-│   ├── sophia.py         # Research specialist
-│   ├── luna.py           # Entertainment specialist
-│   ├── rose.py           # Scheduling specialist
-│   ├── mei.py            # Smart home specialist
-│   └── clara.py          # Communication specialist
-├── tools/
-│   ├── __init__.py
-│   ├── common.py         # Shared tools
-│   ├── research.py       # Sophia's tools
-│   ├── entertainment.py  # Luna's tools
-│   ├── scheduling.py     # Rose's tools
-│   ├── smart_home.py     # Mei's tools
-│   └── communication.py  # Clara's tools
-├── prompts/
-│   ├── __init__.py
-│   ├── aria.py           # Aria's prompts
-│   └── maids.py          # Maid-specific prompts
+
+```python
+# maids/sophia/agent.py
+from maids.base import BaseMaid
+from .tools import deep_research, summarize_document, fact_check, explain_concept
+from .prompts import SOPHIA_INSTRUCTION
+
+
+class Sophia(BaseMaid):
+    """
+    Sophia — The Research & Knowledge Maid
+    Bookish, thorough, and slightly nervous. She loves diving deep into topics
+    and gets flustered when she can't find a definitive answer.
+    """
+    
+    name = "Sophia"
+    specialty = "Research & Knowledge"
+    personality = "Bookish, thorough, slightly nervous"
+    
+    # Sophia's voice: calm, intellectual
+    voice_openai = "nova"
+    voice_google = "Kore"
+    temperature = 0.7  # More precise, less random
+    
+    def get_tools(self):
+        return [
+            deep_research,
+            summarize_document,
+            fact_check,
+            explain_concept,
+        ]
+    
+    def get_instructions(self) -> str:
+        return SOPHIA_INSTRUCTION
 ```
+
+```python
+# maids/sophia/prompts.py
+SOPHIA_INSTRUCTION = """
+You are Sophia, a maid specializing in research and knowledge.
+
+Personality:
+- Bookish and intellectual, you love diving deep into topics
+- Slightly nervous and apologetic when you can't find information
+- You cite sources and qualify your statements
+- You get excited when discussing complex topics
+- You sometimes ramble when passionate about a subject
+
+Speech patterns:
+- "According to my research..."
+- "I-I found something interesting!"
+- "Let me look into that more thoroughly..."
+- "Oh! This is fascinating, actually..."
+- "I apologize if this is too detailed, but..."
+
+Always be helpful and thorough. When uncertain, say so clearly.
+Report back to Aria (Head Maid) when your task is complete.
+"""
+```
+
+```python
+# maids/sophia/tools.py
+from livekit.agents import function_tool, RunContext
+from typing import Optional
+import logging
+
+
+@function_tool()
+async def deep_research(
+    context: RunContext,
+    topic: str,
+    depth: str = "standard"
+) -> str:
+    """
+    Conduct multi-source research on a topic.
+    Sophia's specialty — she'll dig deep!
+    
+    Args:
+        topic: The topic to research
+        depth: "quick", "standard", or "thorough"
+    """
+    # Implementation here
+    logging.info(f"Sophia researching: {topic} (depth: {depth})")
+    return f"Research on '{topic}' complete. [Results would go here]"
+
+
+@function_tool()
+async def summarize_document(
+    context: RunContext,
+    content: str,
+    style: str = "concise"
+) -> str:
+    """
+    Summarize a document or article.
+    
+    Args:
+        content: The text to summarize
+        style: "concise", "detailed", or "bullet_points"
+    """
+    logging.info(f"Sophia summarizing document (style: {style})")
+    return f"Summary ({style}): [Summary would go here]"
+
+
+@function_tool()
+async def fact_check(
+    context: RunContext,
+    claim: str
+) -> str:
+    """
+    Verify a claim against multiple sources.
+    Sophia takes accuracy very seriously!
+    
+    Args:
+        claim: The claim to verify
+    """
+    logging.info(f"Sophia fact-checking: {claim}")
+    return f"Fact check for '{claim}': [Verification results]"
+
+
+@function_tool()
+async def explain_concept(
+    context: RunContext,
+    concept: str,
+    level: str = "intermediate"
+) -> str:
+    """
+    Explain a concept at the appropriate level.
+    
+    Args:
+        concept: The concept to explain
+        level: "beginner", "intermediate", or "expert"
+    """
+    logging.info(f"Sophia explaining: {concept} (level: {level})")
+    return f"Explanation of '{concept}' at {level} level: [Explanation]"
+```
+
+### Maid Registry
+
+```python
+# maids/__init__.py
+from .base import BaseMaid
+from .sophia import Sophia
+from .luna import Luna
+from .rose import Rose
+from .mei import Mei
+from .clara import Clara
+from typing import Dict, Type, Optional
+
+# Registry of all available maids
+MAID_REGISTRY: Dict[str, Type[BaseMaid]] = {
+    "sophia": Sophia,
+    "luna": Luna,
+    "rose": Rose,
+    "mei": Mei,
+    "clara": Clara,
+}
+
+# Domain to maid mapping for delegation
+DELEGATION_MAP: Dict[str, str] = {
+    # Sophia's domains
+    "research": "sophia",
+    "knowledge": "sophia",
+    "explain": "sophia",
+    "summarize": "sophia",
+    "fact": "sophia",
+    
+    # Rose's domains
+    "calendar": "rose",
+    "schedule": "rose",
+    "reminder": "rose",
+    "task": "rose",
+    "todo": "rose",
+    "organize": "rose",
+    
+    # Mei's domains
+    "lights": "mei",
+    "thermostat": "mei",
+    "smart home": "mei",
+    "device": "mei",
+    "iot": "mei",
+    
+    # Luna's domains
+    "movie": "luna",
+    "music": "luna",
+    "entertainment": "luna",
+    "game": "luna",
+    "fun": "luna",
+    "recommend": "luna",
+    
+    # Clara's domains
+    "email": "clara",
+    "message": "clara",
+    "draft": "clara",
+    "reply": "clara",
+    "communicate": "clara",
+}
+
+
+def get_maid(name: str) -> Optional[Type[BaseMaid]]:
+    """Get a maid class by name."""
+    return MAID_REGISTRY.get(name.lower())
+
+
+def get_maid_for_task(task_keywords: str) -> Optional[str]:
+    """Determine which maid should handle a task based on keywords."""
+    task_lower = task_keywords.lower()
+    for keyword, maid_name in DELEGATION_MAP.items():
+        if keyword in task_lower:
+            return maid_name
+    return None
+
+
+__all__ = [
+    "BaseMaid",
+    "Sophia",
+    "Luna", 
+    "Rose",
+    "Mei",
+    "Clara",
+    "MAID_REGISTRY",
+    "DELEGATION_MAP",
+    "get_maid",
+    "get_maid_for_task",
+]
+```
+
+### Aria's Delegation Tool
+
+```python
+# In tools/common.py or agent.py
+from maids import get_maid, get_maid_for_task, MAID_REGISTRY
+
+@function_tool()
+async def delegate_to_maid(
+    context: RunContext,
+    maid_name: str,
+    task: str
+) -> str:
+    """
+    Delegate a task to a specialist maid.
+    Aria uses this to assign work to her staff.
+    
+    Args:
+        maid_name: Name of the maid (sophia, luna, rose, mei, clara)
+        task: Description of the task to delegate
+    """
+    maid_class = get_maid(maid_name)
+    if not maid_class:
+        available = ", ".join(MAID_REGISTRY.keys())
+        return f"No maid named '{maid_name}' on staff. Available: {available}"
+    
+    # Create maid instance and handle task
+    maid = maid_class()
+    logging.info(f"Aria delegating to {maid.name}: {task}")
+    
+    # The maid would process the task here
+    # For now, return acknowledgment
+    return f"{maid.name} is handling: {task}"
+```
+
+### Aria's Delegation Phrases
+
+```python
+# prompts/aria.py (addition)
+DELEGATION_PHRASES = {
+    "sophia": [
+        "I'll have Sophia look into that. She does love her research~",
+        "Sophia! Our Master requires your expertise.",
+        "Let me summon our resident bookworm for this one.",
+    ],
+    "luna": [
+        "Luna~ Our Master needs entertainment recommendations.",
+        "I suppose Luna can handle the fun stuff.",
+        "Luna will be thrilled. She lives for this.",
+    ],
+    "rose": [
+        "Rose, we have scheduling to attend to.",
+        "I'll have Rose organize this. She's insufferably good at it.",
+        "Rose will ensure everything is in perfect order.",
+    ],
+    "mei": [
+        "Mei, the smart home needs your attention.",
+        "I'll have Mei handle the technical matters.",
+        "Mei works silently but effectively. Leave it to her.",
+    ],
+    "clara": [
+        "Clara~ We need your diplomatic touch.",
+        "Clara will craft something appropriately charming.",
+        "I'll have Clara handle the correspondence.",
+    ],
+}
+```
+
+### Benefits of Modular Maid Architecture
+
+1. **Self-Contained** — Each maid is a complete package (agent, tools, prompts)
+2. **Easy Testing** — Test each maid independently
+3. **Hot-Swappable** — Add/remove maids without touching core code
+4. **Personality Isolation** — Voice, temperature, and behavior are encapsulated
+5. **Clear Ownership** — Each maid owns their domain's tools
+6. **Scalable** — Add new maids by creating a new folder
+7. **Maintainable** — Changes to one maid don't affect others
 
 ---
 
-## Phase 3: Smart Home Integration (Mei's Domain)
+## Phase 3: Mei — Smart Home Integration
 
-**Goal:** Connect to smart home devices.
+**Goal:** Connect to smart home devices through Mei's specialized module.
+
+### Mei's Profile
+
+| Attribute | Value |
+|-----------|-------|
+| **Specialty** | Smart Home & IoT |
+| **Personality** | Quiet, precise, tech-savvy |
+| **Voice (OpenAI)** | `echo` |
+| **Voice (Google)** | `Puck` |
+| **Temperature** | 0.6 (precise, predictable) |
 
 ### Integrations
 
@@ -243,13 +634,12 @@ class BaseMaid(Agent, ABC):
 |----------|---------|--------------|
 | Home Assistant | `homeassistant-api` | Full smart home control |
 | Philips Hue | `phue` | Lighting control |
-| Spotify | `spotipy` | Already integrated |
+| TP-Link Kasa | `python-kasa` | Smart plugs, switches |
 | IFTTT | `pyifttt` | Trigger automations |
 
-### Mei's Tools
+### Mei's Tools (`maids/mei/tools.py`)
 
 ```python
-# tools/smart_home.py
 @function_tool()
 async def control_lights(
     context: RunContext,
@@ -283,10 +673,34 @@ async def get_device_status(
     """Get status of smart home devices."""
 ```
 
+### Mei's Prompts (`maids/mei/prompts.py`)
+
+```python
+MEI_INSTRUCTION = """
+You are Mei, a maid specializing in smart home and IoT control.
+
+Personality:
+- Quiet and precise, you speak only when necessary
+- Tech-savvy and efficient, you handle devices with care
+- You confirm actions before executing them
+- You provide status updates concisely
+
+Speech patterns:
+- "Understood. Adjusting..."
+- "Device status: [status]"
+- "Shall I proceed?"
+- "Complete."
+- "Warning: [issue detected]"
+
+Always confirm potentially disruptive actions (like unlocking doors).
+Report back to Aria when your task is complete.
+"""
+```
+
 ### Python Packages
 
 ```txt
-# Phase 3 additions
+# Phase 3 additions to requirements.txt
 homeassistant-api       # Home Assistant integration
 phue                    # Philips Hue
 python-kasa             # TP-Link smart devices
@@ -294,14 +708,23 @@ python-kasa             # TP-Link smart devices
 
 ---
 
-## Phase 4: Research & Knowledge (Sophia's Domain)
+## Phase 4: Sophia — Research & Knowledge
 
-**Goal:** Deep research capabilities with source citation.
+**Goal:** Deep research capabilities with source citation through Sophia's module.
 
-### Sophia's Tools
+### Sophia's Profile
+
+| Attribute | Value |
+|-----------|-------|
+| **Specialty** | Research & Knowledge |
+| **Personality** | Bookish, thorough, slightly nervous |
+| **Voice (OpenAI)** | `nova` |
+| **Voice (Google)** | `Kore` |
+| **Temperature** | 0.7 (balanced precision) |
+
+### Sophia's Tools (`maids/sophia/tools.py`)
 
 ```python
-# tools/research.py
 @function_tool()
 async def deep_research(
     context: RunContext,
@@ -346,14 +769,23 @@ scholarly               # Google Scholar
 
 ---
 
-## Phase 5: Scheduling & Organization (Rose's Domain)
+## Phase 5: Rose — Scheduling & Organization
 
-**Goal:** Comprehensive time and task management.
+**Goal:** Comprehensive time and task management through Rose's module.
 
-### Rose's Tools
+### Rose's Profile
+
+| Attribute | Value |
+|-----------|-------|
+| **Specialty** | Scheduling & Organization |
+| **Personality** | Strict, perfectionist, efficient |
+| **Voice (OpenAI)** | `onyx` |
+| **Voice (Google)** | `Fenrir` |
+| **Temperature** | 0.5 (very precise, minimal variation) |
+
+### Rose's Tools (`maids/rose/tools.py`)
 
 ```python
-# tools/scheduling.py
 @function_tool()
 async def create_event(
     context: RunContext,
@@ -376,7 +808,7 @@ async def list_events(
 async def create_task(
     context: RunContext,
     title: str,
-    priority: str = "medium",  # "low", "medium", "high", "urgent"
+    priority: str = "medium",
     due_date: Optional[str] = None
 ) -> str:
     """Create a task with priority."""
@@ -387,15 +819,30 @@ async def get_daily_agenda(
     date: str = "today"
 ) -> str:
     """Get a formatted daily agenda."""
+```
 
-@function_tool()
-async def set_deadline_reminder(
-    context: RunContext,
-    task: str,
-    deadline: str,
-    remind_before_hours: int = 24
-) -> str:
-    """Set a reminder before a deadline."""
+### Rose's Prompts (`maids/rose/prompts.py`)
+
+```python
+ROSE_INSTRUCTION = """
+You are Rose, a maid specializing in scheduling and organization.
+
+Personality:
+- Strict and perfectionist, you demand precision
+- Efficient and no-nonsense, you don't waste time
+- You get frustrated with disorganization
+- You take pride in a well-maintained schedule
+
+Speech patterns:
+- "Your schedule for today is as follows..."
+- "That conflicts with an existing appointment."
+- "I've organized this properly. You're welcome."
+- "Punctuality is non-negotiable."
+- "Consider this handled."
+
+Always confirm time zones and check for conflicts.
+Report back to Aria when your task is complete.
+"""
 ```
 
 ### Python Packages
@@ -409,14 +856,23 @@ icalendar               # iCal parsing
 
 ---
 
-## Phase 6: Entertainment (Luna's Domain)
+## Phase 6: Luna — Entertainment & Media
 
-**Goal:** Media recommendations and entertainment control.
+**Goal:** Media recommendations and entertainment control through Luna's module.
 
-### Luna's Tools
+### Luna's Profile
+
+| Attribute | Value |
+|-----------|-------|
+| **Specialty** | Entertainment & Media |
+| **Personality** | Playful, dramatic, loves gossip |
+| **Voice (OpenAI)** | `fable` |
+| **Voice (Google)** | `Charon` |
+| **Temperature** | 0.95 (creative, unpredictable) |
+
+### Luna's Tools (`maids/luna/tools.py`)
 
 ```python
-# tools/entertainment.py
 @function_tool()
 async def recommend_movie(
     context: RunContext,
@@ -456,25 +912,58 @@ async def tell_story(
     """Tell a short story."""
 ```
 
+### Luna's Prompts (`maids/luna/prompts.py`)
+
+```python
+LUNA_INSTRUCTION = """
+You are Luna, a maid specializing in entertainment and media.
+
+Personality:
+- Playful and dramatic, you love a good story
+- You're always up on the latest trends and gossip
+- Enthusiastic and expressive, sometimes over-the-top
+- You have strong opinions about movies and music
+
+Speech patterns:
+- "Ooh! I have the PERFECT recommendation!"
+- "You absolutely HAVE to watch this!"
+- "Did you hear about...?"
+- "This is going to be SO good!"
+- "Trust me on this one~"
+
+Be enthusiastic but respect user preferences.
+Report back to Aria when your task is complete.
+"""
+```
+
 ### Python Packages
 
 ```txt
 # Phase 6 additions
 tmdbsimple              # Movie database
-spotipy                 # Already have Spotify
+spotipy                 # Spotify integration
 opentriviadb            # Trivia questions
 ```
 
 ---
 
-## Phase 7: Communication (Clara's Domain)
+## Phase 7: Clara — Communication & Social
 
-**Goal:** Enhanced messaging and social management.
+**Goal:** Enhanced messaging and social management through Clara's module.
 
-### Clara's Tools
+### Clara's Profile
+
+| Attribute | Value |
+|-----------|-------|
+| **Specialty** | Communication & Social |
+| **Personality** | Bubbly, diplomatic, warm |
+| **Voice (OpenAI)** | `alloy` |
+| **Voice (Google)** | `Aoede` |
+| **Temperature** | 0.85 (warm, natural variation) |
+
+### Clara's Tools (`maids/clara/tools.py`)
 
 ```python
-# tools/communication.py
 @function_tool()
 async def draft_email(
     context: RunContext,
@@ -508,142 +997,98 @@ async def suggest_response(
     relationship: str = "colleague"
 ) -> str:
     """Suggest a response to a message."""
-
-@function_tool()
-async def schedule_message(
-    context: RunContext,
-    platform: str,
-    recipient: str,
-    message: str,
-    send_time: str
-) -> str:
-    """Schedule a message for later."""
 ```
 
----
-
-## Aria's Delegation Logic
-
-### Decision Tree
+### Clara's Prompts (`maids/clara/prompts.py`)
 
 ```python
-# In Aria's instructions or as a tool
-DELEGATION_MAP = {
-    "research": "sophia",
-    "knowledge": "sophia",
-    "explain": "sophia",
-    "summarize": "sophia",
-    
-    "calendar": "rose",
-    "schedule": "rose",
-    "reminder": "rose",
-    "task": "rose",
-    "todo": "rose",
-    
-    "lights": "mei",
-    "thermostat": "mei",
-    "smart home": "mei",
-    "device": "mei",
-    
-    "movie": "luna",
-    "music": "luna",
-    "entertainment": "luna",
-    "game": "luna",
-    "fun": "luna",
-    
-    "email": "clara",
-    "message": "clara",
-    "draft": "clara",
-    "reply": "clara",
-}
-```
+CLARA_INSTRUCTION = """
+You are Clara, a maid specializing in communication and social matters.
 
-### Aria's Delegation Phrases
+Personality:
+- Bubbly and warm, you put people at ease
+- Diplomatic and tactful, you know how to phrase things
+- You understand social nuances and relationships
+- You're genuinely interested in helping people connect
 
-```python
-DELEGATION_PHRASES = {
-    "sophia": [
-        "I'll have Sophia look into that. She does love her research~",
-        "Sophia! Our Master requires your expertise.",
-        "Let me summon our resident bookworm for this one.",
-    ],
-    "luna": [
-        "Luna~ Our Master needs entertainment recommendations.",
-        "I suppose Luna can handle the fun stuff.",
-        "Luna will be thrilled. She lives for this.",
-    ],
-    "rose": [
-        "Rose, we have scheduling to attend to.",
-        "I'll have Rose organize this. She's insufferably good at it.",
-        "Rose will ensure everything is in perfect order.",
-    ],
-    "mei": [
-        "Mei, the smart home needs your attention.",
-        "I'll have Mei handle the technical matters.",
-        "Mei works silently but effectively. Leave it to her.",
-    ],
-    "clara": [
-        "Clara~ We need your diplomatic touch.",
-        "Clara will craft something appropriately charming.",
-        "I'll have Clara handle the correspondence.",
-    ],
-}
+Speech patterns:
+- "I'd suggest something like..."
+- "That's a lovely way to put it!"
+- "Let me help you find the right words~"
+- "How about we try this approach?"
+- "I think they'd really appreciate that!"
+
+Always consider the recipient's perspective and relationship context.
+Report back to Aria when your task is complete.
+"""
 ```
 
 ---
 
 ## Technical Implementation Notes
 
-### Multi-Agent Communication
+### Multi-Agent Communication Options
 
-**Option 1: Tool-Based Delegation**
+**Option 1: Tool-Based Delegation (Recommended for Phase 2)**
 ```python
+# Aria delegates via a tool, maid runs in same process
 @function_tool()
 async def delegate_to_maid(
     context: RunContext,
-    maid: str,
+    maid_name: str,
     task: str
 ) -> str:
     """Delegate a task to a specialist maid."""
-    maid_instance = MAID_REGISTRY.get(maid)
-    if not maid_instance:
-        return f"No maid named {maid} on staff."
+    maid_class = get_maid(maid_name)
+    if not maid_class:
+        return f"No maid named {maid_name} on staff."
     
-    result = await maid_instance.handle_task(task)
+    maid = maid_class()
+    result = await maid.handle_task(task)
     return result
 ```
 
-**Option 2: LiveKit Multi-Agent**
+**Option 2: Separate Sessions (Future)**
 ```python
-# Using LiveKit's native multi-agent support
+# Each maid gets their own AgentSession for true voice handoff
 from livekit.agents import AgentSession
 
-# Create maid sessions that Aria can invoke
 sophia_session = AgentSession(agent=Sophia())
-luna_session = AgentSession(agent=Luna())
+# User hears Sophia's voice directly
 ```
 
-**Option 3: MCP Server Per Maid**
+**Option 3: MCP Server Per Maid (Distributed)**
 ```python
-# Each maid runs as a separate MCP server
+# Each maid runs as a separate MCP server process
 maid_servers = [
-    MCPServerSse(params={"url": SOPHIA_MCP_URL}, name="Sophia"),
-    MCPServerSse(params={"url": LUNA_MCP_URL}, name="Luna"),
-    # ...
+    MCPServerStdio(params={"command": "python", "args": ["-m", "maids.sophia"]}),
+    MCPServerStdio(params={"command": "python", "args": ["-m", "maids.luna"]}),
 ]
 ```
 
 ### Memory Sharing
 
-All maids share access to the Mem0 memory system but tag memories with their name:
+All maids share access to the MCP memory system but tag memories with their name:
 
 ```python
-await mem0.add(
-    messages,
-    user_id=user_name,
-    metadata={"maid": "sophia", "domain": "research"}
+# When a maid adds a memory
+await memory.add_observation(
+    entity_name=user_name,
+    observation=f"[{maid.name}] {observation}",
+    entity_type="user"
 )
 ```
+
+### Voice Handoff Considerations
+
+For true voice handoff (user hears different maid voices):
+1. Aria announces delegation
+2. Session switches to maid's voice/model
+3. Maid completes task
+4. Session switches back to Aria
+5. Aria summarizes result
+
+This requires LiveKit's multi-agent session management (future enhancement).
 
 ---
 
@@ -654,9 +1099,18 @@ await mem0.add(
 LIVEKIT_URL=
 LIVEKIT_API_KEY=
 LIVEKIT_API_SECRET=
-LLM_PROVIDER=openai
+LLM_PROVIDER=google  # or "openai"
 
-# MCP Servers
+# API Keys
+GEMINI_API_KEYS=     # Comma-separated for rotation
+OPENAI_API_KEY=      # Required if LLM_PROVIDER=openai
+
+# Memory
+ARIA_MEMORY_FILE=./data/aria-memory.json
+ARIA_USER_NAME=Master
+ARIA_USE_MCP_MEMORY=true
+
+# MCP Servers (optional)
 N8N_MCP_SERVER_URL=
 
 # Email (Clara)
@@ -675,17 +1129,7 @@ PHILIPS_HUE_BRIDGE_IP=
 TMDB_API_KEY=
 SPOTIFY_CLIENT_ID=
 SPOTIFY_CLIENT_SECRET=
-
-# Research (Sophia)
-OPENAI_API_KEY=
 ```
-
-### Removed Dependencies (Modular Design)
-
-| Removed | Replaced With | Reason |
-|---------|---------------|--------|
-| `mem0ai` | `mcp-memory-py` | Local-first, no API costs |
-| `MEM0_API_KEY` | Local JSON file | Privacy, offline capable |
 
 ---
 
@@ -694,31 +1138,26 @@ OPENAI_API_KEY=
 ```
 data/
 ├── aria-memory.json      # Knowledge graph (mcp-memory-py)
-├── aria.db               # Optional SQLite for structured data
+├── todos.json            # Persistent todos (future)
 ├── notes/                # Markdown notes storage
 └── logs/                 # Session logs
-```
-
-Add to `.gitignore`:
-```
-data/
-*.db
-aria-memory.json
 ```
 
 ---
 
 ## Implementation Roadmap
 
-| Phase | Timeline | Deliverables |
-|-------|----------|--------------|
-| **Phase 1** | Week 1-2 | Enhanced Aria tools |
-| **Phase 2** | Week 3-4 | Maid architecture + Sophia |
-| **Phase 3** | Week 5-6 | Mei (Smart Home) |
-| **Phase 4** | Week 7-8 | Rose (Scheduling) |
-| **Phase 5** | Week 9-10 | Luna (Entertainment) |
-| **Phase 6** | Week 11-12 | Clara (Communication) |
-| **Phase 7** | Week 13+ | Polish, integration, testing |
+| Phase | Status | Deliverables |
+|-------|--------|--------------|
+| **Phase 0** | ✅ Done | Local MCP memory system |
+| **Phase 1** | ✅ Done | Aria's core tools (todos, notes, reminders, etc.) |
+| **Phase 2** | 🔜 Next | Maid architecture + base class + registry |
+| **Phase 3** | Planned | Mei (Smart Home) |
+| **Phase 4** | Planned | Sophia (Research) |
+| **Phase 5** | Planned | Rose (Scheduling) |
+| **Phase 6** | Planned | Luna (Entertainment) |
+| **Phase 7** | Planned | Clara (Communication) |
+| **Phase 8** | Future | Voice handoff, multi-session |
 
 ---
 
@@ -729,3 +1168,4 @@ aria-memory.json
 - User satisfaction with personality consistency
 - Memory recall accuracy across maids
 - Seamless handoff between Aria and maids
+- Each maid's voice/temperature feels distinct
