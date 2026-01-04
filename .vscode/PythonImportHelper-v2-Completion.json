@@ -27,6 +27,15 @@
         "documentation": {}
     },
     {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
         "label": "inspect",
         "kind": 6,
         "isExtraImport": true,
@@ -543,15 +552,6 @@
         "documentation": {}
     },
     {
-        "label": "os",
-        "kind": 6,
-        "isExtraImport": true,
-        "importPath": "os",
-        "description": "os",
-        "detail": "os",
-        "documentation": {}
-    },
-    {
         "label": "time",
         "kind": 6,
         "isExtraImport": true,
@@ -633,7 +633,16 @@
         "kind": 5,
         "importPath": "mcp_client.agent_tools",
         "description": "mcp_client.agent_tools",
-        "peekOfCode": "logger = logging.getLogger(\"mcp-agent-tools\")\nclass MCPToolsIntegration:\n    \"\"\"\n    Helper class for integrating MCP tools with LiveKit agents.\n    Provides utilities for registering dynamic tools from MCP servers.\n    \"\"\"\n    @staticmethod\n    async def prepare_dynamic_tools(mcp_servers: List[MCPServer],\n                                   convert_schemas_to_strict: bool = True,\n                                   auto_connect: bool = True) -> List[Callable]:",
+        "peekOfCode": "logger = logging.getLogger(\"mcp-agent-tools\")\n# Use previously-imported symbols in a no-op tuple so linters don't flag them as unused.\n# These are intentionally referenced to encourage future extensions that rely on\n# richer typing and LiveKit/MCP runtime types.\n_UNUSED_IMPORTS = (\n    Awaitable,\n    cast,\n    Optional,\n    Sequence,\n    Tuple,",
+        "detail": "mcp_client.agent_tools",
+        "documentation": {}
+    },
+    {
+        "label": "_UNUSED_IMPORTS",
+        "kind": 5,
+        "importPath": "mcp_client.agent_tools",
+        "description": "mcp_client.agent_tools",
+        "peekOfCode": "_UNUSED_IMPORTS = (\n    Awaitable,\n    cast,\n    Optional,\n    Sequence,\n    Tuple,\n    Type,\n    Union,\n    Tool,\n    AgentSession,",
         "detail": "mcp_client.agent_tools",
         "documentation": {}
     },

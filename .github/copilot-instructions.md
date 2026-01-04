@@ -18,6 +18,8 @@ This repo implements a Python-based voice/chat assistant built on LiveKit agents
   - `MEM0_API_KEY`
   - `OPENAI_API_KEY` (used by livekit plugins)
   - `GEMINI_API_KEYS` — optional. Comma-separated Gemini/Google API keys. If present `agent.py` will pick one at random and export it as `OPENAI_API_KEY` for downstream plugins.
+    - `GEMINI_API_KEYS` — optional. Comma-separated Gemini/Google API keys. If present `agent.py` will pick one at random and export it as `OPENAI_API_KEY` for downstream plugins. The repo also supports persistent round-robin selection via `key_manager.py`.
+    - `MCP_TOOL_TIMEOUT_SECONDS` — optional. Integer timeout (seconds) used when invoking MCP tools (default 30). Tool outputs include a `request_id` to correlate logs and responses.
   - `GMAIL_USER`, `GMAIL_APP_PASSWORD` (for `send_email`)
   - `N8N_MCP_SERVER_URL` (URL for the MCP SSE server)
 

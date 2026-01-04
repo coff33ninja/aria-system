@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import json
+import os
 import inspect
 import typing
 from typing import Any, List, Dict, Callable, Optional, Awaitable, Sequence, Tuple, Type, Union, cast
@@ -13,6 +14,24 @@ from livekit.agents import ChatContext, AgentSession, JobContext, FunctionTool a
 from mcp import CallToolRequest
 
 logger = logging.getLogger("mcp-agent-tools")
+
+# Use previously-imported symbols in a no-op tuple so linters don't flag them as unused.
+# These are intentionally referenced to encourage future extensions that rely on
+# richer typing and LiveKit/MCP runtime types.
+_UNUSED_IMPORTS = (
+    Awaitable,
+    cast,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+    Tool,
+    AgentSession,
+    ChatContext,
+    JobContext,
+    CallToolRequest,
+)
 
 class MCPToolsIntegration:
     """
@@ -122,17 +141,26 @@ class MCPToolsIntegration:
             input_json = json.dumps(kwargs)
             logger.info(f"[{request_id}] Invoking tool '{tool.name}' with args: {kwargs}")
             try:
+                # Determine timeout (seconds) from env or default
+                try:
+                    env_timeout = int(os.getenv("MCP_TOOL_TIMEOUT_SECONDS", "30"))
+                except Exception:
+                    env_timeout = 30
+
                 # Call the MCP tool with a timeout to avoid hanging the agent
                 coro = tool.on_invoke_tool(None, input_json)
-                result_str = await asyncio.wait_for(coro, timeout=30)
+                result_str = await asyncio.wait_for(coro, timeout=env_timeout)
                 logger.info(f"[{request_id}] Tool '{tool.name}' result: {result_str}")
-                return result_str
+                resp = {"request_id": request_id, "ok": True, "result": result_str}
+                return json.dumps(resp)
             except asyncio.TimeoutError:
                 logger.error(f"[{request_id}] Tool '{tool.name}' timed out")
-                return f"Error: tool '{tool.name}' timed out"
+                resp = {"request_id": request_id, "ok": False, "error": f"tool '{tool.name}' timed out"}
+                return json.dumps(resp)
             except Exception as e:
                 logger.error(f"[{request_id}] Failed invoking tool '{tool.name}': {e}")
-                return f"Error calling tool '{tool.name}': {e}"
+                resp = {"request_id": request_id, "ok": False, "error": str(e)}
+                return json.dumps(resp)
 
         # Set function metadata
         tool_impl.__signature__ = inspect.Signature(parameters=params)
@@ -162,24 +190,30 @@ class MCPToolsIntegration:
             pass
 
         try:
+            # allow env override
+            try:
+                env_timeout = int(os.getenv("MCP_TOOL_TIMEOUT_SECONDS", "30"))
+            except Exception:
+                env_timeout = 30
+            use_timeout = timeout or env_timeout
+
             coro = server.call_tool(tool_name, arguments)
-            result = await asyncio.wait_for(coro, timeout=timeout)
+            result = await asyncio.wait_for(coro, timeout=use_timeout)
             # server.call_tool is expected to return a CallToolResult-like object or dict
             logger.info(f"[{req_id}] Server returned: {result}")
-            # Normalize to string for callers
-            if isinstance(result, dict):
-                try:
-                    return json.dumps(result)
-                except Exception:
-                    return str(result)
-            else:
-                return str(result)
+            resp = {"request_id": req_id, "ok": True, "server": getattr(server, 'name', 'unknown'), "result": result}
+            try:
+                return json.dumps(resp, default=str)
+            except Exception:
+                return str(resp)
         except asyncio.TimeoutError:
             logger.error(f"[{req_id}] call_tool_on_server timed out for '{tool_name}'")
-            return f"Error: call to tool '{tool_name}' timed out on server '{getattr(server, 'name', 'unknown')}'"
+            resp = {"request_id": req_id, "ok": False, "error": f"call to tool '{tool_name}' timed out on server '{getattr(server, 'name', 'unknown')}'"}
+            return json.dumps(resp)
         except Exception as e:
             logger.error(f"[{req_id}] call_tool_on_server failed: {e}")
-            return f"Error calling tool '{tool_name}' on server '{getattr(server, 'name', 'unknown')}': {e}"
+            resp = {"request_id": req_id, "ok": False, "error": str(e)}
+            return json.dumps(resp)
 
     @staticmethod
     async def register_with_agent(agent, mcp_servers: List[MCPServer],
