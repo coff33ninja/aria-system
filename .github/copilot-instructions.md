@@ -58,3 +58,14 @@ python test_mem0.py
 - Do NOT commit `.env` or secrets; add keys only as placeholders.
 
 If any section is unclear or you'd like more examples (e.g., exact shape of MCP tool JSON schemas or a step-by-step debug scenario for MCP connectivity), tell me which area and I will expand or add code-snippets.
+
+### Env file handling
+- A sample env has been added as ` .env.sample`. Copy it to `.env` and fill secrets locally. Do not commit `.env`.
+- If you accidentally committed secrets, run locally:
+
+```ps1
+git rm --cached .env
+git commit -m "Remove tracked .env"
+```
+
+This repo now ignores `.env` via `.gitignore`.
