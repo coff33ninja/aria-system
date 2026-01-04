@@ -17,6 +17,7 @@ This repo implements a Python-based voice/chat assistant built on LiveKit agents
   - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
   - `MEM0_API_KEY`
   - `OPENAI_API_KEY` (used by livekit plugins)
+  - `GEMINI_API_KEYS` — optional. Comma-separated Gemini/Google API keys. If present `agent.py` will pick one at random and export it as `OPENAI_API_KEY` for downstream plugins.
   - `GMAIL_USER`, `GMAIL_APP_PASSWORD` (for `send_email`)
   - `N8N_MCP_SERVER_URL` (URL for the MCP SSE server)
 

@@ -536,6 +536,15 @@
         "documentation": {}
     },
     {
+        "label": "random",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "random",
+        "description": "random",
+        "detail": "random",
+        "documentation": {}
+    },
+    {
         "label": "requests",
         "kind": 6,
         "isExtraImport": true,
@@ -673,6 +682,15 @@
         "importPath": "agent",
         "description": "agent",
         "peekOfCode": "class Assistant(Agent):\n    def __init__(self, chat_ctx=None) -> None:\n        super().__init__(\n            instructions=AGENT_INSTRUCTION,\n            llm=openai.realtime.RealtimeModel(\n                 voice=\"sage\"\n            ),\n            tools=[\n                get_weather,\n                search_web,",
+        "detail": "agent",
+        "documentation": {}
+    },
+    {
+        "label": "_gemini_keys",
+        "kind": 5,
+        "importPath": "agent",
+        "description": "agent",
+        "peekOfCode": "_gemini_keys = os.getenv(\"GEMINI_API_KEYS\")\nif _gemini_keys:\n    _choices = [k.strip() for k in _gemini_keys.split(\",\") if k.strip()]\n    if _choices:\n        selected_key = random.choice(_choices)\n        os.environ[\"OPENAI_API_KEY\"] = selected_key\n        logging.getLogger(__name__).info(\"Selected a Gemini API key from GEMINI_API_KEYS (value hidden)\")\nclass Assistant(Agent):\n    def __init__(self, chat_ctx=None) -> None:\n        super().__init__(",
         "detail": "agent",
         "documentation": {}
     },

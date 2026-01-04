@@ -15,7 +15,19 @@ from mcp_client.agent_tools import MCPToolsIntegration
 import os
 import json
 import logging
+import random
 load_dotenv()
+
+# Support multiple Gemini API keys (comma-separated) via `GEMINI_API_KEYS`.
+# If provided, pick one at random and export it as `OPENAI_API_KEY` so
+# downstream plugins that read OPENAI_API_KEY will use the selected key.
+_gemini_keys = os.getenv("GEMINI_API_KEYS")
+if _gemini_keys:
+    _choices = [k.strip() for k in _gemini_keys.split(",") if k.strip()]
+    if _choices:
+        selected_key = random.choice(_choices)
+        os.environ["OPENAI_API_KEY"] = selected_key
+        logging.getLogger(__name__).info("Selected a Gemini API key from GEMINI_API_KEYS (value hidden)")
 
 
 class Assistant(Agent):
