@@ -54,11 +54,14 @@ If not specified, defaults to OpenAI.
 1. Create the Virtual Environment first!
 2. Activate it
 3. Install all the required libraries in the requirements.txt file
-4. In the .ENV - File you should paste your API-Keys and your LiveKit Secret, LiveKit URL.
-   If you want to use the Send Email Tool also specify your Gmail Account and App Password.
-   Optionally set `LLM_PROVIDER` to `google` or `openai` (default).
-5. Make sure that your LiveKit Account is set-up correctly. 
-6. (Optional) Configure MCP Server URL if you want external tools via n8n.
+4. Copy `.env.sample` to `.env` and configure:
+   - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` — Required for LiveKit
+   - `LLM_PROVIDER` — Set to `openai` (default) or `google`
+   - `OPENAI_API_KEY` — Required when using OpenAI provider
+   - `GEMINI_API_KEYS` — Comma-separated keys with rotation (for Google provider)
+   - `GMAIL_USER`, `GMAIL_APP_PASSWORD` — Optional, for send_email tool
+   - `N8N_MCP_SERVER_URL` — Optional, for external MCP tools via n8n
+5. Make sure that your LiveKit Account is set-up correctly.
 
 ---
 

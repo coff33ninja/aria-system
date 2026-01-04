@@ -158,15 +158,21 @@ class LocalMemory:
         return next((e for e in self._cache["entities"] if e["name"] == name), None)
 
 
-# Pick a persistent Gemini API key (round-robin) and export it as OPENAI_API_KEY
-try:
-    from key_manager import pick_and_set_key
-    chosen = pick_and_set_key()
-    if chosen:
-        logging.getLogger(__name__).info("Selected Gemini API key from GEMINI_API_KEYS using persistent rotation (value hidden)")
-except Exception:
-    # If key_manager fails for any reason, continue without failing startup
-    logging.getLogger(__name__).debug("Key manager failed to pick a Gemini key; continuing without setting OPENAI_API_KEY")
+def _setup_api_key():
+    """
+    Pick a persistent Gemini API key (round-robin) — only when using Google provider.
+    Called at job start to ensure the subprocess has the key set.
+    """
+    if LLM_PROVIDER == "google":
+        try:
+            from key_manager import pick_and_set_key
+            chosen = pick_and_set_key()
+            if chosen:
+                logging.getLogger(__name__).info(f"Selected Gemini API key: {chosen[:15]}...")
+                return chosen
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Key manager failed: {e}")
+    return None
 
 
 class Aria(Agent):
@@ -210,6 +216,9 @@ async def entrypoint(ctx: agents.JobContext):
     She'll remember everything about you, for better or worse.
     All memories are stored locally — no cloud dependencies.
     """
+    
+    # Setup API key in the job subprocess (critical for Google provider)
+    _setup_api_key()
     
     # Initialize local memory system
     memory = LocalMemory()

@@ -90,7 +90,10 @@ def pick_next_key(env_name: str = "GEMINI_API_KEYS", state_file: str = STATE_FIL
 
 
 def pick_and_set_key(env_name: str = "GEMINI_API_KEYS") -> Optional[str]:
+    """Pick the next API key and set it for both OpenAI and Google plugins."""
     key = pick_next_key(env_name=env_name)
     if key:
-        os.environ["OPENAI_API_KEY"] = key
+        # Set for both plugins — Google plugin uses GOOGLE_API_KEY
+        os.environ["GOOGLE_API_KEY"] = key
+        os.environ["OPENAI_API_KEY"] = key  # Keep for compatibility
     return key
