@@ -51,15 +51,27 @@ If not specified, defaults to OpenAI.
 
 ## 🚀 Setup
 
-1. Create the Virtual Envrionment first!
+1. Create the Virtual Environment first!
 2. Activate it
 3. Install all the required libraries in the requirements.txt file
 4. In the .ENV - File you should paste your API-Keys and your LiveKit Secret, LiveKit URL.
    If you want to use the Send Email Tool also specify your Gmail Account and App Password.
    Optionally set `LLM_PROVIDER` to `google` or `openai` (default).
 5. Make sure that your LiveKit Account is set-up correctly. 
-6. Make sure that your Mem0 Account is set-up correctly.
-7. Make sure to have a MCP Server correctly set-up.
+6. (Optional) Configure MCP Server URL if you want external tools via n8n.
+
+---
+
+## 💾 Memory System
+
+Aria now uses a **local JSON-based memory system** — no external API dependencies required!
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Path to the memory storage file |
+| `ARIA_USER_NAME` | `Master` | Name Aria uses to identify you |
+
+Memories are automatically saved when conversations end and loaded when Aria starts up.
 
 
 ## Licenses

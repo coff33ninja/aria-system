@@ -4,6 +4,97 @@
 
 A hierarchical AI assistant system where **Aria**, the Head Maid, manages a staff of specialized sub-agents (maids), each with distinct personalities and domains of expertise.
 
+### Design Principles
+
+- **Modular Architecture** — Each component is self-contained and replaceable
+- **Local-First** — All data stays local; no external API dependencies for core functionality
+- **MCP-Native** — Leverage Model Context Protocol for tool integration and memory
+- **Personality-Driven** — Each maid has distinct traits that enhance user experience
+
+---
+
+## Phase 0: Local Memory System (Foundation)
+
+**Goal:** Replace cloud-based Mem0 with local MCP memory for full modularity.
+
+### Memory Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│                  Aria (Head Maid)               │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  ┌─────────────┐    ┌─────────────────────┐    │
+│  │ MCP Memory  │◄──►│ Knowledge Graph     │    │
+│  │ Server      │    │ (entities/relations)│    │
+│  └─────────────┘    └─────────────────────┘    │
+│         │                                       │
+│         ▼                                       │
+│  ┌─────────────────────────────────────────┐   │
+│  │ data/aria-memory.json                   │   │
+│  │ - User preferences                      │   │
+│  │ - Conversation history                  │   │
+│  │ - Task patterns                         │   │
+│  │ - Learned behaviors                     │   │
+│  └─────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+```
+
+### MCP Memory Server Setup
+
+```json
+{
+  "aria-memory": {
+    "command": "uvx",
+    "args": ["--refresh", "--quiet", "mcp-memory-py"],
+    "env": {
+      "MEMORY_FILE_PATH": "./data/aria-memory.json",
+      "DEBUG_LOGGING": "false"
+    },
+    "autoApprove": [
+      "read_graph",
+      "create_entities", 
+      "add_observations",
+      "search_nodes",
+      "open_nodes"
+    ]
+  }
+}
+```
+
+### Memory Operations
+
+| Operation | Description | Use Case |
+|-----------|-------------|----------|
+| `create_entities` | Create user/topic nodes | New user, new project |
+| `add_observations` | Attach facts to entities | User preferences, habits |
+| `create_relations` | Link entities | User → Project, User → Preference |
+| `search_nodes` | Query by text | Find relevant context |
+| `read_graph` | Get full memory | Session startup |
+| `open_nodes` | Get specific nodes | Targeted recall |
+
+### Entity Types for Aria
+
+```python
+ENTITY_TYPES = {
+    "user": "Person Aria serves",
+    "preference": "User likes/dislikes",
+    "project": "Work projects",
+    "task": "Recurring tasks",
+    "event": "Important dates/events",
+    "topic": "Conversation topics",
+    "habit": "User behavioral patterns",
+}
+```
+
+### Benefits of Local Memory
+
+1. **Privacy** — All data stays on user's machine
+2. **No API costs** — No Mem0 subscription needed
+3. **Offline capable** — Works without internet
+4. **Portable** — Memory file can be backed up/moved
+5. **Modular** — Can swap memory backend easily
+
 ---
 
 ## Phase 1: Aria's Enhanced Skills
@@ -558,10 +649,7 @@ LIVEKIT_API_KEY=
 LIVEKIT_API_SECRET=
 LLM_PROVIDER=openai
 
-# Memory
-MEM0_API_KEY=
-
-# MCP
+# MCP Servers
 N8N_MCP_SERVER_URL=
 
 # Email (Clara)
@@ -583,6 +671,32 @@ SPOTIFY_CLIENT_SECRET=
 
 # Research (Sophia)
 OPENAI_API_KEY=
+```
+
+### Removed Dependencies (Modular Design)
+
+| Removed | Replaced With | Reason |
+|---------|---------------|--------|
+| `mem0ai` | `mcp-memory-py` | Local-first, no API costs |
+| `MEM0_API_KEY` | Local JSON file | Privacy, offline capable |
+
+---
+
+## Data Directory Structure
+
+```
+data/
+├── aria-memory.json      # Knowledge graph (mcp-memory-py)
+├── aria.db               # Optional SQLite for structured data
+├── notes/                # Markdown notes storage
+└── logs/                 # Session logs
+```
+
+Add to `.gitignore`:
+```
+data/
+*.db
+aria-memory.json
 ```
 
 ---
