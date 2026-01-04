@@ -404,8 +404,7 @@ async def entrypoint(ctx: agents.JobContext):
                 logging.info("No new memories to archive.")
         except Exception as e:
             logging.error(f"Failed to archive memories: {e}. How vexing.")
-        finally:
-            await mcp_mem.cleanup()
+        # Note: MCP server cleanup is handled by process exit to avoid async context issues
 
     async def shutdown_hook_local(chat_ctx: ChatContext, local_mem: LocalMemory):
         """Archive conversation to local memory when session ends."""
