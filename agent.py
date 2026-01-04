@@ -118,26 +118,31 @@ async def entrypoint(ctx: agents.JobContext):
         # Aria never forgets. Every conversation is meticulously filed away.
         logging.info("Aria is archiving this conversation... she remembers everything.")
 
-        messages_formatted = [
-        ]
+        try:
+            messages_formatted = []
 
-        logging.info(f"Chat context messages: {chat_ctx.items}")
+            logging.info(f"Chat context messages: {chat_ctx.items}")
 
-        for item in chat_ctx.items:
-            content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
+            for item in chat_ctx.items:
+                content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
 
-            if memory_str and memory_str in content_str:
-                continue
+                if memory_str and memory_str in content_str:
+                    continue
 
-            if item.role in ['user', 'assistant']:
-                messages_formatted.append({
-                    "role": item.role,
-                    "content": content_str.strip()
-                })
+                if item.role in ['user', 'assistant']:
+                    messages_formatted.append({
+                        "role": item.role,
+                        "content": content_str.strip()
+                    })
 
-        logging.info(f"Memories to archive: {messages_formatted}")
-        await mem0.add(messages_formatted, user_id="David")
-        logging.info("Conversation archived. Aria's memory is impeccable, as always.")
+            if messages_formatted:
+                logging.info(f"Memories to archive: {messages_formatted}")
+                await mem0.add(messages_formatted, user_id="David")
+                logging.info("Conversation archived. Aria's memory is impeccable, as always.")
+            else:
+                logging.info("No new memories to archive.")
+        except Exception as e:
+            logging.error(f"Failed to archive memories: {e}. How vexing.")
 
 
     session = AgentSession(
@@ -150,24 +155,28 @@ async def entrypoint(ctx: agents.JobContext):
     mem0 = AsyncMemoryClient()
     user_name = 'David'
 
-    results = await mem0.get_all(user_id=user_name)
     initial_ctx = ChatContext()
     memory_str = ''
 
-    if results:
-        memories = [
-            {
-                "memory": result["memory"],
-                "updated_at": result["updated_at"]
-            }
-            for result in results
-        ]
-        memory_str = json.dumps(memories)
-        logging.info(f"Aria recalls: {memory_str}")
-        initial_ctx.add_message(
-            role="assistant",
-            content=f"Ah yes, I remember everything about {user_name}. Here's what I know: {memory_str}. How delightful~"
-        )
+    try:
+        results = await mem0.get_all(user_id=user_name)
+        if results:
+            memories = [
+                {
+                    "memory": result["memory"],
+                    "updated_at": result["updated_at"]
+                }
+                for result in results
+            ]
+            memory_str = json.dumps(memories)
+            logging.info(f"Aria recalls: {memory_str}")
+            initial_ctx.add_message(
+                role="assistant",
+                content=f"Ah yes, I remember everything about {user_name}. Here's what I know: {memory_str}. How delightful~"
+            )
+    except Exception as e:
+        logging.warning(f"Aria's memory is temporarily unavailable: {e}. Starting fresh~")
+        # Continue without memories — Aria can still function
 
     # Summoning the MCP server — even Aria needs her tools
     mcp_server = MCPServerSse(

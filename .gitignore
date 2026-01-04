@@ -10,3 +10,6 @@ __pycache__/
 # VS Code
 .vscode/
 .kiro/
+__pycache__/
+
+mcp_client/__pycache__/
