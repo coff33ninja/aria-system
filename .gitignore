@@ -13,3 +13,4 @@ __pycache__/
 __pycache__/
 
 mcp_client/__pycache__/
+.gemini_key_idx
