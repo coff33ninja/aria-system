@@ -16,7 +16,24 @@ This is a Python-based AI assistant featuring Aria, the elegant Head Maid with d
 - ⏰ Reminders
 - 🕐 Time & Date
 - 😄 Jokes & Motivation (Aria-style)
+- 👩‍🍳 Maid Staff System (specialized sub-agents for delegation)
 
+
+---
+
+## 👩‍🍳 Maid Staff System
+
+Aria now commands a staff of specialized sub-agents, each with their own voice and domain expertise:
+
+| Maid | Specialty Domains |
+|------|-------------------|
+| **Sophia** | Research, knowledge, explanations, summaries, facts, learning |
+| **Rose** | Calendar, scheduling, appointments, meetings, organization |
+| **Mei** | Smart home, lights, thermostat, IoT devices |
+| **Luna** | Movies, music, entertainment, games, recommendations |
+| **Clara** | Email, messages, drafts, replies, communication |
+
+Aria automatically delegates tasks to the appropriate maid based on keywords in your request.
 
 ---
 

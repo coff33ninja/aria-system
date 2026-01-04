@@ -23,7 +23,11 @@ from tools import (
     set_reminder,
     tell_joke,
     motivate,
-    ReminderScheduler
+    ReminderScheduler,
+    # Phase 2: Maid delegation
+    delegate_to_maid,
+    list_staff,
+    suggest_maid,
 )
 from mcp_client import MCPServerSse, MCPServerStdio
 from mcp_client.agent_tools import MCPToolsIntegration
@@ -354,7 +358,11 @@ class Aria(Agent):
                 set_reminder,
                 # Personality
                 tell_joke,
-                motivate
+                motivate,
+                # Phase 2: Maid staff delegation
+                delegate_to_maid,
+                list_staff,
+                suggest_maid,
             ],
             chat_ctx=chat_ctx
         )

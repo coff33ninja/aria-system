@@ -617,3 +617,128 @@ async def motivate(
     
     motivation = random.choice(motivations)
     return f"*adjusts glasses*\n\n{motivation}\n\nNow then, shall we get to work?"
+
+
+# ============================================================================
+# Phase 2: Maid Staff Delegation
+# ============================================================================
+
+# Aria's delegation phrases — she has opinions about her staff
+DELEGATION_PHRASES = {
+    "sophia": [
+        "I'll have Sophia look into that. She does love her research~",
+        "Sophia! Our Master requires your expertise.",
+        "Let me summon our resident bookworm for this one.",
+    ],
+    "luna": [
+        "Luna~ Our Master needs entertainment recommendations.",
+        "I suppose Luna can handle the fun stuff.",
+        "Luna will be thrilled. She lives for this.",
+    ],
+    "rose": [
+        "Rose, we have scheduling to attend to.",
+        "I'll have Rose organize this. She's insufferably good at it.",
+        "Rose will ensure everything is in perfect order.",
+    ],
+    "mei": [
+        "Mei, the smart home needs your attention.",
+        "I'll have Mei handle the technical matters.",
+        "Mei works silently but effectively. Leave it to her.",
+    ],
+    "clara": [
+        "Clara~ We need your diplomatic touch.",
+        "Clara will craft something appropriately charming.",
+        "I'll have Clara handle the correspondence.",
+    ],
+}
+
+
+@function_tool()
+async def delegate_to_maid(
+    context: RunContext,  # type: ignore
+    maid_name: str,
+    task: str
+) -> str:
+    """
+    Delegate a task to one of Aria's specialist maids.
+    Each maid has their own expertise and personality.
+    
+    Available maids:
+    - sophia: Research & Knowledge (bookish, thorough)
+    - luna: Entertainment & Media (playful, dramatic)
+    - rose: Scheduling & Organization (strict, efficient)
+    - mei: Smart Home & IoT (quiet, precise)
+    - clara: Communication & Social (bubbly, diplomatic)
+    
+    Args:
+        maid_name: Name of the maid to delegate to
+        task: Description of the task to delegate
+    """
+    from maids import get_maid, MAID_REGISTRY
+    
+    maid_name_lower = maid_name.lower()
+    maid_class = get_maid(maid_name_lower)
+    
+    if not maid_class:
+        available = ", ".join(MAID_REGISTRY.keys())
+        return f"Ara ara~ There's no maid named '{maid_name}' on my staff. Available: {available}"
+    
+    # Get Aria's delegation phrase
+    phrases = DELEGATION_PHRASES.get(maid_name_lower, [f"I'll have {maid_name} handle this."])
+    intro = random.choice(phrases)
+    
+    # Create maid instance and handle task
+    try:
+        maid = maid_class()
+        result = await maid.handle_task(task)
+        
+        logging.info(f"Aria delegated to {maid.name}: {task}")
+        return f"{intro}\n\n**{maid.name}** ({maid.specialty}):\n{result}"
+        
+    except Exception as e:
+        logging.error(f"Error delegating to {maid_name}: {e}")
+        return f"Hmph, {maid_name.title()} seems to be having difficulties. How troublesome: {e}"
+
+
+@function_tool()
+async def list_staff(
+    context: RunContext,  # type: ignore
+) -> str:
+    """
+    List all available maids on Aria's staff.
+    Each has their own specialty and personality.
+    """
+    from maids import MAID_REGISTRY
+    
+    lines = ["*adjusts glasses*\n\nMy staff, at your service:\n"]
+    
+    for name, maid_class in MAID_REGISTRY.items():
+        lines.append(f"  • **{name.title()}** — {maid_class.specialty}")
+        lines.append(f"    _{maid_class.personality}_\n")
+    
+    lines.append("Use `delegate_to_maid` to assign tasks to any of them. I'll supervise, of course~")
+    
+    return "\n".join(lines)
+
+
+@function_tool()
+async def suggest_maid(
+    context: RunContext,  # type: ignore
+    task_description: str
+) -> str:
+    """
+    Suggest which maid would be best suited for a task.
+    Aria knows her staff's strengths.
+    
+    Args:
+        task_description: Description of what needs to be done
+    """
+    from maids import get_maid_for_task, MAID_REGISTRY
+    
+    suggested = get_maid_for_task(task_description)
+    
+    if suggested:
+        maid_class = MAID_REGISTRY.get(suggested)
+        return f"For '{task_description}', I'd recommend **{suggested.title()}** — {maid_class.specialty}. {maid_class.personality}. Shall I delegate?"
+    else:
+        return f"Hmm, '{task_description}' doesn't clearly match any specialist. I can handle it myself, or you can specify a maid: sophia, luna, rose, mei, or clara."
