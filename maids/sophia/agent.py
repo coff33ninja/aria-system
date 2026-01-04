@@ -1,6 +1,15 @@
 """Sophia — The Research & Knowledge Maid"""
 from maids.base import BaseMaid
-from .tools import deep_research, summarize_document, fact_check, explain_concept, lookup_definition
+from .tools import (
+    wikipedia_lookup,
+    deep_research,
+    summarize_text,
+    fact_check,
+    explain_concept,
+    lookup_definition,
+    search_web,
+    compare_topics,
+)
 from .prompts import SOPHIA_INSTRUCTION
 
 
@@ -23,11 +32,14 @@ class Sophia(BaseMaid):
     
     def get_tools(self):
         return [
+            wikipedia_lookup,
             deep_research,
-            summarize_document,
+            summarize_text,
             fact_check,
             explain_concept,
             lookup_definition,
+            search_web,
+            compare_topics,
         ]
     
     def get_instructions(self) -> str:
