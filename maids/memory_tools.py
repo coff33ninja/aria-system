@@ -1,6 +1,7 @@
 """
 Shared memory tools for all maids.
 Each maid can remember, recall, and learn within their own domain.
+Also includes the dismiss tool so maids can return control to Aria.
 """
 from livekit.agents import function_tool, RunContext
 from typing import Optional
@@ -91,4 +92,19 @@ def create_memory_tools(maid_instance):
             lines.append(f"  • {k['topic']}: {k['knowledge'][:80]}...")
         return "\n".join(lines)
     
-    return [remember_this, recall_memories, learn_topic, get_knowledge]
+    @function_tool()
+    async def dismiss_me(
+        context: RunContext,
+    ) -> str:
+        """
+        Return control to Aria, the Head Maid.
+        Use when the user says goodbye, dismiss, back to Aria, or is done talking to you.
+        """
+        from maids.session_manager import get_session_manager
+        
+        logger.info(f"{maid_instance.name} dismissing self, returning to Aria")
+        manager = get_session_manager()
+        result = await manager.end_maid_conversation()
+        return result
+    
+    return [remember_this, recall_memories, learn_topic, get_knowledge, dismiss_me]

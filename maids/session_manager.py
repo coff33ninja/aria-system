@@ -176,9 +176,11 @@ class MaidSessionManager:
             # This ensures the maid speaks in her own voice
             intro_text = maid_agent.introduce()
             try:
-                await self._session.generate_reply(
+                handle = self._session.generate_reply(
                     instructions=f"You are {maid_agent.name}. You just stepped forward to help. Introduce yourself naturally: {intro_text}. Then ask how you can help."
                 )
+                # Wait for speech to complete before returning
+                await handle
                 logger.info(f"🎭 {maid_agent.name} introduced herself")
             except Exception as e:
                 logger.warning(f"generate_reply failed, maid may not have introduced herself: {e}")
@@ -224,32 +226,37 @@ class MaidSessionManager:
             
             logger.info(f"🎭 Dismissing {maid_name.title()}, returning to Aria...")
             
-            # Have the maid give a brief report before leaving (while still in their voice)
-            try:
-                logger.info(f"🎭 {maid_name.title()} giving farewell report...")
-                await self._session.generate_reply(
-                    instructions="You are being dismissed. Give a brief, in-character farewell and summary of what you helped with. Then say you're returning the user to Aria. Keep it short."
-                )
-                logger.info(f"🎭 {maid_name.title()} gave report")
-                await asyncio.sleep(0.3)  # Let the maid finish speaking
-            except Exception as e:
-                logger.warning(f"Maid report failed: {e}")
-            
-            # If force_reconnect, interrupt current activity first
-            if force_reconnect:
+            # Have the maid give a brief farewell (with retry)
+            for attempt in range(2):
                 try:
-                    logger.info("Force reconnect: interrupting current activity...")
-                    await self._session.interrupt()
-                    await asyncio.sleep(0.5)  # Give time for Gemini to fully disconnect
+                    if attempt > 0:
+                        await asyncio.sleep(0.5)
+                    logger.info(f"🎭 {maid_name.title()} giving farewell (attempt {attempt + 1})...")
+                    handle = self._session.generate_reply(
+                        instructions="You are being dismissed. Give a very brief farewell - just one short sentence. Be polite."
+                    )
+                    await handle
+                    logger.info(f"🎭 {maid_name.title()} said goodbye")
+                    break
                 except Exception as e:
-                    logger.warning(f"Interrupt failed (may be ok): {e}")
+                    logger.warning(f"Farewell attempt {attempt + 1} failed: {e}")
+            
+            # Interrupt current activity before switching
+            try:
+                logger.info("Interrupting current activity for agent swap...")
+                await self._session.interrupt()
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                logger.warning(f"Interrupt failed (may be ok): {e}")
             
             # Swap back to Aria
             if self._aria_agent:
                 logger.info("🎭 Swapping back to Aria agent...")
                 self._session.update_agent(self._aria_agent)
-                # Allow time for realtime session to reinitialize
-                await asyncio.sleep(1.0 if force_reconnect else 0.5)
+                
+                # Wait for realtime session to fully reinitialize
+                # This is critical - the session needs time to establish
+                await asyncio.sleep(2.0)
                 logger.info("🎭 Aria agent swap complete")
             else:
                 logger.error("🎭 Aria agent is None! Cannot swap back.")
@@ -257,20 +264,24 @@ class MaidSessionManager:
                 return "Error: Aria agent not available. Session may need restart."
             
             self._active_maid = None
-            
             logger.info("🎭 Aria has returned")
             
-            # Have Aria speak her return line
-            try:
-                logger.info("🎭 Generating Aria's return greeting...")
-                await self._session.generate_reply(
-                    instructions=f"You are Aria, the Head Maid. {maid_name.title()} just finished helping and stepped back. Welcome the user back with your signature elegance and sass. Ask if there's anything else they need."
-                )
-                logger.info("🎭 Aria welcomed user back")
-            except Exception as e:
-                logger.error(f"generate_reply failed for Aria return: {e}")
-                import traceback
-                traceback.print_exc()
+            # Have Aria speak her return line with retry
+            for attempt in range(3):
+                try:
+                    if attempt > 0:
+                        await asyncio.sleep(1.0)  # Wait before retry
+                    logger.info(f"🎭 Generating Aria's return greeting (attempt {attempt + 1})...")
+                    handle = self._session.generate_reply(
+                        instructions=f"You are Aria, the Head Maid. {maid_name.title()} just finished helping and stepped back. Welcome the user back briefly. Keep it short - one sentence."
+                    )
+                    await handle
+                    logger.info("🎭 Aria welcomed user back")
+                    break
+                except Exception as e:
+                    logger.warning(f"generate_reply attempt {attempt + 1} failed: {e}")
+                    if attempt == 2:
+                        logger.error("All attempts to generate Aria's greeting failed")
             
             return "*Aria is now active*"
             

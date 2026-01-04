@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 
 from livekit import agents
-from livekit.agents import AgentSession, Agent, RoomOptions, ChatContext
+from livekit.agents import AgentSession, Agent, RoomInputOptions, ChatContext
 from livekit.plugins import (
     noise_cancellation,
     openai
@@ -382,14 +382,14 @@ async def entrypoint(ctx: agents.JobContext):
     She'll remember everything about you, for better or worse.
     All memories are stored locally — no cloud dependencies.
     """
-    
+
     # Setup API key in the job subprocess (critical for Google provider)
     _setup_api_key()
-    
+
     # Initialize memory system (MCP or local fallback)
     memory = None
     mcp_memory = None
-    
+
     if USE_MCP_MEMORY:
         try:
             mcp_memory = await MCPMemory.create(MEMORY_FILE)
@@ -399,7 +399,7 @@ async def entrypoint(ctx: agents.JobContext):
             memory = LocalMemory()
     else:
         memory = LocalMemory()
-    
+
     user_name = USER_NAME
 
     async def shutdown_hook_mcp(chat_ctx: ChatContext, mcp_mem: MCPMemory):
@@ -412,7 +412,7 @@ async def entrypoint(ctx: agents.JobContext):
                 content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
                 if item.role in ['user', 'assistant'] and content_str.strip():
                     messages.append(f"{item.role}: {content_str.strip()[:100]}")
-            
+
             if messages:
                 summary = " | ".join(messages[-5:])
                 await mcp_mem.add_conversation_summary(user_name, summary)
@@ -433,7 +433,7 @@ async def entrypoint(ctx: agents.JobContext):
                 content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
                 if item.role in ['user', 'assistant'] and content_str.strip():
                     messages.append(f"{item.role}: {content_str.strip()[:100]}")
-            
+
             if messages:
                 summary = " | ".join(messages[-5:])
                 local_mem.add_conversation_summary(user_name, summary)
@@ -447,13 +447,13 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Load existing memories for context
     initial_ctx = ChatContext()
-    
+
     try:
         if mcp_memory:
             memories = await mcp_memory.get_all_for_user(user_name)
         else:
             memories = memory.get_all_for_user(user_name)
-            
+
         if memories:
             memory_str = json.dumps(memories[-10:], indent=2)
             logging.info(f"Aria recalls {len(memories)} memories about {user_name}")
@@ -468,7 +468,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     # Setup MCP servers for additional tools
     mcp_servers = []
-    
+
     # N8N MCP Server (if configured)
     n8n_url = os.environ.get("N8N_MCP_SERVER_URL")
     if n8n_url:
@@ -488,7 +488,7 @@ async def entrypoint(ctx: agents.JobContext):
     await session.start(
         room=ctx.room,
         agent=agent,
-        room_options=RoomOptions(
+        room_input_options=RoomInputOptions(
             # Aria demands only the finest audio quality
             video_enabled=True,
             audio_enabled=True,
@@ -510,7 +510,7 @@ async def entrypoint(ctx: agents.JobContext):
         await session.generate_reply(
             instructions=f"A reminder just triggered. Tell the user: {message}. Be helpful but add your signature sass."
         )
-    
+
     ReminderScheduler.set_callback(on_reminder)
 
     # Aria greets her Master with her signature elegance
