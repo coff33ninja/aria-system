@@ -1,8 +1,8 @@
 """
 Aria's Maid Staff — Specialized sub-agents for the Head Maid.
-Each maid has their own voice, temperature, and domain expertise.
+Each maid has their own voice, temperature, domain expertise, and personal memory.
 """
-from .base import BaseMaid
+from .base import BaseMaid, MaidMemory
 from typing import Dict, Type, Optional
 
 # Registry populated after maid imports to avoid circular deps
@@ -102,6 +102,7 @@ register_maid("clara", Clara)
 
 __all__ = [
     "BaseMaid",
+    "MaidMemory",
     "Sophia",
     "Luna",
     "Rose",

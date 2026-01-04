@@ -35,6 +35,16 @@ Aria now commands a staff of specialized sub-agents, each with their own voice a
 
 Aria automatically delegates tasks to the appropriate maid based on keywords in your request.
 
+### Per-Maid Memory
+
+Each maid has their own personal memory system, stored as separate JSON files in the data directory (e.g., `sophia-memory.json`, `luna-memory.json`). Maids can:
+
+- **Remember** observations and user preferences within their domain
+- **Learn** domain-specific knowledge that persists across sessions
+- **Recall** past interactions filtered by query or category
+
+Configure the data directory via `ARIA_DATA_DIR` (defaults to `./data`).
+
 ---
 
 ## 📽️ Tutorial Video
