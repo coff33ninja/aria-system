@@ -3,9 +3,10 @@ Maid Session Manager — Handles voice handoff between Aria and her maids.
 Uses each maid's own Agent class (from maids/<name>/agent.py) for proper voice switching.
 """
 from livekit.agents import AgentSession, Agent
-from typing import Optional, Dict
+from typing import Optional, Dict, Callable, TypeVar, Awaitable
 import logging
 import os
+import asyncio
 
 logger = logging.getLogger("maids.session")
 
@@ -14,6 +15,65 @@ logger = logging.getLogger("maids.session")
 # Set to True if voice doesn't change with normal update_agent()
 FORCE_VOICE_RECONNECT = os.environ.get("ARIA_FORCE_VOICE_RECONNECT", "true").lower() == "true"
 
+# Connection error types that indicate we should wait and retry
+CONNECTION_ERRORS = (
+    "ConnectionClosedError",
+    "internal error",
+    "1011",
+    "websocket",
+    "connection closed",
+    "rt_session is not available",
+    "speech scheduling is draining",
+)
+
+T = TypeVar('T')
+
+
+async def retry_on_disconnect(
+    operation: Callable[[], Awaitable[T]],
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    operation_name: str = "operation"
+) -> Optional[T]:
+    """
+    Retry an async operation if it fails due to connection issues.
+    Uses exponential backoff to wait for reconnection.
+    
+    Args:
+        operation: Async callable to execute
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay between retries (doubles each attempt)
+        operation_name: Name for logging
+        
+    Returns:
+        Result of operation, or None if all retries failed
+    """
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            return await operation()
+        except Exception as e:
+            error_str = str(e).lower()
+            is_connection_error = any(err.lower() in error_str for err in CONNECTION_ERRORS)
+            
+            if is_connection_error and attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)  # Exponential backoff
+                logger.warning(
+                    f"{operation_name} failed (attempt {attempt + 1}/{max_retries}): {e}. "
+                    f"Waiting {delay}s for reconnect..."
+                )
+                await asyncio.sleep(delay)
+                last_error = e
+            else:
+                # Not a connection error or last attempt
+                logger.error(f"{operation_name} failed: {e}")
+                last_error = e
+                break
+    
+    if last_error:
+        logger.error(f"All {max_retries} attempts for {operation_name} failed. Last error: {last_error}")
+    return None
 
 def _ensure_api_key() -> bool:
     """Ensure the Google API key is set via key rotation."""
@@ -175,15 +235,24 @@ class MaidSessionManager:
             # Have the new agent introduce herself using generate_reply
             # This ensures the maid speaks in her own voice
             intro_text = maid_agent.introduce()
-            try:
+            
+            async def do_intro():
                 handle = self._session.generate_reply(
                     instructions=f"You are {maid_agent.name}. You just stepped forward to help. Introduce yourself naturally: {intro_text}. Then ask how you can help."
                 )
-                # Wait for speech to complete before returning
                 await handle
+                return True
+            
+            result = await retry_on_disconnect(
+                do_intro,
+                max_retries=3,
+                base_delay=1.5,
+                operation_name=f"{maid_agent.name} introduction"
+            )
+            if result:
                 logger.info(f"🎭 {maid_agent.name} introduced herself")
-            except Exception as e:
-                logger.warning(f"generate_reply failed, maid may not have introduced herself: {e}")
+            else:
+                logger.warning(f"🎭 {maid_agent.name} could not introduce herself, but swap succeeded")
             
             # Return confirmation (the maid already spoke via generate_reply)
             return f"*{maid_agent.name} is now active*"
@@ -226,20 +295,24 @@ class MaidSessionManager:
             
             logger.info(f"🎭 Dismissing {maid_name.title()}, returning to Aria...")
             
-            # Have the maid give a brief farewell (with retry)
-            for attempt in range(2):
-                try:
-                    if attempt > 0:
-                        await asyncio.sleep(0.5)
-                    logger.info(f"🎭 {maid_name.title()} giving farewell (attempt {attempt + 1})...")
-                    handle = self._session.generate_reply(
-                        instructions="You are being dismissed. Give a very brief farewell - just one short sentence. Be polite."
-                    )
-                    await handle
-                    logger.info(f"🎭 {maid_name.title()} said goodbye")
-                    break
-                except Exception as e:
-                    logger.warning(f"Farewell attempt {attempt + 1} failed: {e}")
+            # Have the maid give a brief farewell (with connection-aware retry)
+            async def do_farewell():
+                handle = self._session.generate_reply(
+                    instructions="You are being dismissed. Give a very brief farewell - just one short sentence. Be polite."
+                )
+                await handle
+                return True
+            
+            result = await retry_on_disconnect(
+                do_farewell,
+                max_retries=2,
+                base_delay=1.0,
+                operation_name=f"{maid_name.title()} farewell"
+            )
+            if result:
+                logger.info(f"🎭 {maid_name.title()} said goodbye")
+            else:
+                logger.warning(f"🎭 {maid_name.title()} couldn't say goodbye, continuing with swap")
             
             # Interrupt current activity before switching
             try:
@@ -266,22 +339,24 @@ class MaidSessionManager:
             self._active_maid = None
             logger.info("🎭 Aria has returned")
             
-            # Have Aria speak her return line with retry
-            for attempt in range(3):
-                try:
-                    if attempt > 0:
-                        await asyncio.sleep(1.0)  # Wait before retry
-                    logger.info(f"🎭 Generating Aria's return greeting (attempt {attempt + 1})...")
-                    handle = self._session.generate_reply(
-                        instructions=f"You are Aria, the Head Maid. {maid_name.title()} just finished helping and stepped back. Welcome the user back briefly. Keep it short - one sentence."
-                    )
-                    await handle
-                    logger.info("🎭 Aria welcomed user back")
-                    break
-                except Exception as e:
-                    logger.warning(f"generate_reply attempt {attempt + 1} failed: {e}")
-                    if attempt == 2:
-                        logger.error("All attempts to generate Aria's greeting failed")
+            # Have Aria speak her return line (with connection-aware retry)
+            async def do_aria_greeting():
+                handle = self._session.generate_reply(
+                    instructions=f"You are Aria, the Head Maid. {maid_name.title()} just finished helping and stepped back. Welcome the user back briefly. Keep it short - one sentence."
+                )
+                await handle
+                return True
+            
+            result = await retry_on_disconnect(
+                do_aria_greeting,
+                max_retries=3,
+                base_delay=1.5,
+                operation_name="Aria's return greeting"
+            )
+            if result:
+                logger.info("🎭 Aria welcomed user back")
+            else:
+                logger.warning("🎭 Aria couldn't greet, but swap succeeded")
             
             return "*Aria is now active*"
             
