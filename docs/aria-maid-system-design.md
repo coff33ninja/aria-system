@@ -150,7 +150,7 @@ todoist-api-python      # Todoist integration (optional)
 | Maid | Domain | Personality | Voice (OpenAI) | Voice (Google) | Temperature |
 |------|--------|-------------|----------------|----------------|-------------|
 | **Sophia** | Research & Knowledge | Bookish, thorough, slightly nervous | `nova` | `Kore` | 0.7 |
-| **Luna** | Entertainment & Media | Playful, dramatic, loves gossip | `fable` | `Charon` | 0.95 |
+| **Luna** | Entertainment & Media | Playful, dramatic, loves gossip | `fable` | `Leda` | 0.95 |
 | **Rose** | Scheduling & Organization | Strict, perfectionist, efficient | `onyx` | `Fenrir` | 0.5 |
 | **Mei** | Smart Home & IoT | Quiet, precise, tech-savvy | `echo` | `Puck` | 0.6 |
 | **Clara** | Communication & Social | Bubbly, diplomatic, warm | `alloy` | `Aoede` | 0.85 |
