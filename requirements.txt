@@ -11,3 +11,6 @@ pydantic-ai-slim[openai,mcp]
 uv
 aiohttp
 ddgs
+
+# Luna Entertainment
+spotipy>=2.23.0

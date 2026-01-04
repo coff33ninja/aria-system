@@ -150,10 +150,12 @@ todoist-api-python      # Todoist integration (optional)
 | Maid | Domain | Personality | Voice (OpenAI) | Voice (Google) | Temperature |
 |------|--------|-------------|----------------|----------------|-------------|
 | **Sophia** | Research & Knowledge | Bookish, thorough, slightly nervous | `nova` | `Kore` | 0.7 |
-| **Luna** | Entertainment & Media | Playful, dramatic, loves gossip | `fable` | `Leda` | 0.95 |
-| **Rose** | Scheduling & Organization | Strict, perfectionist, efficient | `onyx` | `Fenrir` | 0.5 |
-| **Mei** | Smart Home & IoT | Quiet, precise, tech-savvy | `echo` | `Puck` | 0.6 |
+| **Luna** | Entertainment & Media | Playful, dramatic, loves gossip | `shimmer` | `Leda` | 0.95 |
+| **Rose** | Scheduling & Organization | Strict, perfectionist, efficient | `onyx` | `Sulafat` | 0.5 |
+| **Mei** | Smart Home & IoT | Quiet, precise, tech-savvy | `echo` | `Zephyr` | 0.6 |
 | **Clara** | Communication & Social | Bubbly, diplomatic, warm | `alloy` | `Aoede` | 0.85 |
+
+> **Note:** All Google voices are female (Kore, Leda, Sulafat, Zephyr, Aoede).
 
 ### Delegation Flow
 
@@ -259,7 +261,7 @@ class BaseMaid(Agent, ABC):
     
     # Voice configuration
     voice_openai: str = "alloy"
-    voice_google: str = "Puck"
+    voice_google: str = "Zephyr"
     temperature: float = 0.8
     
     def __init__(self, chat_ctx=None, provider: str = None):
@@ -625,7 +627,7 @@ DELEGATION_PHRASES = {
 | **Specialty** | Smart Home & IoT |
 | **Personality** | Quiet, precise, tech-savvy |
 | **Voice (OpenAI)** | `echo` |
-| **Voice (Google)** | `Puck` |
+| **Voice (Google)** | `Zephyr` |
 | **Temperature** | 0.6 (precise, predictable) |
 
 ### Integrations
@@ -780,7 +782,7 @@ scholarly               # Google Scholar
 | **Specialty** | Scheduling & Organization |
 | **Personality** | Strict, perfectionist, efficient |
 | **Voice (OpenAI)** | `onyx` |
-| **Voice (Google)** | `Fenrir` |
+| **Voice (Google)** | `Sulafat` |
 | **Temperature** | 0.5 (very precise, minimal variation) |
 
 ### Rose's Tools (`maids/rose/tools.py`)
@@ -867,7 +869,7 @@ icalendar               # iCal parsing
 | **Specialty** | Entertainment & Media |
 | **Personality** | Playful, dramatic, loves gossip |
 | **Voice (OpenAI)** | `fable` |
-| **Voice (Google)** | `Charon` |
+| **Voice (Google)** | `Leda` |
 | **Temperature** | 0.95 (creative, unpredictable) |
 
 ### Luna's Tools (`maids/luna/tools.py`)
@@ -1152,12 +1154,22 @@ data/
 | **Phase 0** | ✅ Done | Local MCP memory system |
 | **Phase 1** | ✅ Done | Aria's core tools (todos, notes, reminders, etc.) |
 | **Phase 2** | ✅ Done | Maid architecture + base class + registry |
-| **Phase 3** | ✅ Done | Mei (Smart Home) — stub tools |
-| **Phase 4** | ✅ Done | Sophia (Research) — full Wikipedia/web search |
-| **Phase 5** | ✅ Done | Rose (Scheduling) — stub tools |
-| **Phase 6** | ✅ Done | Luna (Entertainment) — stub tools |
-| **Phase 7** | ✅ Done | Clara (Communication) — stub tools |
+| **Phase 3** | ⚠️ Stub | Mei (Smart Home) — placeholder tools, no real integrations |
+| **Phase 4** | ✅ Done | Sophia (Research) — full Wikipedia API + DuckDuckGo web search |
+| **Phase 5** | ⚠️ Stub | Rose (Scheduling) — placeholder tools, no calendar integration |
+| **Phase 6** | 🔄 Partial | Luna (Entertainment) — Spotify playback implemented, recommendations stub |
+| **Phase 7** | ⚠️ Stub | Clara (Communication) — placeholder tools, no real text generation |
 | **Phase 8** | ✅ Done | Voice handoff via native LiveKit agent returns |
+
+### Implementation Details by Maid
+
+| Maid | Real Functionality | Stub/Placeholder |
+|------|-------------------|------------------|
+| **Sophia** | Wikipedia API, DuckDuckGo search, fact-checking | — |
+| **Luna** | Spotify playback (play/pause/skip/search) | Movie recommendations, trending |
+| **Rose** | — | All tools (calendar, tasks, agenda) |
+| **Mei** | — | All tools (lights, thermostat, locks) |
+| **Clara** | — | All tools (email drafts, messages) |
 
 ### Phase 8 Implementation Details
 
@@ -1173,6 +1185,18 @@ Key files:
 - `maids/handoff_tools.py` — Summon tools that return Agent instances
 - `maids/base.py` — BaseMaid with voice config and return_to_aria tool
 - `docs/livekit-voice-handoff-guide.md` — Full implementation reference
+
+### Phase 6 (Luna) — Entertainment System
+
+Luna's entertainment capabilities are documented in detail in **[luna-entertainment-design.md](./luna-entertainment-design.md)**.
+
+**Summary:**
+- **Tier 1 (Premium):** Spotify playback, TMDB recommendations
+- **Tier 2 (Free APIs):** Last.fm, OMDb, MusicBrainz
+- **Tier 3 (Open Sources):** Radio Browser, Jamendo, Freesound
+- **Tier 4 (Self-Hosted):** Navidrome/Subsonic, MPD
+
+The system gracefully falls back through tiers based on available API keys.
 
 ---
 

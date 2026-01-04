@@ -32,7 +32,7 @@ Aria commands a household of specialized maids, each a fully independent agent w
 |------|-----------|-------|------|-------------|
 | **Aria** | Head Maid (orchestration) | Aoede | 0.9 | Elegant, sassy, devastatingly witty |
 | **Sophia** | Research & Knowledge | Kore | 0.7 | Bookish, thorough, slightly nervous |
-| **Luna** | Entertainment & Media | Leda | 0.95 | Playful, dramatic, expressive |
+| **Luna** | Entertainment & Media | Leda | 0.95 | Playful, dramatic, expressive (Spotify + Radio) |
 | **Rose** | Scheduling & Organization | Fenrir | 0.5 | Strict, efficient, authoritative |
 | **Mei** | Smart Home & IoT | Puck | 0.6 | Quiet, precise, soft-spoken |
 | **Clara** | Communication & Social | Aoede | 0.85 | Warm, friendly, diplomatic |
@@ -119,7 +119,50 @@ Maids can `remember_this`, `recall_memories`, `learn_topic`, and `get_knowledge`
 
 ---
 
-## � API Key Rotation
+## 🎵 Luna's Entertainment System
+
+Luna provides music playback and entertainment recommendations with graceful fallback across provider tiers:
+
+### Provider Tiers
+| Tier | Provider | Features | Requirements |
+|------|----------|----------|--------------|
+| 1 | Spotify | Full playback control, search, now playing | Premium account + API keys |
+| 2 | TMDB | Movie/TV recommendations | Free API key |
+| 3 | Radio Browser | Internet radio by genre | None (always available) |
+
+### Music Tools
+- `play_music` — Search and play via Spotify (falls back to radio suggestions)
+- `pause_music` / `resume_music` — Playback control
+- `skip_track` / `previous_track` — Track navigation
+- `now_playing` — Current track info
+- `play_radio` — Internet radio by genre (no API key needed!)
+- `browse_radio` — Browse stations by country or list available countries/genres
+
+### Recommendation Tools
+- `recommend_movie` — Movie suggestions by mood/genre
+- `recommend_music` — Music for activities (focus, workout, etc.)
+- `get_trending` — What's hot in entertainment
+
+### Fun Tools
+- `trivia_question` — Entertainment trivia
+- `tell_story` — Luna's dramatic storytelling
+- `rate_media` — Luna's (strong) opinions
+
+### Spotify Setup
+1. Create app at [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+2. Add redirect URI: `http://localhost:8888/callback`
+3. Set environment variables:
+   ```env
+   SPOTIFY_CLIENT_ID=your_client_id
+   SPOTIFY_CLIENT_SECRET=your_client_secret
+   ```
+4. First use will open browser for OAuth authorization
+
+> **Note**: Playback control requires Spotify Premium. Without it, Luna will search and show results but can't control playback.
+
+---
+
+## 🔑 API Key Rotation
 
 For Google Gemini, supports multiple API keys with automatic round-robin rotation to handle rate limits:
 
@@ -179,6 +222,10 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 | `GMAIL_USER` | — | Gmail address for email tool |
 | `GMAIL_APP_PASSWORD` | — | Gmail app password |
 | `N8N_MCP_SERVER_URL` | — | External MCP tools via n8n |
+| `SPOTIFY_CLIENT_ID` | — | Spotify app client ID (Luna) |
+| `SPOTIFY_CLIENT_SECRET` | — | Spotify app secret (Luna) |
+| `SPOTIFY_REDIRECT_URI` | `http://localhost:8888/callback` | Spotify OAuth redirect |
+| `TMDB_API_KEY` | — | Movie database API (Luna) |
 
 ---
 
@@ -195,7 +242,7 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 │   ├── memory_tools.py   # Shared memory tools (remember, recall, learn)
 │   ├── handoff_tools.py  # Native LiveKit voice handoff tools
 │   ├── sophia/           # Research maid (8 tools)
-│   ├── luna/             # Entertainment maid
+│   ├── luna/             # Entertainment maid (Spotify, Radio, recommendations)
 │   ├── rose/             # Scheduling maid
 │   ├── mei/              # Smart home maid
 │   └── clara/            # Communication maid

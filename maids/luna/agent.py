@@ -2,9 +2,21 @@
 import logging
 from maids.base import BaseMaid
 from .tools import (
+    # Music playback (Spotify + Radio fallback)
+    play_music,
+    pause_music,
+    resume_music,
+    skip_track,
+    previous_track,
+    now_playing,
+    # Radio (always available, no API key!)
+    play_radio,
+    browse_radio,
+    # Recommendations
     recommend_movie,
     recommend_music,
     get_trending,
+    # Fun stuff
     trivia_question,
     tell_story,
     rate_media,
@@ -21,6 +33,11 @@ class Luna(BaseMaid):
     Playful, dramatic, and always up on the latest trends.
     She has STRONG opinions about movies and music.
     
+    Capabilities:
+    - Spotify playback control (if Premium + configured)
+    - Internet radio (always available)
+    - Movie/music recommendations (TMDB/Last.fm when configured)
+    
     Voice handoff: Returns from Aria's summon_luna tool trigger on_enter()
     """
     
@@ -35,9 +52,21 @@ class Luna(BaseMaid):
     
     def get_tools(self):
         return [
+            # Music playback
+            play_music,
+            pause_music,
+            resume_music,
+            skip_track,
+            previous_track,
+            now_playing,
+            # Radio (always available!)
+            play_radio,
+            browse_radio,
+            # Recommendations
             recommend_movie,
             recommend_music,
             get_trending,
+            # Fun
             trivia_question,
             tell_story,
             rate_media,

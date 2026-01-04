@@ -19,3 +19,4 @@ mcp_client/__pycache__/
 data/
 *.db
 aria-memory.json
+.git-deploy.md
