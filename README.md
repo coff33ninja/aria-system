@@ -1,6 +1,6 @@
-# 🧠 Friday - Your Personal AI Assistant - Part 2
+# 🧠 Aria - Your Personal AI Assistant - Part 2
 
-This is a Python-based AI assistant inspired by *Jarvis*, capable of:
+This is a Python-based AI assistant featuring Aria, the elegant Head Maid with devastating wit, capable of:
 
 - 🔍 Searching the web  
 - 🌤️ Weather checking
@@ -27,7 +27,7 @@ Here is part 2 **to use the memory system and the n8n MCP server follow this tut
 
 ## 🔧 LLM Provider Configuration
 
-Friday supports multiple LLM providers for the realtime voice model. Configure via the `LLM_PROVIDER` environment variable:
+Aria supports multiple LLM providers for the realtime voice model. Configure via the `LLM_PROVIDER` environment variable:
 
 | Provider | Value | Voice |
 |----------|-------|-------|

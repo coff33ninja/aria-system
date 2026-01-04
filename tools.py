@@ -17,19 +17,20 @@ async def get_weather(
     city: str) -> str:
     """
     Get the current weather for a given city.
+    Because apparently Master can't be bothered to look outside.
     """
     try:
         response = requests.get(
             f"https://wttr.in/{city}?format=3")
         if response.status_code == 200:
-            logging.info(f"Weather for {city}: {response.text.strip()}")
+            logging.info(f"Weather retrieved for {city}: {response.text.strip()}")
             return response.text.strip()   
         else:
             logging.error(f"Failed to get weather for {city}: {response.status_code}")
-            return f"Could not retrieve weather for {city}."
+            return f"Hmph, even the weather service is being difficult. Could not retrieve weather for {city}."
     except Exception as e:
         logging.error(f"Error retrieving weather for {city}: {e}")
-        return f"An error occurred while retrieving weather for {city}." 
+        return f"Ara ara~ Something went wrong while checking the weather for {city}. How troublesome: {e}" 
 
 @function_tool()
 async def search_web(
@@ -37,14 +38,15 @@ async def search_web(
     query: str) -> str:
     """
     Search the web using DuckDuckGo.
+    For when Master needs information but is too busy to search themselves.
     """
     try:
         results = DuckDuckGoSearchRun().run(tool_input=query)
-        logging.info(f"Search results for '{query}': {results}")
+        logging.info(f"Search completed for '{query}'")
         return results
     except Exception as e:
         logging.error(f"Error searching the web for '{query}': {e}")
-        return f"An error occurred while searching the web for '{query}'."    
+        return f"Tch, the search for '{query}' failed. Even the internet is being uncooperative today: {e}"    
 
 @function_tool()    
 async def send_email(
@@ -56,6 +58,7 @@ async def send_email(
 ) -> str:
     """
     Send an email through Gmail.
+    Aria handles correspondence with impeccable grace — unlike some people.
     
     Args:
         to_email: Recipient email address
@@ -74,7 +77,7 @@ async def send_email(
         
         if not gmail_user or not gmail_password:
             logging.error("Gmail credentials not found in environment variables")
-            return "Email sending failed: Gmail credentials not configured."
+            return "Ara ara~ It seems the email credentials weren't configured. How careless."
         
         # Create message
         msg = MIMEMultipart()
@@ -101,18 +104,18 @@ async def send_email(
         server.sendmail(gmail_user, recipients, text)
         server.quit()
         
-        logging.info(f"Email sent successfully to {to_email}")
-        return f"Email sent successfully to {to_email}"
+        logging.info(f"Email dispatched successfully to {to_email}")
+        return f"Email sent to {to_email}. Your correspondence has been handled with the utmost care~"
         
     except smtplib.SMTPAuthenticationError:
         logging.error("Gmail authentication failed")
-        return "Email sending failed: Authentication error. Please check your Gmail credentials."
+        return "Hmph, authentication failed. Perhaps someone should double-check those credentials."
     except smtplib.SMTPException as e:
         logging.error(f"SMTP error occurred: {e}")
-        return f"Email sending failed: SMTP error - {str(e)}"
+        return f"The mail server is being difficult. Error: {str(e)}"
     except Exception as e:
         logging.error(f"Error sending email: {e}")
-        return f"An error occurred while sending email: {str(e)}"
+        return f"Something went wrong with the email to {to_email}. How vexing: {e}"
 
 
 @function_tool()
@@ -121,15 +124,12 @@ async def health_check(
 ) -> str:
     """
     Perform a lightweight health check of key external dependencies.
+    Aria ensures everything is in perfect order — as it should be.
     Returns a JSON string with component statuses.
-    Checks:
-      - Required env vars present
-      - MCP server URL reachable (simple HTTP GET)
-      - DNS resolution for LiveKit URL host
     """
     status = {"ok": True, "checks": {}}
 
-    # Env var checks
+    # Env var checks — Aria is thorough
     required = [
         "LIVEKIT_URL",
         "N8N_MCP_SERVER_URL",
@@ -167,5 +167,11 @@ async def health_check(
             status["ok"] = False
     else:
         status["checks"]["livekit_dns"] = {"resolved": False, "error": "LIVEKIT_URL not set"}
+
+    # Aria's verdict
+    if status["ok"]:
+        logging.info("All systems operational. As expected under my watch.")
+    else:
+        logging.warning("Some systems require attention. How troublesome.")
 
     return json.dumps(status)

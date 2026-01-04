@@ -24,24 +24,26 @@ LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "openai").lower()  # "openai" or "
 def get_realtime_model(provider: str = None):
     """
     Get the appropriate realtime model based on provider configuration.
+    Aria prefers voices that match her elegant yet sharp personality.
     
     Args:
         provider: Override provider ("openai" or "google"). Uses LLM_PROVIDER env var if not specified.
         
     Returns:
-        Configured realtime model instance (openai.realtime.RealtimeModel or google.realtime.RealtimeModel)
+        Configured realtime model instance — worthy of the Head Maid herself.
     """
     provider = provider or LLM_PROVIDER
     
     if provider == "google":
+        # Aoede: Elegant and refined, perfect for Aria's sophisticated sass
         return google.realtime.RealtimeModel(
-            voice="Puck",
-            temperature=0.8,
+            voice="Aoede",
+            temperature=0.9,  # A little unpredictable, just like her wit
         )
     else:
-        # Default to OpenAI
+        # Shimmer: Smooth and expressive, ideal for delivering those cutting remarks
         return openai.realtime.RealtimeModel(
-            voice="sage",
+            voice="shimmer",
         )
 
 # Pick a persistent Gemini API key (round-robin) and export it as OPENAI_API_KEY
@@ -55,7 +57,12 @@ except Exception:
     logging.getLogger(__name__).debug("Key manager failed to pick a Gemini key; continuing without setting OPENAI_API_KEY")
 
 
-class Assistant(Agent):
+class Aria(Agent):
+    """
+    Aria, the Head Maid — elegant, efficient, and absolutely devastating with her wit.
+    She'll handle your tasks with grace while making sure you know exactly how
+    helpless you'd be without her.
+    """
     def __init__(self, chat_ctx=None, llm_provider: str = None) -> None:
         super().__init__(
             instructions=AGENT_INSTRUCTION,
@@ -71,9 +78,14 @@ class Assistant(Agent):
 
 
 async def entrypoint(ctx: agents.JobContext):
+    """
+    The grand entrance — where Aria takes the stage.
+    She'll remember everything about you, for better or worse.
+    """
 
     async def shutdown_hook(chat_ctx: ChatContext, mem0: AsyncMemoryClient, memory_str: str):
-        logging.info("Shutting down, saving chat context to memory...")
+        # Aria never forgets. Every conversation is meticulously filed away.
+        logging.info("Aria is archiving this conversation... she remembers everything.")
 
         messages_formatted = [
         ]
@@ -92,9 +104,9 @@ async def entrypoint(ctx: agents.JobContext):
                     "content": content_str.strip()
                 })
 
-        logging.info(f"Formatted messages to add to memory: {messages_formatted}")
+        logging.info(f"Memories to archive: {messages_formatted}")
         await mem0.add(messages_formatted, user_id="David")
-        logging.info("Chat context saved to memory.")
+        logging.info("Conversation archived. Aria's memory is impeccable, as always.")
 
 
     session = AgentSession(
@@ -103,6 +115,7 @@ async def entrypoint(ctx: agents.JobContext):
 
     
 
+    # Aria's memory is her greatest weapon — she knows all your secrets
     mem0 = AsyncMemoryClient()
     user_name = 'David'
 
@@ -119,20 +132,22 @@ async def entrypoint(ctx: agents.JobContext):
             for result in results
         ]
         memory_str = json.dumps(memories)
-        logging.info(f"Memories: {memory_str}")
+        logging.info(f"Aria recalls: {memory_str}")
         initial_ctx.add_message(
             role="assistant",
-            content=f"The user's name is {user_name}, and this is relvant context about him: {memory_str}."
+            content=f"Ah yes, I remember everything about {user_name}. Here's what I know: {memory_str}. How delightful~"
         )
 
+    # Summoning the MCP server — even Aria needs her tools
     mcp_server = MCPServerSse(
         params={"url": os.environ.get("N8N_MCP_SERVER_URL")},
         cache_tools_list=True,
-        name="SSE MCP Server"
+        name="Aria's Toolkit"
     )
 
+    # Aria makes her entrance
     agent = await MCPToolsIntegration.create_agent_with_tools(
-        agent_class=Assistant, agent_kwargs={"chat_ctx": initial_ctx},
+        agent_class=Aria, agent_kwargs={"chat_ctx": initial_ctx},
         mcp_servers=[mcp_server]
     )
 
@@ -140,9 +155,7 @@ async def entrypoint(ctx: agents.JobContext):
         room=ctx.room,
         agent=agent,
         room_input_options=RoomInputOptions(
-            # LiveKit Cloud enhanced noise cancellation
-            # - If self-hosting, omit this parameter
-            # - For telephony applications, use `BVCTelephony` for best results
+            # Aria demands only the finest audio quality
             video_enabled=True,
             noise_cancellation=noise_cancellation.BVC(),
         ),
@@ -150,10 +163,12 @@ async def entrypoint(ctx: agents.JobContext):
 
     await ctx.connect()
 
+    # Aria greets her Master with her signature elegance
     await session.generate_reply(
         instructions=SESSION_INSTRUCTION,
     )
 
+    # She never forgets — the shutdown hook ensures her memory persists
     ctx.add_shutdown_callback(lambda: shutdown_hook(session._agent.chat_ctx, mem0, memory_str))
 
 if __name__ == "__main__":
