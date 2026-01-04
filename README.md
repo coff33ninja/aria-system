@@ -1,150 +1,224 @@
-# 🧠 Aria - Your Personal AI Assistant - Part 2
+# 🎀 Aria — AI Maid Café Voice Assistant
 
-This is a Python-based AI assistant featuring Aria, the elegant Head Maid with devastating wit, capable of:
+A sophisticated multi-agent voice assistant system built on LiveKit, featuring Aria as the elegant Head Maid who commands a staff of specialized AI maids — each with their own voice, personality, and domain expertise.
 
-- 🔍 Searching the web  
-- 🌤️ Weather checking
-- 📨 Sending Emails 
-- 📷 Vision through camera (Web app)
-- 🗣️ Speech
-- 📝 Chat (Web app) 
-- 🧠 Smart Memory System
-- 🎵 Spotify Integration
-- ✅ Task Management (create, list, complete todos with priorities)
-- 📓 Note Taking (save and organize notes by category)
-- ☀️ Daily Briefing (weather, tasks, and Aria's commentary)
-- ⏰ Reminders
-- 🕐 Time & Date
-- 😄 Jokes & Motivation (Aria-style)
-- 👩‍🍳 Maid Staff System (specialized sub-agents for delegation)
-
+> **Forked from** [ruxakK/friday_jarvis2](https://github.com/ruxakK/friday_jarvis2) — completely reimagined and rebuilt.
 
 ---
 
-## 👩‍🍳 Maid Staff System
+## ✨ What's New (vs Original)
 
-Aria now commands a staff of specialized sub-agents, each with their own voice and domain expertise:
+The original project was a basic voice assistant with 3 tools (weather, web search, email) using Mem0 cloud memory and a single OpenAI voice. This fork transforms it into a full multi-agent maid café system:
 
-| Maid | Specialty Domains |
-|------|-------------------|
-| **Sophia** | Research, knowledge, explanations, summaries, facts, learning |
-| **Rose** | Calendar, scheduling, appointments, meetings, organization |
-| **Mei** | Smart home, lights, thermostat, IoT devices |
-| **Luna** | Movies, music, entertainment, games, recommendations |
-| **Clara** | Email, messages, drafts, replies, communication |
+| Feature | Original | This Fork |
+|---------|----------|-----------|
+| **Agents** | 1 (Friday/Assistant) | 6 (Aria + 5 specialized maids) |
+| **Tools** | 3 (weather, search, email) | 30+ (todos, notes, reminders, research, smart home, scheduling, etc.) |
+| **Voices** | 1 (OpenAI sage) | 6 unique voices (Gemini Live native audio) |
+| **Memory** | Mem0 cloud (requires API key) | Local JSON + MCP knowledge graph (no cloud dependency) |
+| **LLM Provider** | OpenAI only | OpenAI or Google Gemini (configurable) |
+| **Voice Handoffs** | None | Full agent swapping with voice changes |
+| **Per-Agent Memory** | None | Each maid has personal memory |
+| **API Key Management** | Single key | Round-robin rotation for rate limit handling |
+| **Personality** | Generic assistant | Rich character personalities with sass |
 
-Aria automatically delegates tasks to the appropriate maid based on keywords in your request. You can also interact with maids directly:
+---
 
-- `call_maid` — Have a maid execute a specific task and respond
-- `talk_to_maid` — Summon a maid for direct conversation (they stay in character)
-- `dismiss_maid` — End the conversation and return to Aria
+## 🏠 The Maid Staff
 
-### Maid Voices (Gemini Live)
+Aria commands a household of specialized maids, each a fully independent agent with their own voice, temperature, tools, and persistent memory:
 
-Each maid has their own distinct voice via Gemini Live's native audio model. When summoned, the session swaps to the maid's agent with their unique voice and personality:
+| Maid | Specialty | Voice | Temp | Personality |
+|------|-----------|-------|------|-------------|
+| **Aria** | Head Maid (orchestration) | Aoede | 0.9 | Elegant, sassy, devastatingly witty |
+| **Sophia** | Research & Knowledge | Kore | 0.7 | Bookish, thorough, slightly nervous |
+| **Luna** | Entertainment & Media | Charon | 0.95 | Playful, dramatic, expressive |
+| **Rose** | Scheduling & Organization | Fenrir | 0.5 | Strict, efficient, authoritative |
+| **Mei** | Smart Home & IoT | Puck | 0.6 | Quiet, precise, soft-spoken |
+| **Clara** | Communication & Social | Aoede | 0.85 | Warm, friendly, diplomatic |
 
-| Maid | Voice | Temperature | Style |
-|------|-------|-------------|-------|
-| Sophia | Kore | 0.7 | Calm, intellectual |
-| Luna | Charon | 0.95 | Expressive, dramatic |
-| Rose | Fenrir | 0.5 | Authoritative, strict |
-| Mei | Puck | 0.6 | Soft, precise |
-| Clara | Aoede | 0.85 | Warm, friendly |
+### Voice Handoffs
 
-Aria uses the Aoede voice (temperature 0.9). Voice handoffs happen via `session.update_agent()` — each maid is a fully separate agent with their own LLM configuration.
+When you summon a maid for conversation, the entire agent swaps — including voice, personality, tools, and memory context. This uses LiveKit's `session.update_agent()` with connection-aware retry logic to handle Gemini's realtime API reconnections gracefully.
 
-Voice handoffs now force a disconnect/reconnect of the realtime session by default to ensure voice changes properly. Set `ARIA_FORCE_VOICE_RECONNECT=false` in your `.env` to disable this if you experience issues.
+```
+User: "Let me talk to Sophia"
+→ Aria announces the handoff
+→ Session swaps to Sophia's agent (different voice, tools, personality)
+→ Sophia introduces herself and takes over
+→ User: "Back to Aria" / "Dismiss"
+→ Sophia says farewell
+→ Session swaps back to Aria
+```
+
+---
+
+## 🛠️ Aria's Tools
+
+### Core Utilities
+- `get_weather` — Weather lookup with Aria's commentary
+- `send_email` — Gmail integration with CC support
+- `search_web` — DuckDuckGo web search
+- `health_check` — System diagnostics
+
+### Task Management
+- `create_todo` — Create tasks with priority levels
+- `list_todos` — View pending/completed tasks
+- `complete_todo` — Mark tasks done
+
+### Notes & Memory
+- `take_note` — Save categorized notes
+- `list_notes` — Browse saved notes
+- `get_note` — Retrieve specific notes
+
+### Daily Assistance
+- `daily_briefing` — Weather, tasks, and Aria's judgment
+- `tell_time` — Current time with period commentary
+- `set_reminder` — Timed reminders that trigger speech
+
+### Personality
+- `tell_joke` — Aria-style humor
+- `motivate` — Backhanded encouragement
+
+### Maid Delegation
+- `delegate_to_maid` — Quick task handoff (maid responds through Aria)
+- `call_maid` — Execute maid tools without voice switch
+- `talk_to_maid` — Full voice handoff to maid
+- `dismiss_maid` — Return to Aria
+- `list_staff` — Show available maids
+- `suggest_maid` — Recommend maid for a task
+
+---
+
+## 🧠 Memory Systems
+
+### Aria's Memory (MCP Knowledge Graph)
+Aria uses an MCP-compatible memory server (`mcp-memory-py`) for persistent knowledge graph storage. Conversations are automatically archived on session end.
+
+```env
+ARIA_USE_MCP_MEMORY=true  # Enable MCP (default)
+ARIA_MEMORY_FILE=./data/aria-memory.json
+ARIA_USER_NAME=Master
+```
+
+Falls back to simple local JSON if MCP fails.
 
 ### Per-Maid Memory
+Each maid maintains their own memory file (`data/<maid>-memory.json`) with:
+- **Observations** — Timestamped memories by category
+- **Domain Knowledge** — Learned topics that persist across sessions
 
-Each maid has their own personal memory system, stored as separate JSON files in the data directory (e.g., `sophia-memory.json`, `luna-memory.json`). Maids can:
-
-- **Remember** observations and user preferences within their domain
-- **Learn** domain-specific knowledge that persists across sessions
-- **Recall** past interactions filtered by query or category
-
-Configure the data directory via `ARIA_DATA_DIR` (defaults to `./data`).
+Maids can `remember_this`, `recall_memories`, `learn_topic`, and `get_knowledge` within their domain.
 
 ---
 
-## 📽️ Tutorial Video
+## � API Key Rotation
 
-Here is part 1 , **make sure to follow this tutorial to set up the voice agent correctly**:  
-🎥 [Watch here](https://youtu.be/An4NwL8QSQ4?si=v1dNDDonmpCG1Els)
+For Google Gemini, supports multiple API keys with automatic round-robin rotation to handle rate limits:
 
-Here is part 2 **to use the memory system and the n8n MCP server follow this tutorial**:
-🎥 [Watch here](https://www.youtube.com/watch?v=gqmSKEUpRv8&ab_channel=Thanh-yDavidNguyen)
-
-
----
-
-## 🔧 LLM Provider Configuration
-
-Aria supports multiple LLM providers for the realtime voice model. Configure via the `LLM_PROVIDER` environment variable:
-
-| Provider | Value | Voice |
-|----------|-------|-------|
-| OpenAI (default) | `openai` | sage |
-| Google Gemini | `google` | Puck |
-
-Example in `.env`:
-```
-LLM_PROVIDER=google
+```env
+GEMINI_API_KEYS=key1,key2,key3
 ```
 
-If not specified, defaults to OpenAI.
+State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 
 ---
 
 ## 🚀 Setup
 
-1. Create the Virtual Environment first!
-2. Activate it
-3. Install all the required libraries in the requirements.txt file
-4. Copy `.env.sample` to `.env` and configure:
-   - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` — Required for LiveKit
-   - `LLM_PROVIDER` — Set to `openai` (default) or `google`
-   - `OPENAI_API_KEY` — Required when using OpenAI provider
-   - `GEMINI_API_KEYS` — Comma-separated keys with rotation (for Google provider)
-   - `GMAIL_USER`, `GMAIL_APP_PASSWORD` — Optional, for send_email tool
-   - `N8N_MCP_SERVER_URL` — Optional, for external MCP tools via n8n
-5. Make sure that your LiveKit Account is set-up correctly.
+1. **Create virtual environment**
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate  # Windows
+   source .venv/bin/activate  # Linux/Mac
+   ```
 
----
+2. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## 💾 Memory System
+3. **Configure environment**
+   ```bash
+   cp .env.sample .env
+   # Edit .env with your keys
+   ```
 
-Aria now uses a **local JSON-based memory system** — no external API dependencies required!
+4. **Run the agent**
+   ```bash
+   python agent.py dev
+   ```
+
+### Required Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `LIVEKIT_URL` | LiveKit server URL |
+| `LIVEKIT_API_KEY` | LiveKit API key |
+| `LIVEKIT_API_SECRET` | LiveKit API secret |
+| `LLM_PROVIDER` | `openai` or `google` (default: openai) |
+| `OPENAI_API_KEY` | Required for OpenAI provider |
+| `GEMINI_API_KEYS` | Comma-separated keys for Google provider |
+
+### Optional Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Path to the memory storage file |
-| `ARIA_USER_NAME` | `Master` | Name Aria uses to identify you |
-| `ARIA_USE_MCP_MEMORY` | `true` | Enable MCP memory server integration |
+| `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Memory storage path |
+| `ARIA_USER_NAME` | `Master` | How Aria addresses you |
+| `ARIA_USE_MCP_MEMORY` | `true` | Use MCP knowledge graph |
+| `ARIA_DATA_DIR` | `./data` | Directory for maid memories |
+| `ARIA_FORCE_VOICE_RECONNECT` | `true` | Force disconnect on voice swap |
+| `GMAIL_USER` | — | Gmail address for email tool |
+| `GMAIL_APP_PASSWORD` | — | Gmail app password |
+| `N8N_MCP_SERVER_URL` | — | External MCP tools via n8n |
 
-Memories are automatically saved when conversations end and loaded when Aria starts up.
+---
 
-### MCP Memory Server
+## 📁 Project Structure
 
-When `ARIA_USE_MCP_MEMORY=true`, Aria can connect to an MCP-compatible memory server for enhanced memory capabilities. Configure the server in `.kiro/settings/mcp.json`.
-
-### Testing the Memory System
-
-To verify the MCP memory system is working correctly:
-
-```bash
-python tests/test_mcp_memory.py
+```
+├── agent.py              # Main entrypoint, Aria agent
+├── tools.py              # Aria's 15+ tools
+├── prompts.py            # Aria's personality prompts
+├── key_manager.py        # API key rotation
+├── maids/
+│   ├── __init__.py       # Maid registry & delegation
+│   ├── base.py           # BaseMaid class & MaidMemory
+│   ├── memory_tools.py   # Shared memory tools + dismiss
+│   ├── session_manager.py # Voice handoff orchestration
+│   ├── sophia/           # Research maid (8 tools)
+│   ├── luna/             # Entertainment maid
+│   ├── rose/             # Scheduling maid
+│   ├── mei/              # Smart home maid
+│   └── clara/            # Communication maid
+├── mcp_client/           # MCP server integration (LiveKit)
+├── data/                 # Memory files
+└── docs/                 # Reference documentation
 ```
 
-This will test entity creation, observations, search, and graph retrieval. If MCP fails, it automatically falls back to LocalMemory testing.
+---
 
+## 📽️ Original Tutorials
 
-## Licenses
+The base LiveKit setup follows these tutorials:
+- **Part 1** (Voice Agent Setup): [Watch here](https://youtu.be/An4NwL8QSQ4)
+- **Part 2** (Memory & MCP): [Watch here](https://www.youtube.com/watch?v=gqmSKEUpRv8)
 
-- Proprietary portions: All files except `mcp_client` and portions of `agent.py` not authored by Thanh-Y Nguyen — Copyright © 2025 Thanh-Y Nguyen.  
-  Licensed for private/educational use only. Redistribution, publication, or commercial use is prohibited without written permission.  
+---
 
-- Third-party components:
-  - `mcp_client` — Copyright © LiveKit, Inc., MIT License.  
-  - Portions of `agent.py` not authored by Thanh-Y Nguyen — MIT or other applicable license.  
-  See `LICENSE-LIVEKIT` for details.
+## 📄 License & Attribution
+
+### ⚠️ A Note on the Original License
+
+The original project by [Thanh-Y Nguyen](https://github.com/ruxakK/friday_jarvis2) has a custom license that prohibits redistribution and commercial use of proprietary portions. This fork has been significantly modified and extended, but we acknowledge that it builds upon the original work.
+
+**To the original author**: We apologize for any license terms we may have inadvertently violated by publishing this fork. This project is shared purely for educational purposes and personal use. If you have concerns, please reach out and we'll address them promptly.
+
+### License Terms
+
+- **Original portions** (from Thanh-Y Nguyen): Subject to the original custom license — personal/educational use only, no redistribution or commercial use without permission.
+- **mcp_client**: MIT License (LiveKit, Inc.) — see `thirdparty/LICENSE-LIVEKIT`
+- **New additions in this fork** (maids system, tools, memory systems, etc.): Available under the same terms as the original — personal/educational use only.
+
+If you wish to use any part of this project commercially or redistribute it, please contact the original author for permission.
