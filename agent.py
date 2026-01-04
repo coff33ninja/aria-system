@@ -10,7 +10,6 @@ from livekit.plugins import google
 from prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
 from tools import (
     get_weather, 
-    search_web, 
     send_email,
     create_todo,
     list_todos,
@@ -334,6 +333,8 @@ class Aria(Agent):
     Aria, the Head Maid — elegant, efficient, and absolutely devastating with her wit.
     She'll handle your tasks with grace while making sure you know exactly how
     helpless you'd be without her.
+    
+    Research tasks are delegated to Sophia.
     """
     def __init__(self, chat_ctx=None, llm_provider: str = None) -> None:
         super().__init__(
@@ -342,7 +343,6 @@ class Aria(Agent):
             tools=[
                 # Core utilities
                 get_weather,
-                search_web,
                 send_email,
                 # Task management
                 create_todo,
