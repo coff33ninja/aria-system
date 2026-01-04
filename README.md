@@ -10,6 +10,12 @@ This is a Python-based AI assistant featuring Aria, the elegant Head Maid with d
 - 📝 Chat (Web app) 
 - 🧠 Smart Memory System
 - 🎵 Spotify Integration
+- ✅ Task Management (create, list, complete todos with priorities)
+- 📓 Note Taking (save and organize notes by category)
+- ☀️ Daily Briefing (weather, tasks, and Aria's commentary)
+- ⏰ Reminders
+- 🕐 Time & Date
+- 😄 Jokes & Motivation (Aria-style)
 
 
 ---

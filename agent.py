@@ -8,7 +8,22 @@ from livekit.plugins import (
 )
 from livekit.plugins import google
 from prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
-from tools import get_weather, search_web, send_email
+from tools import (
+    get_weather, 
+    search_web, 
+    send_email,
+    create_todo,
+    list_todos,
+    complete_todo,
+    take_note,
+    list_notes,
+    get_note,
+    daily_briefing,
+    tell_time,
+    set_reminder,
+    tell_joke,
+    motivate
+)
 from mem0 import AsyncMemoryClient
 from mcp_client import MCPServerSse
 from mcp_client.agent_tools import MCPToolsIntegration
@@ -68,9 +83,25 @@ class Aria(Agent):
             instructions=AGENT_INSTRUCTION,
             llm=get_realtime_model(llm_provider),
             tools=[
+                # Core utilities
                 get_weather,
                 search_web,
-                send_email
+                send_email,
+                # Task management
+                create_todo,
+                list_todos,
+                complete_todo,
+                # Notes
+                take_note,
+                list_notes,
+                get_note,
+                # Daily assistance
+                daily_briefing,
+                tell_time,
+                set_reminder,
+                # Personality
+                tell_joke,
+                motivate
             ],
             chat_ctx=chat_ctx
         )
