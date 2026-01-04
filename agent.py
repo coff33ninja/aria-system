@@ -22,7 +22,8 @@ from tools import (
     tell_time,
     set_reminder,
     tell_joke,
-    motivate
+    motivate,
+    ReminderScheduler
 )
 from mcp_client import MCPServerSse, MCPServerStdio
 from mcp_client.agent_tools import MCPToolsIntegration
@@ -479,6 +480,16 @@ async def entrypoint(ctx: agents.JobContext):
     )
 
     await ctx.connect()
+
+    # Setup reminder callback so Aria speaks when reminders trigger
+    async def on_reminder(message: str):
+        """Called when a reminder triggers — Aria will speak it."""
+        logging.info(f"Reminder callback triggered: {message}")
+        await session.generate_reply(
+            instructions=f"A reminder just triggered. Tell the user: {message}. Be helpful but add your signature sass."
+        )
+    
+    ReminderScheduler.set_callback(on_reminder)
 
     # Aria greets her Master with her signature elegance
     await session.generate_reply(

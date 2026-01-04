@@ -6,12 +6,89 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart  
 from email.mime.text import MIMEText
-from typing import Optional, List
+from typing import Optional, List, Callable, Any
 import json
 import socket
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
 import random
+import asyncio
+
+
+# ============================================================================
+# Reminder Scheduler (in-memory, session-scoped)
+# ============================================================================
+
+class ReminderScheduler:
+    """
+    Aria's reminder system — she never forgets, unlike some people.
+    Runs background tasks to trigger reminders at the right time.
+    """
+    _instance: Optional["ReminderScheduler"] = None
+    _reminders: List[dict] = []
+    _callback: Optional[Callable[[str], Any]] = None
+    
+    @classmethod
+    def get_instance(cls) -> "ReminderScheduler":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
+    @classmethod
+    def set_callback(cls, callback: Callable[[str], Any]) -> None:
+        """Set the callback function to invoke when a reminder triggers."""
+        cls._callback = callback
+    
+    @classmethod
+    async def schedule(cls, reminder: str, minutes_from_now: float) -> dict:
+        """Schedule a reminder to trigger after the specified time."""
+        trigger_time = datetime.now() + timedelta(minutes=minutes_from_now)
+        
+        reminder_data = {
+            "id": len(cls._reminders) + 1,
+            "message": reminder,
+            "trigger_time": trigger_time,
+            "triggered": False
+        }
+        cls._reminders.append(reminder_data)
+        
+        # Start background task to trigger the reminder
+        asyncio.create_task(cls._wait_and_trigger(reminder_data))
+        
+        logging.info(f"Reminder scheduled: {reminder} at {trigger_time}")
+        return reminder_data
+    
+    @classmethod
+    async def _wait_and_trigger(cls, reminder_data: dict) -> None:
+        """Wait until trigger time, then invoke callback."""
+        now = datetime.now()
+        wait_seconds = (reminder_data["trigger_time"] - now).total_seconds()
+        
+        if wait_seconds > 0:
+            await asyncio.sleep(wait_seconds)
+        
+        reminder_data["triggered"] = True
+        message = f"⏰ REMINDER: {reminder_data['message']}"
+        logging.info(f"Reminder triggered: {message}")
+        
+        # If callback is set, invoke it (e.g., to speak the reminder)
+        if cls._callback:
+            try:
+                result = cls._callback(message)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception as e:
+                logging.error(f"Failed to invoke reminder callback: {e}")
+    
+    @classmethod
+    def get_pending(cls) -> List[dict]:
+        """Get all pending (not yet triggered) reminders."""
+        return [r for r in cls._reminders if not r["triggered"]]
+    
+    @classmethod
+    def clear_all(cls) -> None:
+        """Clear all reminders."""
+        cls._reminders = []
 
 @function_tool()
 async def get_weather(
@@ -460,31 +537,42 @@ async def tell_time(
 async def set_reminder(
     context: RunContext,  # type: ignore
     reminder: str,
-    minutes_from_now: int = 30
+    minutes_from_now: float = 30
 ) -> str:
     """
-    Set a reminder (note: will be stored as a high-priority todo).
-    Because Master's memory is... unreliable.
+    Set a reminder that will trigger after the specified time.
+    Aria will remind you — because Master's memory is... unreliable.
     
     Args:
         reminder: What to remind about
-        minutes_from_now: Minutes until reminder (stored as due time)
+        minutes_from_now: Minutes until reminder (can be fractional, e.g. 0.5 for 30 seconds)
     """
-    remind_time = datetime.now() + timedelta(minutes=minutes_from_now)
+    # Schedule the actual reminder
+    reminder_data = await ReminderScheduler.schedule(reminder, minutes_from_now)
     
+    # Also store as a todo for persistence
+    remind_time = reminder_data["trigger_time"]
     todo = {
         "id": len(_todos) + 1,
         "task": f"⏰ REMINDER: {reminder}",
         "priority": "high",
-        "due_date": remind_time.strftime("%Y-%m-%d %H:%M"),
+        "due_date": remind_time.strftime("%Y-%m-%d %H:%M:%S"),
         "created_at": datetime.now().isoformat(),
         "completed": False,
         "is_reminder": True
     }
     _todos.append(todo)
     
+    # Format time nicely
+    if minutes_from_now < 1:
+        time_str = f"{int(minutes_from_now * 60)} seconds"
+    elif minutes_from_now == 1:
+        time_str = "1 minute"
+    else:
+        time_str = f"{minutes_from_now:.1f} minutes" if minutes_from_now % 1 else f"{int(minutes_from_now)} minutes"
+    
     logging.info(f"Reminder set: {todo}")
-    return f"Reminder set for {remind_time.strftime('%I:%M %p')}: '{reminder}'. I'll make sure you don't forget~ (Check your tasks)"
+    return f"Reminder set for {time_str} from now: '{reminder}'. I'll remind you when it's time~"
 
 
 @function_tool()
