@@ -17,6 +17,8 @@ A hierarchical AI assistant system where **Aria**, the Head Maid, manages a staf
 
 **Goal:** Replace cloud-based Mem0 with local MCP memory for full modularity.
 
+**Status:** ✅ Implemented
+
 ### Memory Architecture
 
 ```
@@ -25,11 +27,17 @@ A hierarchical AI assistant system where **Aria**, the Head Maid, manages a staf
 ├─────────────────────────────────────────────────┤
 │                                                 │
 │  ┌─────────────┐    ┌─────────────────────┐    │
-│  │ MCP Memory  │◄──►│ Knowledge Graph     │    │
-│  │ Server      │    │ (entities/relations)│    │
+│  │ MCPMemory   │◄──►│ mcp-memory-py       │    │
+│  │ (wrapper)   │    │ (stdio server)      │    │
 │  └─────────────┘    └─────────────────────┘    │
-│         │                                       │
-│         ▼                                       │
+│         │                    │                  │
+│         │                    ▼                  │
+│         │           ┌─────────────────────┐    │
+│         │           │ Knowledge Graph     │    │
+│         │           │ (entities/relations)│    │
+│         │           └─────────────────────┘    │
+│         │                    │                  │
+│         ▼                    ▼                  │
 │  ┌─────────────────────────────────────────┐   │
 │  │ data/aria-memory.json                   │   │
 │  │ - User preferences                      │   │
@@ -37,63 +45,62 @@ A hierarchical AI assistant system where **Aria**, the Head Maid, manages a staf
 │  │ - Task patterns                         │   │
 │  │ - Learned behaviors                     │   │
 │  └─────────────────────────────────────────┘   │
+│                                                 │
+│  ┌─────────────┐  (fallback if MCP fails)      │
+│  │ LocalMemory │──► Simple JSON storage        │
+│  └─────────────┘                               │
 └─────────────────────────────────────────────────┘
 ```
 
-### MCP Memory Server Setup
+### Implementation Details
 
-```json
-{
-  "aria-memory": {
-    "command": "uvx",
-    "args": ["--refresh", "--quiet", "mcp-memory-py"],
-    "env": {
-      "MEMORY_FILE_PATH": "./data/aria-memory.json",
-      "DEBUG_LOGGING": "false"
+The agent spawns `mcp-memory-py` as a stdio subprocess:
+
+```python
+# In agent.py - MCPMemory class
+server = MCPServerStdio(
+    params={
+        "command": "uvx",
+        "args": ["--refresh", "--quiet", "mcp-memory-py"],
+        "env": {"MEMORY_FILE_PATH": str(memory_file.absolute())},
     },
-    "autoApprove": [
-      "read_graph",
-      "create_entities", 
-      "add_observations",
-      "search_nodes",
-      "open_nodes"
-    ]
-  }
-}
+    cache_tools_list=True,
+    name="Aria's Memory (MCP)"
+)
+```
+
+### Environment Variables
+
+```env
+# Memory configuration
+ARIA_MEMORY_FILE=./data/aria-memory.json  # Path to memory storage
+ARIA_USER_NAME=Master                      # Default user entity name
+ARIA_USE_MCP_MEMORY=true                   # Use MCP server (false = simple JSON)
 ```
 
 ### Memory Operations
 
-| Operation | Description | Use Case |
-|-----------|-------------|----------|
-| `create_entities` | Create user/topic nodes | New user, new project |
-| `add_observations` | Attach facts to entities | User preferences, habits |
-| `create_relations` | Link entities | User → Project, User → Preference |
-| `search_nodes` | Query by text | Find relevant context |
-| `read_graph` | Get full memory | Session startup |
-| `open_nodes` | Get specific nodes | Targeted recall |
+| Operation | MCP Tool | Description |
+|-----------|----------|-------------|
+| `create_entity` | `create_entities` | Create user/topic nodes |
+| `add_observation` | `add_observations` | Attach facts to entities |
+| `create_relation` | `create_relations` | Link entities |
+| `search` | `search_nodes` | Query by text |
+| `read_graph` | `read_graph` | Get full memory |
+| `get_entity` | `open_nodes` | Get specific nodes |
 
-### Entity Types for Aria
+### Fallback Behavior
 
-```python
-ENTITY_TYPES = {
-    "user": "Person Aria serves",
-    "preference": "User likes/dislikes",
-    "project": "Work projects",
-    "task": "Recurring tasks",
-    "event": "Important dates/events",
-    "topic": "Conversation topics",
-    "habit": "User behavioral patterns",
-}
-```
+If MCP memory fails to initialize (e.g., `uvx` not installed), the agent falls back to `LocalMemory` — a simple JSON-based storage class that provides the same interface.
 
-### Benefits of Local Memory
+### Benefits
 
 1. **Privacy** — All data stays on user's machine
 2. **No API costs** — No Mem0 subscription needed
 3. **Offline capable** — Works without internet
 4. **Portable** — Memory file can be backed up/moved
 5. **Modular** — Can swap memory backend easily
+6. **Knowledge Graph** — Proper entity-relation model via MCP
 
 ---
 

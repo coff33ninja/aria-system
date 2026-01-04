@@ -8,3 +8,4 @@ langchain_community
 requests
 python-dotenv
 pydantic-ai-slim[openai,mcp]
+uv

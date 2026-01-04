@@ -73,8 +73,13 @@ Aria now uses a **local JSON-based memory system** — no external API dependenc
 |----------|---------|-------------|
 | `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Path to the memory storage file |
 | `ARIA_USER_NAME` | `Master` | Name Aria uses to identify you |
+| `ARIA_USE_MCP_MEMORY` | `true` | Enable MCP memory server integration |
 
 Memories are automatically saved when conversations end and loaded when Aria starts up.
+
+### MCP Memory Server
+
+When `ARIA_USE_MCP_MEMORY=true`, Aria can connect to an MCP-compatible memory server for enhanced memory capabilities. Configure the server in `.kiro/settings/mcp.json`.
 
 
 ## Licenses

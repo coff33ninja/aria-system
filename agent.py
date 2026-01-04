@@ -24,7 +24,7 @@ from tools import (
     tell_joke,
     motivate
 )
-from mcp_client import MCPServerSse
+from mcp_client import MCPServerSse, MCPServerStdio
 from mcp_client.agent_tools import MCPToolsIntegration
 import os
 import json
@@ -40,6 +40,9 @@ LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "openai").lower()  # "openai" or "
 # Local memory configuration
 MEMORY_FILE = Path(os.environ.get("ARIA_MEMORY_FILE", "./data/aria-memory.json"))
 USER_NAME = os.environ.get("ARIA_USER_NAME", "Master")
+
+# MCP Memory server configuration
+USE_MCP_MEMORY = os.environ.get("ARIA_USE_MCP_MEMORY", "true").lower() == "true"
 
 
 def get_realtime_model(provider: str = None):
@@ -159,6 +162,151 @@ class LocalMemory:
         return next((e for e in self._cache["entities"] if e["name"] == name), None)
 
 
+# ============================================================================
+# MCP Memory System (Knowledge Graph via mcp-memory-py)
+# ============================================================================
+
+class MCPMemory:
+    """
+    Aria's MCP-based memory system — a proper knowledge graph for a proper maid.
+    Uses mcp-memory-py server for persistent knowledge graph storage.
+    """
+    
+    def __init__(self, server: MCPServerStdio):
+        self.server = server
+        self.logger = logging.getLogger(__name__)
+    
+    @classmethod
+    async def create(cls, memory_file: Path = MEMORY_FILE) -> "MCPMemory":
+        """Create and connect to the MCP memory server."""
+        server = MCPServerStdio(
+            params={
+                "command": "uvx",
+                "args": ["--refresh", "--quiet", "mcp-memory-py"],
+                "env": {"MEMORY_FILE_PATH": str(memory_file.absolute())},
+            },
+            cache_tools_list=True,
+            name="Aria's Memory (MCP)"
+        )
+        await server.connect()
+        return cls(server)
+    
+    async def cleanup(self):
+        """Cleanup the MCP server connection."""
+        await self.server.cleanup()
+    
+    async def read_graph(self) -> Dict[str, Any]:
+        """Read the entire knowledge graph."""
+        try:
+            result = await self.server.call_tool("read_graph", {})
+            return self._parse_result(result)
+        except Exception as e:
+            self.logger.error(f"Failed to read graph: {e}")
+            return {"entities": [], "relations": []}
+    
+    async def create_entity(self, name: str, entity_type: str, observations: List[str]) -> None:
+        """Create a new entity in the knowledge graph."""
+        try:
+            await self.server.call_tool("create_entities", {
+                "entities": [{
+                    "name": name,
+                    "entityType": entity_type,
+                    "observations": observations
+                }]
+            })
+            self.logger.info(f"Created entity: {name} ({entity_type})")
+        except Exception as e:
+            self.logger.error(f"Failed to create entity: {e}")
+    
+    async def add_observation(self, entity_name: str, observation: str, entity_type: str = "user") -> None:
+        """Add an observation to an entity (creates entity if needed)."""
+        try:
+            # Try to add observation first
+            await self.server.call_tool("add_observations", {
+                "observations": [{
+                    "entityName": entity_name,
+                    "contents": [observation]
+                }]
+            })
+            self.logger.info(f"Memory added: {entity_name} -> {observation}")
+        except Exception:
+            # Entity might not exist, create it
+            self.logger.debug(f"Creating entity {entity_name} as it may not exist")
+            await self.create_entity(entity_name, entity_type, [observation])
+    
+    async def search(self, query: str) -> List[Dict[str, Any]]:
+        """Search the knowledge graph."""
+        try:
+            result = await self.server.call_tool("search_nodes", {"query": query})
+            return self._parse_result(result)
+        except Exception as e:
+            self.logger.error(f"Failed to search: {e}")
+            return []
+    
+    async def get_entity(self, name: str) -> Optional[Dict[str, Any]]:
+        """Get a specific entity by name."""
+        try:
+            result = await self.server.call_tool("open_nodes", {"names": [name]})
+            data = self._parse_result(result)
+            entities = data.get("entities", [])
+            return entities[0] if entities else None
+        except Exception as e:
+            self.logger.error(f"Failed to get entity: {e}")
+            return None
+    
+    async def get_all_for_user(self, user_name: str) -> List[Dict[str, Any]]:
+        """Get all memories related to a user."""
+        try:
+            # Search for the user entity
+            result = await self.server.call_tool("open_nodes", {"names": [user_name]})
+            data = self._parse_result(result)
+            
+            memories: List[Dict[str, Any]] = []
+            for entity in data.get("entities", []):
+                for obs in entity.get("observations", []):
+                    memories.append({
+                        "entity": entity.get("name", "unknown"),
+                        "type": entity.get("entityType", "unknown"),
+                        "memory": obs
+                    })
+            return memories
+        except Exception as e:
+            self.logger.error(f"Failed to get memories for user: {e}")
+            return []
+    
+    async def add_conversation_summary(self, user_name: str, summary: str) -> None:
+        """Add a conversation summary as an observation."""
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        await self.add_observation(user_name, f"[{timestamp}] {summary}", entity_type="user")
+    
+    async def create_relation(self, from_entity: str, to_entity: str, relation_type: str) -> None:
+        """Create a relation between two entities."""
+        try:
+            await self.server.call_tool("create_relations", {
+                "relations": [{
+                    "from": from_entity,
+                    "to": to_entity,
+                    "relationType": relation_type
+                }]
+            })
+            self.logger.info(f"Created relation: {from_entity} --[{relation_type}]--> {to_entity}")
+        except Exception as e:
+            self.logger.error(f"Failed to create relation: {e}")
+    
+    def _parse_result(self, result) -> Dict[str, Any]:
+        """Parse MCP tool result into a dictionary."""
+        try:
+            if hasattr(result, 'content') and result.content:
+                for content in result.content:
+                    if hasattr(content, 'text'):
+                        return json.loads(content.text)
+            return {}
+        except Exception as e:
+            self.logger.error(f"Failed to parse result: {e}")
+            return {}
+
+
 def _setup_api_key():
     """
     Pick a persistent Gemini API key (round-robin) — only when using Google provider.
@@ -221,11 +369,45 @@ async def entrypoint(ctx: agents.JobContext):
     # Setup API key in the job subprocess (critical for Google provider)
     _setup_api_key()
     
-    # Initialize local memory system
-    memory = LocalMemory()
+    # Initialize memory system (MCP or local fallback)
+    memory = None
+    mcp_memory = None
+    
+    if USE_MCP_MEMORY:
+        try:
+            mcp_memory = await MCPMemory.create(MEMORY_FILE)
+            logging.info("Aria's MCP memory system initialized — knowledge graph ready~")
+        except Exception as e:
+            logging.warning(f"MCP memory failed to initialize: {e}. Falling back to local memory.")
+            memory = LocalMemory()
+    else:
+        memory = LocalMemory()
+    
     user_name = USER_NAME
 
-    async def shutdown_hook(chat_ctx: ChatContext, memory: LocalMemory):
+    async def shutdown_hook_mcp(chat_ctx: ChatContext, mcp_mem: MCPMemory):
+        """Archive conversation to MCP memory when session ends."""
+        logging.info("Aria is archiving this conversation to her knowledge graph...")
+
+        try:
+            messages = []
+            for item in chat_ctx.items:
+                content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
+                if item.role in ['user', 'assistant'] and content_str.strip():
+                    messages.append(f"{item.role}: {content_str.strip()[:100]}")
+            
+            if messages:
+                summary = " | ".join(messages[-5:])
+                await mcp_mem.add_conversation_summary(user_name, summary)
+                logging.info("Conversation archived to knowledge graph. Aria's memory is impeccable.")
+            else:
+                logging.info("No new memories to archive.")
+        except Exception as e:
+            logging.error(f"Failed to archive memories: {e}. How vexing.")
+        finally:
+            await mcp_mem.cleanup()
+
+    async def shutdown_hook_local(chat_ctx: ChatContext, local_mem: LocalMemory):
         """Archive conversation to local memory when session ends."""
         logging.info("Aria is archiving this conversation locally...")
 
@@ -237,9 +419,8 @@ async def entrypoint(ctx: agents.JobContext):
                     messages.append(f"{item.role}: {content_str.strip()[:100]}")
             
             if messages:
-                # Create a summary of the conversation
-                summary = " | ".join(messages[-5:])  # Last 5 messages
-                memory.add_conversation_summary(user_name, summary)
+                summary = " | ".join(messages[-5:])
+                local_mem.add_conversation_summary(user_name, summary)
                 logging.info("Conversation archived locally. Aria's memory is impeccable.")
             else:
                 logging.info("No new memories to archive.")
@@ -252,9 +433,13 @@ async def entrypoint(ctx: agents.JobContext):
     initial_ctx = ChatContext()
     
     try:
-        memories = memory.get_all_for_user(user_name)
+        if mcp_memory:
+            memories = await mcp_memory.get_all_for_user(user_name)
+        else:
+            memories = memory.get_all_for_user(user_name)
+            
         if memories:
-            memory_str = json.dumps(memories[-10:], indent=2)  # Last 10 memories
+            memory_str = json.dumps(memories[-10:], indent=2)
             logging.info(f"Aria recalls {len(memories)} memories about {user_name}")
             initial_ctx.add_message(
                 role="assistant",
@@ -301,8 +486,11 @@ async def entrypoint(ctx: agents.JobContext):
         instructions=SESSION_INSTRUCTION,
     )
 
-    # She never forgets — the shutdown hook ensures her memory persists locally
-    ctx.add_shutdown_callback(lambda: shutdown_hook(session._agent.chat_ctx, memory))
+    # She never forgets — the shutdown hook ensures her memory persists
+    if mcp_memory:
+        ctx.add_shutdown_callback(lambda: shutdown_hook_mcp(session._agent.chat_ctx, mcp_memory))
+    else:
+        ctx.add_shutdown_callback(lambda: shutdown_hook_local(session._agent.chat_ctx, memory))
 
 
 if __name__ == "__main__":

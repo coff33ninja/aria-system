@@ -217,41 +217,54 @@ class MCPServerSse(_MCPServerWithClientSession):
         return self._name
 
 # Stdio server implementation
-class MCPServerStdio(MCPServer):
-    """An example (minimal) Stdio server implementation."""
+class MCPServerStdio(_MCPServerWithClientSession):
+    """MCP server implementation that uses the stdio transport (for local processes)."""
 
-    def __init__(self, params: MCPServerStdioParams, cache_tools_list: bool = False, name: Optional[str] = None):
+    def __init__(
+        self,
+        params: MCPServerStdioParams,
+        cache_tools_list: bool = False,
+        name: Optional[str] = None,
+    ):
+        """Create a new MCP server based on the stdio transport.
+
+        Args:
+            params: The params that configure the server including:
+                - command: The command to run (e.g., "uvx", "python")
+                - args: List of arguments for the command
+                - env: Optional environment variables
+            cache_tools_list: Whether to cache the tools list.
+            name: A readable name for the server.
+        """
+        super().__init__(cache_tools_list)
         self.params = params
-        self.cache_tools_list = cache_tools_list
-        self._tools_cache: Optional[List[MCPTool]] = None
         self._name = name or f"Stdio Server: {self.params.get('command', 'unknown')}"
-        self.connected = False
-        self.logger = logging.getLogger(__name__)
+
+    def create_streams(
+        self,
+    ) -> AbstractAsyncContextManager[
+        Tuple[
+            MemoryObjectReceiveStream[JSONRPCMessage | Exception],
+            MemoryObjectSendStream[JSONRPCMessage],
+        ]
+    ]:
+        """Create the streams for the server using stdio transport."""
+        from mcp.client.stdio import stdio_client, StdioServerParameters
+        import os
+        
+        # Build environment with current env + custom env
+        env = os.environ.copy()
+        if "env" in self.params:
+            env.update(self.params["env"])
+        
+        server_params = StdioServerParameters(
+            command=self.params["command"],
+            args=self.params.get("args", []),
+            env=env,
+        )
+        return stdio_client(server_params)
 
     @property
     def name(self) -> str:
+        """A readable name for the server."""
         return self._name
-
-    async def connect(self):
-        await asyncio.sleep(0.5)
-        self.connected = True
-        self.logger.info(f"Connected to MCP Stdio server: {self.name}")
-
-    async def list_tools(self) -> List[MCPTool]:
-        if self.cache_tools_list and self._tools_cache is not None:
-            return self._tools_cache
-        # For demonstration, return an empty list or similar static tools.
-        tools: List[MCPTool] = []
-        if self.cache_tools_list:
-            self._tools_cache = tools
-        return tools
-
-    async def call_tool(self, tool_name: str, arguments: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Call a tool on the Stdio server (minimal implementation)."""
-        # Create a response using mcp.types for consistency
-        content = TextContent(type="text", text=f"Called {tool_name} with args {arguments} via Stdio")
-        return {"content": [content.model_dump()]}
-
-    async def cleanup(self):
-        self.connected = False
-        self.logger.info(f"Cleaned up MCP Stdio server: {self.name}")
