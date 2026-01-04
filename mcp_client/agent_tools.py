@@ -112,11 +112,27 @@ class MCPToolsIntegration:
 
         # Define the actual function that will be called by the agent
         async def tool_impl(**kwargs):
+            """
+            Wrapper around the MCP FunctionTool.on_invoke_tool that:
+              - attaches a request_id (uuid4) to logs
+              - enforces a timeout using asyncio.wait_for
+              - returns a string result (as callers expect)
+            """
+            request_id = str(uuid4())
             input_json = json.dumps(kwargs)
-            logger.info(f"Invoking tool '{tool.name}' with args: {kwargs}")
-            result_str = await tool.on_invoke_tool(None, input_json)
-            logger.info(f"Tool '{tool.name}' result: {result_str}")
-            return result_str
+            logger.info(f"[{request_id}] Invoking tool '{tool.name}' with args: {kwargs}")
+            try:
+                # Call the MCP tool with a timeout to avoid hanging the agent
+                coro = tool.on_invoke_tool(None, input_json)
+                result_str = await asyncio.wait_for(coro, timeout=30)
+                logger.info(f"[{request_id}] Tool '{tool.name}' result: {result_str}")
+                return result_str
+            except asyncio.TimeoutError:
+                logger.error(f"[{request_id}] Tool '{tool.name}' timed out")
+                return f"Error: tool '{tool.name}' timed out"
+            except Exception as e:
+                logger.error(f"[{request_id}] Failed invoking tool '{tool.name}': {e}")
+                return f"Error calling tool '{tool.name}': {e}"
 
         # Set function metadata
         tool_impl.__signature__ = inspect.Signature(parameters=params)
@@ -126,6 +142,44 @@ class MCPToolsIntegration:
 
         # Apply the decorator and return
         return function_tool()(tool_impl)
+
+    @staticmethod
+    async def call_tool_on_server(server: MCPServer, tool_name: str, arguments: Dict[str, Any], timeout: int = 30) -> str:
+        """
+        Helper to invoke a tool directly on a specific MCP server with a timeout.
+
+        Uses the `CallToolRequest` type for clarity in signatures and logs
+        server details (if available) for easier debugging.
+        """
+        req_id = str(uuid4())
+        logger.info(f"[{req_id}] Calling tool '{tool_name}' on server '{getattr(server, 'name', 'unknown')}' with args: {arguments}")
+
+        # If this is an SSE server, try to include the configured URL for better logs
+        try:
+            if isinstance(server, MCPServerSse) and hasattr(server, 'params'):
+                logger.debug(f"[{req_id}] MCP SSE server params: {server.params}")
+        except Exception:
+            pass
+
+        try:
+            coro = server.call_tool(tool_name, arguments)
+            result = await asyncio.wait_for(coro, timeout=timeout)
+            # server.call_tool is expected to return a CallToolResult-like object or dict
+            logger.info(f"[{req_id}] Server returned: {result}")
+            # Normalize to string for callers
+            if isinstance(result, dict):
+                try:
+                    return json.dumps(result)
+                except Exception:
+                    return str(result)
+            else:
+                return str(result)
+        except asyncio.TimeoutError:
+            logger.error(f"[{req_id}] call_tool_on_server timed out for '{tool_name}'")
+            return f"Error: call to tool '{tool_name}' timed out on server '{getattr(server, 'name', 'unknown')}'"
+        except Exception as e:
+            logger.error(f"[{req_id}] call_tool_on_server failed: {e}")
+            return f"Error calling tool '{tool_name}' on server '{getattr(server, 'name', 'unknown')}': {e}"
 
     @staticmethod
     async def register_with_agent(agent, mcp_servers: List[MCPServer],
