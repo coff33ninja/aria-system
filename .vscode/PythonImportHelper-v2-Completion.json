@@ -620,11 +620,20 @@
         "documentation": {}
     },
     {
+        "label": "ToolInvocationRequest",
+        "kind": 6,
+        "importPath": "mcp_client.agent_tools",
+        "description": "mcp_client.agent_tools",
+        "peekOfCode": "class ToolInvocationRequest:\n    \"\"\"Wraps a tool invocation request using CallToolRequest semantics.\"\"\"\n    def __init__(self, tool_name: str, arguments: Dict[str, Any], request_id: str = \"\"):\n        self.tool_name = tool_name\n        self.arguments = arguments\n        self.request_id = request_id or str(uuid4())\n    def to_dict(self) -> Dict[str, Any]:\n        return {\n            \"request_id\": self.request_id,\n            \"tool_name\": self.tool_name,",
+        "detail": "mcp_client.agent_tools",
+        "documentation": {}
+    },
+    {
         "label": "MCPToolsIntegration",
         "kind": 6,
         "importPath": "mcp_client.agent_tools",
         "description": "mcp_client.agent_tools",
-        "peekOfCode": "class MCPToolsIntegration:\n    \"\"\"\n    Helper class for integrating MCP tools with LiveKit agents.\n    Provides utilities for registering dynamic tools from MCP servers.\n    \"\"\"\n    @staticmethod\n    async def prepare_dynamic_tools(mcp_servers: List[MCPServer],\n                                   convert_schemas_to_strict: bool = True,\n                                   auto_connect: bool = True) -> List[Callable]:\n        \"\"\"",
+        "peekOfCode": "class MCPToolsIntegration:\n    \"\"\"\n    Helper class for integrating MCP tools with LiveKit agents.\n    Provides utilities for:\n      - Registering dynamic tools from MCP servers\n      - Managing tool invocation via CallToolRequest semantics\n      - Type-safe handling of Tool instances from livekit.agents\n      - Integration with LiveKit JobContext, AgentSession, and ChatContext\n    Uses Type for future generic server/tool implementations,\n    and Awaitable for async-aware callable signatures.",
         "detail": "mcp_client.agent_tools",
         "documentation": {}
     },
@@ -633,16 +642,25 @@
         "kind": 5,
         "importPath": "mcp_client.agent_tools",
         "description": "mcp_client.agent_tools",
-        "peekOfCode": "logger = logging.getLogger(\"mcp-agent-tools\")\n# Use previously-imported symbols in a no-op tuple so linters don't flag them as unused.\n# These are intentionally referenced to encourage future extensions that rely on\n# richer typing and LiveKit/MCP runtime types.\n_UNUSED_IMPORTS = (\n    Awaitable,\n    cast,\n    Optional,\n    Sequence,\n    Tuple,",
+        "peekOfCode": "logger = logging.getLogger(\"mcp-agent-tools\")\n# Type alias for MCP tool results: either a string (legacy) or structured dict\nToolResult = Union[str, Dict[str, Any]]\n# Type alias for server lists\nServerList = Sequence[MCPServer]\nclass ToolInvocationRequest:\n    \"\"\"Wraps a tool invocation request using CallToolRequest semantics.\"\"\"\n    def __init__(self, tool_name: str, arguments: Dict[str, Any], request_id: str = \"\"):\n        self.tool_name = tool_name\n        self.arguments = arguments",
         "detail": "mcp_client.agent_tools",
         "documentation": {}
     },
     {
-        "label": "_UNUSED_IMPORTS",
+        "label": "ToolResult",
         "kind": 5,
         "importPath": "mcp_client.agent_tools",
         "description": "mcp_client.agent_tools",
-        "peekOfCode": "_UNUSED_IMPORTS = (\n    Awaitable,\n    cast,\n    Optional,\n    Sequence,\n    Tuple,\n    Type,\n    Union,\n    Tool,\n    AgentSession,",
+        "peekOfCode": "ToolResult = Union[str, Dict[str, Any]]\n# Type alias for server lists\nServerList = Sequence[MCPServer]\nclass ToolInvocationRequest:\n    \"\"\"Wraps a tool invocation request using CallToolRequest semantics.\"\"\"\n    def __init__(self, tool_name: str, arguments: Dict[str, Any], request_id: str = \"\"):\n        self.tool_name = tool_name\n        self.arguments = arguments\n        self.request_id = request_id or str(uuid4())\n    def to_dict(self) -> Dict[str, Any]:",
+        "detail": "mcp_client.agent_tools",
+        "documentation": {}
+    },
+    {
+        "label": "ServerList",
+        "kind": 5,
+        "importPath": "mcp_client.agent_tools",
+        "description": "mcp_client.agent_tools",
+        "peekOfCode": "ServerList = Sequence[MCPServer]\nclass ToolInvocationRequest:\n    \"\"\"Wraps a tool invocation request using CallToolRequest semantics.\"\"\"\n    def __init__(self, tool_name: str, arguments: Dict[str, Any], request_id: str = \"\"):\n        self.tool_name = tool_name\n        self.arguments = arguments\n        self.request_id = request_id or str(uuid4())\n    def to_dict(self) -> Dict[str, Any]:\n        return {\n            \"request_id\": self.request_id,",
         "detail": "mcp_client.agent_tools",
         "documentation": {}
     },
