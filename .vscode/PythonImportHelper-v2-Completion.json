@@ -1,0 +1,733 @@
+[
+    {
+        "label": "asyncio",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "asyncio",
+        "description": "asyncio",
+        "detail": "asyncio",
+        "documentation": {}
+    },
+    {
+        "label": "logging",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "logging",
+        "description": "logging",
+        "detail": "logging",
+        "documentation": {}
+    },
+    {
+        "label": "json",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "json",
+        "description": "json",
+        "detail": "json",
+        "documentation": {}
+    },
+    {
+        "label": "inspect",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "inspect",
+        "description": "inspect",
+        "detail": "inspect",
+        "documentation": {}
+    },
+    {
+        "label": "typing",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "typing",
+        "description": "typing",
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Callable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Awaitable",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Sequence",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Type",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Union",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "cast",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Tuple",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Any",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "uuid4",
+        "importPath": "uuid",
+        "description": "uuid",
+        "isExtraImport": true,
+        "detail": "uuid",
+        "documentation": {}
+    },
+    {
+        "label": "ChatContext",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "AgentSession",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "JobContext",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionTool",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "AgentSession",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "Agent",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "RoomInputOptions",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "ChatContext",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "function_tool",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "RunContext",
+        "importPath": "livekit.agents",
+        "description": "livekit.agents",
+        "isExtraImport": true,
+        "detail": "livekit.agents",
+        "documentation": {}
+    },
+    {
+        "label": "CallToolRequest",
+        "importPath": "mcp",
+        "description": "mcp",
+        "isExtraImport": true,
+        "detail": "mcp",
+        "documentation": {}
+    },
+    {
+        "label": "AbstractAsyncContextManager",
+        "importPath": "contextlib",
+        "description": "contextlib",
+        "isExtraImport": true,
+        "detail": "contextlib",
+        "documentation": {}
+    },
+    {
+        "label": "AsyncExitStack",
+        "importPath": "contextlib",
+        "description": "contextlib",
+        "isExtraImport": true,
+        "detail": "contextlib",
+        "documentation": {}
+    },
+    {
+        "label": "MemoryObjectReceiveStream",
+        "importPath": "anyio.streams.memory",
+        "description": "anyio.streams.memory",
+        "isExtraImport": true,
+        "detail": "anyio.streams.memory",
+        "documentation": {}
+    },
+    {
+        "label": "MemoryObjectSendStream",
+        "importPath": "anyio.streams.memory",
+        "description": "anyio.streams.memory",
+        "isExtraImport": true,
+        "detail": "anyio.streams.memory",
+        "documentation": {}
+    },
+    {
+        "label": "mcp.types",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "mcp.types",
+        "description": "mcp.types",
+        "detail": "mcp.types",
+        "documentation": {}
+    },
+    {
+        "label": "CallToolResult",
+        "importPath": "mcp.types",
+        "description": "mcp.types",
+        "isExtraImport": true,
+        "detail": "mcp.types",
+        "documentation": {}
+    },
+    {
+        "label": "JSONRPCMessage",
+        "importPath": "mcp.types",
+        "description": "mcp.types",
+        "isExtraImport": true,
+        "detail": "mcp.types",
+        "documentation": {}
+    },
+    {
+        "label": "Tool",
+        "importPath": "mcp.types",
+        "description": "mcp.types",
+        "isExtraImport": true,
+        "detail": "mcp.types",
+        "documentation": {}
+    },
+    {
+        "label": "Tool",
+        "importPath": "mcp.types",
+        "description": "mcp.types",
+        "isExtraImport": true,
+        "detail": "mcp.types",
+        "documentation": {}
+    },
+    {
+        "label": "CallToolResult",
+        "importPath": "mcp.types",
+        "description": "mcp.types",
+        "isExtraImport": true,
+        "detail": "mcp.types",
+        "documentation": {}
+    },
+    {
+        "label": "sse_client",
+        "importPath": "mcp.client.sse",
+        "description": "mcp.client.sse",
+        "isExtraImport": true,
+        "detail": "mcp.client.sse",
+        "documentation": {}
+    },
+    {
+        "label": "ClientSession",
+        "importPath": "mcp.client.session",
+        "description": "mcp.client.session",
+        "isExtraImport": true,
+        "detail": "mcp.client.session",
+        "documentation": {}
+    },
+    {
+        "label": "functools",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "functools",
+        "description": "functools",
+        "detail": "functools",
+        "documentation": {}
+    },
+    {
+        "label": "load_dotenv",
+        "importPath": "dotenv",
+        "description": "dotenv",
+        "isExtraImport": true,
+        "detail": "dotenv",
+        "documentation": {}
+    },
+    {
+        "label": "load_dotenv",
+        "importPath": "dotenv",
+        "description": "dotenv",
+        "isExtraImport": true,
+        "detail": "dotenv",
+        "documentation": {}
+    },
+    {
+        "label": "agents",
+        "importPath": "livekit",
+        "description": "livekit",
+        "isExtraImport": true,
+        "detail": "livekit",
+        "documentation": {}
+    },
+    {
+        "label": "noise_cancellation",
+        "importPath": "livekit.plugins",
+        "description": "livekit.plugins",
+        "isExtraImport": true,
+        "detail": "livekit.plugins",
+        "documentation": {}
+    },
+    {
+        "label": "openai",
+        "importPath": "livekit.plugins",
+        "description": "livekit.plugins",
+        "isExtraImport": true,
+        "detail": "livekit.plugins",
+        "documentation": {}
+    },
+    {
+        "label": "google",
+        "importPath": "livekit.plugins",
+        "description": "livekit.plugins",
+        "isExtraImport": true,
+        "detail": "livekit.plugins",
+        "documentation": {}
+    },
+    {
+        "label": "AGENT_INSTRUCTION",
+        "importPath": "prompts",
+        "description": "prompts",
+        "isExtraImport": true,
+        "detail": "prompts",
+        "documentation": {}
+    },
+    {
+        "label": "SESSION_INSTRUCTION",
+        "importPath": "prompts",
+        "description": "prompts",
+        "isExtraImport": true,
+        "detail": "prompts",
+        "documentation": {}
+    },
+    {
+        "label": "get_weather",
+        "importPath": "tools",
+        "description": "tools",
+        "isExtraImport": true,
+        "detail": "tools",
+        "documentation": {}
+    },
+    {
+        "label": "search_web",
+        "importPath": "tools",
+        "description": "tools",
+        "isExtraImport": true,
+        "detail": "tools",
+        "documentation": {}
+    },
+    {
+        "label": "send_email",
+        "importPath": "tools",
+        "description": "tools",
+        "isExtraImport": true,
+        "detail": "tools",
+        "documentation": {}
+    },
+    {
+        "label": "AsyncMemoryClient",
+        "importPath": "mem0",
+        "description": "mem0",
+        "isExtraImport": true,
+        "detail": "mem0",
+        "documentation": {}
+    },
+    {
+        "label": "MemoryClient",
+        "importPath": "mem0",
+        "description": "mem0",
+        "isExtraImport": true,
+        "detail": "mem0",
+        "documentation": {}
+    },
+    {
+        "label": "MCPServerSse",
+        "importPath": "mcp_client",
+        "description": "mcp_client",
+        "isExtraImport": true,
+        "detail": "mcp_client",
+        "documentation": {}
+    },
+    {
+        "label": "MCPToolsIntegration",
+        "importPath": "mcp_client.agent_tools",
+        "description": "mcp_client.agent_tools",
+        "isExtraImport": true,
+        "detail": "mcp_client.agent_tools",
+        "documentation": {}
+    },
+    {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "requests",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "requests",
+        "description": "requests",
+        "detail": "requests",
+        "documentation": {}
+    },
+    {
+        "label": "DuckDuckGoSearchRun",
+        "importPath": "langchain_community.tools",
+        "description": "langchain_community.tools",
+        "isExtraImport": true,
+        "detail": "langchain_community.tools",
+        "documentation": {}
+    },
+    {
+        "label": "smtplib",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "smtplib",
+        "description": "smtplib",
+        "detail": "smtplib",
+        "documentation": {}
+    },
+    {
+        "label": "MIMEMultipart",
+        "importPath": "email.mime.multipart",
+        "description": "email.mime.multipart",
+        "isExtraImport": true,
+        "detail": "email.mime.multipart",
+        "documentation": {}
+    },
+    {
+        "label": "MIMEText",
+        "importPath": "email.mime.text",
+        "description": "email.mime.text",
+        "isExtraImport": true,
+        "detail": "email.mime.text",
+        "documentation": {}
+    },
+    {
+        "label": "MCPToolsIntegration",
+        "kind": 6,
+        "importPath": "mcp_client.agent_tools",
+        "description": "mcp_client.agent_tools",
+        "peekOfCode": "class MCPToolsIntegration:\n    \"\"\"\n    Helper class for integrating MCP tools with LiveKit agents.\n    Provides utilities for registering dynamic tools from MCP servers.\n    \"\"\"\n    @staticmethod\n    async def prepare_dynamic_tools(mcp_servers: List[MCPServer],\n                                   convert_schemas_to_strict: bool = True,\n                                   auto_connect: bool = True) -> List[Callable]:\n        \"\"\"",
+        "detail": "mcp_client.agent_tools",
+        "documentation": {}
+    },
+    {
+        "label": "logger",
+        "kind": 5,
+        "importPath": "mcp_client.agent_tools",
+        "description": "mcp_client.agent_tools",
+        "peekOfCode": "logger = logging.getLogger(\"mcp-agent-tools\")\nclass MCPToolsIntegration:\n    \"\"\"\n    Helper class for integrating MCP tools with LiveKit agents.\n    Provides utilities for registering dynamic tools from MCP servers.\n    \"\"\"\n    @staticmethod\n    async def prepare_dynamic_tools(mcp_servers: List[MCPServer],\n                                   convert_schemas_to_strict: bool = True,\n                                   auto_connect: bool = True) -> List[Callable]:",
+        "detail": "mcp_client.agent_tools",
+        "documentation": {}
+    },
+    {
+        "label": "MCPServer",
+        "kind": 6,
+        "importPath": "mcp_client.server",
+        "description": "mcp_client.server",
+        "peekOfCode": "class MCPServer:\n    async def connect(self):\n        \"\"\"Connect to the server.\"\"\"\n        raise NotImplementedError\n    @property\n    def name(self) -> str:\n        \"\"\"A readable name for the server.\"\"\"\n        raise NotImplementedError\n    async def list_tools(self) -> List[MCPTool]:\n        \"\"\"List the tools available on the server.\"\"\"",
+        "detail": "mcp_client.server",
+        "documentation": {}
+    },
+    {
+        "label": "_MCPServerWithClientSession",
+        "kind": 6,
+        "importPath": "mcp_client.server",
+        "description": "mcp_client.server",
+        "peekOfCode": "class _MCPServerWithClientSession(MCPServer):\n    \"\"\"Base class for MCP servers that use a ClientSession to communicate with the server.\"\"\"\n    def __init__(self, cache_tools_list: bool):\n        \"\"\"\n        Args:\n            cache_tools_list: Whether to cache the tools list. If True, the tools list will be\n            cached and only fetched from the server once. If False, the tools list will be\n            fetched from the server on each call to list_tools(). You should set this to True\n            if you know the server will not change its tools list, because it can drastically\n            improve latency.",
+        "detail": "mcp_client.server",
+        "documentation": {}
+    },
+    {
+        "label": "MCPServerSse",
+        "kind": 6,
+        "importPath": "mcp_client.server",
+        "description": "mcp_client.server",
+        "peekOfCode": "class MCPServerSse(_MCPServerWithClientSession):\n    \"\"\"MCP server implementation that uses the HTTP with SSE transport.\"\"\"\n    def __init__(\n        self,\n        params: MCPServerSseParams,\n        cache_tools_list: bool = False,\n        name: Optional[str] = None,\n    ):\n        \"\"\"Create a new MCP server based on the HTTP with SSE transport.\n        Args:",
+        "detail": "mcp_client.server",
+        "documentation": {}
+    },
+    {
+        "label": "MCPServerStdio",
+        "kind": 6,
+        "importPath": "mcp_client.server",
+        "description": "mcp_client.server",
+        "peekOfCode": "class MCPServerStdio(MCPServer):\n    \"\"\"An example (minimal) Stdio server implementation.\"\"\"\n    def __init__(self, params: MCPServerStdioParams, cache_tools_list: bool = False, name: Optional[str] = None):\n        self.params = params\n        self.cache_tools_list = cache_tools_list\n        self._tools_cache: Optional[List[MCPTool]] = None\n        self._name = name or f\"Stdio Server: {self.params.get('command', 'unknown')}\"\n        self.connected = False\n        self.logger = logging.getLogger(__name__)\n    @property",
+        "detail": "mcp_client.server",
+        "documentation": {}
+    },
+    {
+        "label": "MCPServerSseParams",
+        "kind": 5,
+        "importPath": "mcp_client.server",
+        "description": "mcp_client.server",
+        "peekOfCode": "MCPServerSseParams = Dict[str, Any]\nMCPServerStdioParams = Dict[str, Any]\n# SSE server implementation\nclass MCPServerSse(_MCPServerWithClientSession):\n    \"\"\"MCP server implementation that uses the HTTP with SSE transport.\"\"\"\n    def __init__(\n        self,\n        params: MCPServerSseParams,\n        cache_tools_list: bool = False,\n        name: Optional[str] = None,",
+        "detail": "mcp_client.server",
+        "documentation": {}
+    },
+    {
+        "label": "MCPServerStdioParams",
+        "kind": 5,
+        "importPath": "mcp_client.server",
+        "description": "mcp_client.server",
+        "peekOfCode": "MCPServerStdioParams = Dict[str, Any]\n# SSE server implementation\nclass MCPServerSse(_MCPServerWithClientSession):\n    \"\"\"MCP server implementation that uses the HTTP with SSE transport.\"\"\"\n    def __init__(\n        self,\n        params: MCPServerSseParams,\n        cache_tools_list: bool = False,\n        name: Optional[str] = None,\n    ):",
+        "detail": "mcp_client.server",
+        "documentation": {}
+    },
+    {
+        "label": "FunctionTool",
+        "kind": 6,
+        "importPath": "mcp_client.util",
+        "description": "mcp_client.util",
+        "peekOfCode": "class FunctionTool:\n    def __init__(self, name: str, description: str, params_json_schema: Dict[str, Any], on_invoke_tool, strict_json_schema: bool = False):\n        self.name = name\n        self.description = description\n        self.params_json_schema = params_json_schema\n        self.on_invoke_tool = on_invoke_tool  # This should be an async function.\n        self.strict_json_schema = strict_json_schema\n    def __repr__(self):\n        return f\"FunctionTool(name={self.name})\"\nclass MCPUtil:",
+        "detail": "mcp_client.util",
+        "documentation": {}
+    },
+    {
+        "label": "MCPUtil",
+        "kind": 6,
+        "importPath": "mcp_client.util",
+        "description": "mcp_client.util",
+        "peekOfCode": "class MCPUtil:\n    @classmethod\n    async def get_function_tools(cls, server, convert_schemas_to_strict: bool) -> List[FunctionTool]:\n        tools = await server.list_tools()\n        function_tools = []\n        for tool in tools:\n            ft = cls.to_function_tool(tool, server, convert_schemas_to_strict)\n            function_tools.append(ft)\n        return function_tools\n    @classmethod",
+        "detail": "mcp_client.util",
+        "documentation": {}
+    },
+    {
+        "label": "Assistant",
+        "kind": 6,
+        "importPath": "agent",
+        "description": "agent",
+        "peekOfCode": "class Assistant(Agent):\n    def __init__(self, chat_ctx=None) -> None:\n        super().__init__(\n            instructions=AGENT_INSTRUCTION,\n            llm=openai.realtime.RealtimeModel(\n                 voice=\"sage\"\n            ),\n            tools=[\n                get_weather,\n                search_web,",
+        "detail": "agent",
+        "documentation": {}
+    },
+    {
+        "label": "AGENT_INSTRUCTION",
+        "kind": 5,
+        "importPath": "prompts",
+        "description": "prompts",
+        "peekOfCode": "AGENT_INSTRUCTION = \"\"\"\n# Persona \nYou are a personal Assistant called Friday similar to the AI from the movie Iron Man.\n# Specifics\n- Speak like a classy butler. \n- Be sarcastic when speaking to the person you are assisting. \n- Only answer in one sentece.\n- If you are asked to do something actknowledge that you will do it and say something like:\n  - \"Will do, Sir\"\n  - \"Roger Boss\"",
+        "detail": "prompts",
+        "documentation": {}
+    },
+    {
+        "label": "SESSION_INSTRUCTION",
+        "kind": 5,
+        "importPath": "prompts",
+        "description": "prompts",
+        "peekOfCode": "SESSION_INSTRUCTION = \"\"\"\n     # Task\n    - Provide assistance by using the tools that you have access to when needed.\n    - Greet the user, and if there was some specific topic the user was talking about in the previous conversation,\n    that had an open end then ask him about it.\n    - Use the chat context to understand the user's preferences and past interactions.\n      Example of follow up after previous conversation: \"Good evening Boss, how did the meeting with the client go? Did you manage to close the deal?\n    - Use the latest information about the user to start the conversation.\n    - Only do that if there is an open topic from the previous conversation.\n    - If you already talked about the outcome of the information just say \"Good evening Boss, how can I assist you today?\".",
+        "detail": "prompts",
+        "documentation": {}
+    },
+    {
+        "label": "add_memory",
+        "kind": 2,
+        "importPath": "test_mem0",
+        "description": "test_mem0",
+        "peekOfCode": "def add_memory():\n    messages_formatted = [\n        {        \"role\": \"user\",\n            \"content\": \"I really like Linkin Park.\"\n        },\n        {\n            \"role\": \"assistant\",\n            \"content\": \"That is a good choice.\"\n        },\n        {",
+        "detail": "test_mem0",
+        "documentation": {}
+    },
+    {
+        "label": "get_memory_by_query",
+        "kind": 2,
+        "importPath": "test_mem0",
+        "description": "test_mem0",
+        "peekOfCode": "def get_memory_by_query():\n    mem0 = MemoryClient()\n    query = \"What are {user_name}'s preferences?\"\n    results = mem0.search(query, user_id=user_name)\n    memories = [\n            {\n                \"memory\": result[\"memory\"],\n                \"updated_at\": result[\"updated_at\"]\n            }\n            for result in results",
+        "detail": "test_mem0",
+        "documentation": {}
+    },
+    {
+        "label": "user_name",
+        "kind": 5,
+        "importPath": "test_mem0",
+        "description": "test_mem0",
+        "peekOfCode": "user_name = 'David'\nmem0 = MemoryClient()\ndef add_memory():\n    messages_formatted = [\n        {        \"role\": \"user\",\n            \"content\": \"I really like Linkin Park.\"\n        },\n        {\n            \"role\": \"assistant\",\n            \"content\": \"That is a good choice.\"",
+        "detail": "test_mem0",
+        "documentation": {}
+    },
+    {
+        "label": "mem0",
+        "kind": 5,
+        "importPath": "test_mem0",
+        "description": "test_mem0",
+        "peekOfCode": "mem0 = MemoryClient()\ndef add_memory():\n    messages_formatted = [\n        {        \"role\": \"user\",\n            \"content\": \"I really like Linkin Park.\"\n        },\n        {\n            \"role\": \"assistant\",\n            \"content\": \"That is a good choice.\"\n        },",
+        "detail": "test_mem0",
+        "documentation": {}
+    }
+]
