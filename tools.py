@@ -661,7 +661,7 @@ async def delegate_to_maid(
 ) -> str:
     """
     Delegate a task to one of Aria's specialist maids.
-    Each maid has their own expertise and personality.
+    The maid will respond in their own personality!
     
     Available maids:
     - sophia: Research & Knowledge (bookish, thorough)
@@ -693,11 +693,92 @@ async def delegate_to_maid(
         result = await maid.handle_task(task)
         
         logging.info(f"Aria delegated to {maid.name}: {task}")
-        return f"{intro}\n\n**{maid.name}** ({maid.specialty}):\n{result}"
+        
+        # Format response so Aria announces, then maid "speaks"
+        return f"{intro}\n\n---\n**{maid.name}** *steps forward*:\n{result}\n---\n\n*{maid.name} steps back*"
         
     except Exception as e:
         logging.error(f"Error delegating to {maid_name}: {e}")
         return f"Hmph, {maid_name.title()} seems to be having difficulties. How troublesome: {e}"
+
+
+@function_tool()
+async def call_maid(
+    context: RunContext,  # type: ignore
+    maid_name: str,
+    message: str
+) -> str:
+    """
+    Call a maid to handle a task.
+    The maid will execute their tools and respond!
+    
+    Args:
+        maid_name: Name of the maid to call (sophia, luna, rose, mei, clara)
+        message: What to ask them to do
+    """
+    from maids.session_manager import get_session_manager
+    
+    manager = get_session_manager()
+    result = await manager.summon_maid(maid_name, message)
+    
+    logging.info(f"Called {maid_name}: {message}")
+    return result
+
+
+@function_tool()
+async def talk_to_maid(
+    context: RunContext,  # type: ignore
+    maid_name: str
+) -> str:
+    """
+    Summon a maid for direct conversation.
+    The maid will stay in character until dismissed back to Aria.
+    Use this when the user wants to chat with a specific maid.
+    
+    Args:
+        maid_name: Name of the maid to summon (sophia, luna, rose, mei, clara)
+    """
+    from maids.session_manager import get_session_manager
+    
+    manager = get_session_manager()
+    result = await manager.start_maid_conversation(maid_name)
+    
+    logging.info(f"Started conversation with {maid_name}")
+    return result
+
+
+@function_tool()
+async def dismiss_maid(
+    context: RunContext,  # type: ignore
+) -> str:
+    """
+    Dismiss the current maid and return to Aria.
+    Use when the user is done talking to a maid.
+    """
+    from maids.session_manager import get_session_manager
+    
+    manager = get_session_manager()
+    result = await manager.end_maid_conversation()
+    
+    logging.info("Dismissed maid, returning to Aria")
+    return result
+
+
+@function_tool()
+async def return_to_aria(
+    context: RunContext,  # type: ignore
+    summary: Optional[str] = None
+) -> str:
+    """
+    Acknowledge that a maid task is complete.
+    (Voice handoff not yet implemented — maids respond through Aria)
+    
+    Args:
+        summary: Optional summary of what was accomplished
+    """
+    if summary:
+        return f"*nods* Very good. {summary}"
+    return "Task acknowledged."
 
 
 @function_tool()

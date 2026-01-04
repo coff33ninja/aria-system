@@ -33,7 +33,27 @@ Aria now commands a staff of specialized sub-agents, each with their own voice a
 | **Luna** | Movies, music, entertainment, games, recommendations |
 | **Clara** | Email, messages, drafts, replies, communication |
 
-Aria automatically delegates tasks to the appropriate maid based on keywords in your request.
+Aria automatically delegates tasks to the appropriate maid based on keywords in your request. You can also interact with maids directly:
+
+- `call_maid` — Have a maid execute a specific task and respond
+- `talk_to_maid` — Summon a maid for direct conversation (they stay in character)
+- `dismiss_maid` — End the conversation and return to Aria
+
+### Maid Voices (Gemini Live)
+
+Each maid has their own distinct voice via Gemini Live's native audio model. When summoned, the session swaps to the maid's agent with their unique voice and personality:
+
+| Maid | Voice | Temperature | Style |
+|------|-------|-------------|-------|
+| Sophia | Kore | 0.7 | Calm, intellectual |
+| Luna | Charon | 0.95 | Expressive, dramatic |
+| Rose | Fenrir | 0.5 | Authoritative, strict |
+| Mei | Puck | 0.6 | Soft, precise |
+| Clara | Aoede | 0.85 | Warm, friendly |
+
+Aria uses the Aoede voice (temperature 0.9). Voice handoffs happen via `session.update_agent()` — each maid is a fully separate agent with their own LLM configuration.
+
+Voice handoffs now force a disconnect/reconnect of the realtime session by default to ensure voice changes properly. Set `ARIA_FORCE_VOICE_RECONNECT=false` in your `.env` to disable this if you experience issues.
 
 ### Per-Maid Memory
 

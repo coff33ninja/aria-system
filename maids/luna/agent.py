@@ -25,8 +25,8 @@ class Luna(BaseMaid):
     
     # Luna's voice: expressive, energetic
     voice_openai = "shimmer"
-    voice_google = "Aoede"
-    temperature = 0.9  # More creative and expressive
+    voice_google = "Charon"  # Dramatic, expressive voice for entertainment
+    temperature = 0.95  # More creative and expressive
     
     def get_tools(self):
         return [

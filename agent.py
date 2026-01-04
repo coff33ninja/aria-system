@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 
 from livekit import agents
-from livekit.agents import AgentSession, Agent, RoomInputOptions, ChatContext
+from livekit.agents import AgentSession, Agent, RoomOptions, ChatContext
 from livekit.plugins import (
     noise_cancellation,
     openai
@@ -25,6 +25,10 @@ from tools import (
     ReminderScheduler,
     # Phase 2: Maid delegation
     delegate_to_maid,
+    call_maid,
+    talk_to_maid,
+    dismiss_maid,
+    return_to_aria,
     list_staff,
     suggest_maid,
 )
@@ -361,6 +365,10 @@ class Aria(Agent):
                 motivate,
                 # Phase 2: Maid staff delegation
                 delegate_to_maid,
+                call_maid,
+                talk_to_maid,
+                dismiss_maid,
+                return_to_aria,
                 list_staff,
                 suggest_maid,
             ],
@@ -480,14 +488,20 @@ async def entrypoint(ctx: agents.JobContext):
     await session.start(
         room=ctx.room,
         agent=agent,
-        room_input_options=RoomInputOptions(
+        room_options=RoomOptions(
             # Aria demands only the finest audio quality
             video_enabled=True,
+            audio_enabled=True,
             noise_cancellation=noise_cancellation.BVC(),
         ),
     )
 
     await ctx.connect()
+
+    # Initialize the maid session manager for voice handoffs
+    from maids.session_manager import MaidSessionManager
+    MaidSessionManager.initialize(session, agent)
+    logging.info("Maid session manager ready for voice handoffs~")
 
     # Setup reminder callback so Aria speaks when reminders trigger
     async def on_reminder(message: str):
