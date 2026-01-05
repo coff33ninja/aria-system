@@ -259,6 +259,28 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 
 ---
 
+## 🐛 Known Issues
+
+### Sophia's Output Truncation Bug
+**Issue**: Sophia tends to provide incomplete reports, stopping after 2-3 sentences and only continuing when the user acknowledges her partial output.
+
+**Symptoms**:
+- Research requests result in truncated responses
+- Sophia pauses mid-explanation waiting for user input
+- Full reports only delivered after user says "continue" or similar acknowledgment
+- Affects comprehensive research tasks and detailed explanations
+
+**Workaround**: 
+- After Sophia's initial response, prompt her to continue: "Please continue" or "Tell me more"
+- For complex research, break requests into smaller, specific questions
+- Use follow-up questions to get complete information
+
+**Status**: Under investigation - may be related to voice detection timing or response length limits
+
+**Technical Notes**: This appears to be a voice pipeline issue where Sophia's longer responses are being interrupted by the voice detection system, causing her to pause and wait for user acknowledgment before continuing.
+
+---
+
 ## ⚡ Performance Optimizations
 
 ### Voice Detection Speed

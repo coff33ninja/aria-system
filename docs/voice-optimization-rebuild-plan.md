@@ -18,6 +18,7 @@ The Aria Maid System currently uses LiveKit Agents v1.x with `AgentSession` and 
 - **Configuration**: No voice detection parameters currently configured
 - **Issue**: Voice input feels slow and unresponsive
 - **Failed Attempt**: Tried adding `min_endpointing_delay=300` to `AgentSession()` constructor (invalid)
+- **Sophia Bug**: Research maid stops mid-response after 2-3 sentences, requiring user acknowledgment to continue (likely related to voice detection interrupting longer responses)
 
 ## Research Findings
 
@@ -192,19 +193,21 @@ class AdaptiveVoiceConfig:
 - [ ] Add troubleshooting guides
 - [ ] Performance benchmarking and comparison
 
-## Expected Improvements
+### Expected Improvements
 
 ### Quantitative Benefits
 - **Response Time**: 40% faster (500ms → 300ms)
 - **User Experience**: More natural conversation flow
 - **Interruption Rate**: Reduced with EOU model
 - **Accuracy**: Better turn detection with semantic understanding
+- **Sophia's Completeness**: Should resolve truncation bug by preventing premature interruptions
 
 ### Qualitative Benefits
 - **Natural Feel**: Conversations feel more human-like
 - **Responsiveness**: Aria responds faster to user input
 - **Reliability**: Fewer false triggers and missed inputs
 - **Consistency**: All maids have optimized voice detection
+- **Complete Reports**: Sophia can deliver full research without interruption
 
 ## Risk Assessment
 
