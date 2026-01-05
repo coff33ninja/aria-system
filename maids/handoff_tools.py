@@ -13,7 +13,7 @@ Usage:
 import logging
 import random
 from livekit.agents import function_tool, RunContext
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Any
 
 if TYPE_CHECKING:
     from livekit.agents import Agent
@@ -56,6 +56,29 @@ def _get_delegation_phrase(maid_name: str) -> str:
     return random.choice(phrases)
 
 
+def _get_chat_ctx(context: RunContext) -> Optional[Any]:
+    """Safely extract chat context from RunContext, handling API changes."""
+    try:
+        session = getattr(context, 'session', None)
+        if session is None:
+            return None
+        # Try public attribute first, then private
+        if hasattr(session, 'chat_ctx'):
+            return session.chat_ctx
+        if hasattr(session, '_chat_ctx'):
+            return session._chat_ctx
+        # Try getting from the agent if available
+        agent = getattr(session, '_agent', None) or getattr(session, 'agent', None)
+        if agent:
+            if hasattr(agent, 'chat_ctx'):
+                return agent.chat_ctx
+            if hasattr(agent, '_chat_ctx'):
+                return agent._chat_ctx
+    except Exception as e:
+        logger.warning(f"Could not extract chat_ctx: {e}")
+    return None
+
+
 @function_tool
 async def summon_sophia(context: RunContext):
     """
@@ -69,7 +92,7 @@ async def summon_sophia(context: RunContext):
     
     # Return Sophia instance - LiveKit will handle the voice switch
     # Pass chat context to preserve conversation history
-    chat_ctx = context.session.chat_ctx if hasattr(context, 'session') else None
+    chat_ctx = _get_chat_ctx(context)
     return Sophia(chat_ctx=chat_ctx), _get_delegation_phrase("sophia")
 
 
@@ -84,7 +107,7 @@ async def summon_luna(context: RunContext):
     
     logger.info("🎭 Aria summoning Luna for entertainment")
     
-    chat_ctx = context.session.chat_ctx if hasattr(context, 'session') else None
+    chat_ctx = _get_chat_ctx(context)
     return Luna(chat_ctx=chat_ctx), _get_delegation_phrase("luna")
 
 
@@ -99,7 +122,7 @@ async def summon_rose(context: RunContext):
     
     logger.info("🎭 Aria summoning Rose for scheduling")
     
-    chat_ctx = context.session.chat_ctx if hasattr(context, 'session') else None
+    chat_ctx = _get_chat_ctx(context)
     return Rose(chat_ctx=chat_ctx), _get_delegation_phrase("rose")
 
 
@@ -114,7 +137,7 @@ async def summon_mei(context: RunContext):
     
     logger.info("🎭 Aria summoning Mei for smart home")
     
-    chat_ctx = context.session.chat_ctx if hasattr(context, 'session') else None
+    chat_ctx = _get_chat_ctx(context)
     return Mei(chat_ctx=chat_ctx), _get_delegation_phrase("mei")
 
 
@@ -129,7 +152,7 @@ async def summon_clara(context: RunContext):
     
     logger.info("🎭 Aria summoning Clara for communication")
     
-    chat_ctx = context.session.chat_ctx if hasattr(context, 'session') else None
+    chat_ctx = _get_chat_ctx(context)
     return Clara(chat_ctx=chat_ctx), _get_delegation_phrase("clara")
 
 
@@ -153,7 +176,7 @@ async def summon_maid_by_name(context: RunContext, maid_name: str):
     
     logger.info(f"🎭 Aria summoning {maid_name_lower} by name")
     
-    chat_ctx = context.session.chat_ctx if hasattr(context, 'session') else None
+    chat_ctx = _get_chat_ctx(context)
     return maid_class(chat_ctx=chat_ctx), _get_delegation_phrase(maid_name_lower)
 
 
@@ -180,7 +203,7 @@ async def suggest_and_summon_maid(context: RunContext, task_description: str):
     
     logger.info(f"🎭 Aria auto-summoning {suggested} for: {task_description}")
     
-    chat_ctx = context.session.chat_ctx if hasattr(context, 'session') else None
+    chat_ctx = _get_chat_ctx(context)
     return maid_class(chat_ctx=chat_ctx), _get_delegation_phrase(suggested)
 
 

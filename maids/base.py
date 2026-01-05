@@ -252,6 +252,27 @@ class BaseMaid(Agent, ABC):
         
         maid_self = self  # Capture reference for closure
         
+        def _get_chat_ctx_from_session(session) -> Optional[Any]:
+            """Safely extract chat context from session, handling API changes."""
+            try:
+                if session is None:
+                    return None
+                # Try public attribute first, then private
+                if hasattr(session, 'chat_ctx'):
+                    return session.chat_ctx
+                if hasattr(session, '_chat_ctx'):
+                    return session._chat_ctx
+                # Try getting from the agent if available
+                agent = getattr(session, '_agent', None) or getattr(session, 'agent', None)
+                if agent:
+                    if hasattr(agent, 'chat_ctx'):
+                        return agent.chat_ctx
+                    if hasattr(agent, '_chat_ctx'):
+                        return agent._chat_ctx
+            except Exception as e:
+                logger.warning(f"Could not extract chat_ctx: {e}")
+            return None
+        
         @function_tool
         async def return_to_aria(context: RunContext):
             """
@@ -269,7 +290,8 @@ class BaseMaid(Agent, ABC):
             maid_self.memory.remember("Returned control to Aria", category="handoffs")
             
             # Return Aria instance with chat context preserved
-            return aria_class(chat_ctx=maid_self.session.chat_ctx), f"{maid_self.name} has completed the task"
+            chat_ctx = _get_chat_ctx_from_session(maid_self.session)
+            return aria_class(chat_ctx=chat_ctx), f"{maid_self.name} has completed the task"
         
         return return_to_aria
     
