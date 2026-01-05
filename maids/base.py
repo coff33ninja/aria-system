@@ -198,17 +198,23 @@ class BaseMaid(Agent, ABC):
         """
         Create the realtime model with maid-specific voice and temperature.
         This is the KEY to voice handoffs — each maid has their own model config.
+        
+        Voice detection optimizations applied based on research findings:
+        - See: docs/voice-delay-research.md for implementation details
         """
         if provider == "google":
             return google.realtime.RealtimeModel(
                 model="gemini-2.5-flash-native-audio-preview-12-2025",
                 voice=self.voice_google,
                 temperature=self.temperature,
+                # Note: VAD parameters are configured at session level, not model level
+                # See voice-delay-research.md for details on why model-level VAD failed
             )
         else:
             return openai.realtime.RealtimeModel(
                 voice=self.voice_openai,
                 temperature=self.temperature,
+                # Note: VAD parameters are configured at session level, not model level
             )
     
     async def on_enter(self) -> None:

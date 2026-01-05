@@ -259,6 +259,19 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 
 ---
 
+## ⚡ Performance Optimizations
+
+### Voice Detection Speed
+Aria is configured with optimized voice detection parameters for faster response times:
+
+- **End-of-Utterance Delay**: Reduced from 500ms (default) to 300ms
+- **Faster Response**: Aria responds more quickly when you finish speaking
+- **Research Documentation**: See `docs/voice-delay-research.md` for technical details
+
+The system uses LiveKit's native voice activity detection with semantic understanding to accurately detect when you've finished speaking, while minimizing delays.
+
+---
+
 ## 📁 Project Structure
 
 ```
