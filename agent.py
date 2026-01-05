@@ -341,6 +341,8 @@ class Aria(Agent):
     - summon_sophia, summon_luna, etc. return maid Agent instances
     - LiveKit automatically switches voice when handoff occurs
     - Each maid's on_enter() introduces them in their own voice
+    
+    Performance Reviews: Aria evaluates her staff's work with signature sass.
     """
     
     # Aria's voice configuration (for reference and handoff back)
@@ -349,6 +351,9 @@ class Aria(Agent):
     temperature = 0.9
     
     def __init__(self, chat_ctx=None, llm_provider: str = None) -> None:
+        # Initialize Aria's personal memory for staff management
+        self._memory = LocalMemory(MEMORY_FILE.parent / "aria-staff-reviews.json")
+        
         super().__init__(
             instructions=AGENT_INSTRUCTION,
             llm=get_realtime_model(llm_provider),
@@ -373,21 +378,325 @@ class Aria(Agent):
                 motivate,
                 # Phase 2: Voice handoff tools (return Agent instances)
                 *HANDOFF_TOOLS,
+                # Staff management
+                self._create_staff_review_tool(),
             ],
             chat_ctx=chat_ctx
         )
     
-    async def on_enter(self) -> None:
-        """Called when Aria becomes active (e.g., after returning from a maid)."""
-        logger = logging.getLogger("aria")
-        logger.info("🎭 Aria is now active")
+    def _create_staff_review_tool(self):
+        """Create the staff performance review tool."""
+        from livekit.agents import function_tool, RunContext
         
-        # Generate a welcome back message
+        aria_self = self  # Capture reference for closure
+        
+        @function_tool
+        async def review_staff_performance(context: RunContext):
+            """
+            Review Aria's assessments of maid performance.
+            See what the Head Maid really thinks about her staff's work.
+            """
+            try:
+                # Get performance logs from Aria's memory
+                issues = aria_self._memory.search("Performance issue")
+                praise = aria_self._memory.search("Performance praise")
+                
+                if not issues and not praise:
+                    return ("📋 **Staff Performance Review** (Aria's Assessment):\n\n"
+                           "*adjusts glasses with satisfaction*\n\n"
+                           "All staff have been performing to my exacting standards, Master. "
+                           "How refreshing when competence actually exists.")
+                
+                report = "📋 **Staff Performance Review** (Aria's Assessment):\n\n"
+                
+                if praise:
+                    report += "**✨ Commendable Performance:**\n"
+                    for item in praise[-5:]:  # Last 5 praise items
+                        report += f"• {item.get('memory', item)}\n"
+                    report += "\n"
+                
+                if issues:
+                    report += "**⚠️ Areas Requiring... Improvement:**\n"
+                    for item in issues[-5:]:  # Last 5 issues
+                        report += f"• {item.get('memory', item)}\n"
+                    report += "\n"
+                
+                report += "*flips through notes with obvious satisfaction*\n\n"
+                report += "Shall I have a word with any particular staff member, Master?"
+                
+                return report
+                
+            except Exception as e:
+                logging.error(f"Failed to generate staff review: {e}")
+                return "Ara ara~ My performance records seem to be... misplaced. How unlike me."
+        
+        return review_staff_performance
+    
+    def _detect_returning_maid(self) -> Optional[str]:
+        """Detect which maid just finished helping by analyzing chat context."""
+        try:
+            if not hasattr(self, 'chat_ctx') or not self.chat_ctx:
+                return None
+            
+            # Look through recent messages for maid signatures
+            recent_messages = self.chat_ctx.items[-10:] if len(self.chat_ctx.items) >= 10 else self.chat_ctx.items
+            
+            for item in reversed(recent_messages):
+                if hasattr(item, 'content') and item.content:
+                    content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
+                    content_lower = content_str.lower()
+                    
+                    # Look for maid signatures in their messages
+                    if "returning you to aria" in content_lower or "back to aria" in content_lower:
+                        if "sophia" in content_lower or "research" in content_lower:
+                            return "sophia"
+                        elif "luna" in content_lower or "entertainment" in content_lower:
+                            return "luna"
+                        elif "rose" in content_lower or "scheduling" in content_lower:
+                            return "rose"
+                        elif "mei" in content_lower or "smart home" in content_lower:
+                            return "mei"
+                        elif "clara" in content_lower or "communication" in content_lower:
+                            return "clara"
+            
+            return None
+        except Exception as e:
+            logging.debug(f"Could not detect returning maid: {e}")
+            return None
+    
+    def _assess_maid_performance(self) -> Dict[str, Any]:
+        """Analyze recent conversation to assess maid performance."""
+        try:
+            if not hasattr(self, 'chat_ctx') or not self.chat_ctx:
+                return {"status": "unknown", "summary": "No context available"}
+            
+            # Analyze recent messages for success/failure indicators
+            recent_messages = self.chat_ctx.items[-15:] if len(self.chat_ctx.items) >= 15 else self.chat_ctx.items
+            
+            error_indicators = ["error", "failed", "couldn't", "unable", "sorry", "problem", "issue"]
+            success_indicators = ["found", "here's", "successfully", "completed", "done", "result"]
+            
+            errors = 0
+            successes = 0
+            summary_parts = []
+            
+            for item in recent_messages:
+                if hasattr(item, 'content') and hasattr(item, 'role') and item.role == 'assistant':
+                    content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
+                    content_lower = content_str.lower()
+                    
+                    # Count error indicators
+                    for indicator in error_indicators:
+                        if indicator in content_lower:
+                            errors += 1
+                            break
+                    
+                    # Count success indicators
+                    for indicator in success_indicators:
+                        if indicator in content_lower:
+                            successes += 1
+                            break
+                    
+                    # Collect summary
+                    if len(content_str) > 20:
+                        summary_parts.append(content_str[:100])
+            
+            # Determine overall performance
+            if errors > successes:
+                status = "poor"
+            elif successes > errors * 2:
+                status = "excellent"
+            elif successes > errors:
+                status = "good"
+            else:
+                status = "adequate"
+            
+            return {
+                "status": status,
+                "errors": errors,
+                "successes": successes,
+                "summary": " | ".join(summary_parts[-3:])  # Last 3 interactions
+            }
+            
+        except Exception as e:
+            logging.debug(f"Could not assess performance: {e}")
+            return {"status": "unknown", "summary": "Assessment failed"}
+    
+    def _log_maid_performance(self, maid_name: str, performance: Dict[str, Any], is_praise: bool = False):
+        """Log maid performance for later review."""
+        try:
+            from datetime import datetime
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            
+            if is_praise:
+                log_entry = f"[{timestamp}] Performance praise for {maid_name}: {performance['status']} work - {performance.get('summary', 'No details')[:100]}"
+                self._memory.add_observation("staff_performance", log_entry, entity_type="praise")
+                logging.info(f"🎭 Aria logged praise: {maid_name} - {performance['status']}")
+            else:
+                log_entry = f"[{timestamp}] Performance issue with {maid_name}: {performance['status']} work - {performance.get('summary', 'No details')[:100]}"
+                self._memory.add_observation("staff_performance", log_entry, entity_type="issue")
+                logging.warning(f"🎭 Aria logged performance issue: {maid_name} - {performance['status']}")
+                
+        except Exception as e:
+            logging.error(f"Failed to log maid performance: {e}")
+    
+    async def on_enter(self) -> None:
+        """
+        Aria's grand return with sophisticated performance review.
+        She evaluates her staff's work with signature sass and elegance.
+        """
+        logger = logging.getLogger("aria")
+        logger.info("🎭 Aria returning with performance review")
+        
+        # Detect which maid just finished and assess their performance
+        last_maid = self._detect_returning_maid()
+        performance = self._assess_maid_performance()
+        
+        if last_maid and performance["status"] != "unknown":
+            # Log the performance for later review
+            if performance["status"] in ["excellent", "good"]:
+                self._log_maid_performance(last_maid, performance, is_praise=True)
+            elif performance["status"] == "poor":
+                self._log_maid_performance(last_maid, performance, is_praise=False)
+            
+            # Generate maid-specific performance review
+            await self._generate_performance_review(last_maid, performance)
+        else:
+            # Standard return without specific maid context
+            self.session.generate_reply(
+                instructions=(
+                    "You are Aria, the Head Maid. You just returned to the conversation. "
+                    "Welcome the user back with your signature elegance and sass. "
+                    "Say something like 'Ara ara~ I'm back, Master. How may I assist you further?' "
+                    "Keep it short and in character."
+                )
+            )
+    
+    async def _generate_performance_review(self, maid_name: str, performance: Dict[str, Any]):
+        """Generate Aria's sassy performance review for a specific maid."""
+        maid_reviews = {
+            "sophia": {
+                "excellent": [
+                    "Ara ara~ I'm back, Master. Our dear Sophia actually managed to provide comprehensive research. How... unexpected.",
+                    "Welcome back~ I see Sophia's bookish tendencies finally proved useful. Her research was surprisingly thorough.",
+                    "I return to find Sophia exceeded expectations. Perhaps there's hope for her yet."
+                ],
+                "good": [
+                    "I'm back, Master~ Sophia's research was... adequate. At least she tried.",
+                    "Ara ara~ Sophia managed not to embarrass herself this time. Progress, I suppose.",
+                    "Welcome back~ Our nervous researcher delivered acceptable results. How refreshing."
+                ],
+                "poor": [
+                    "I'm back, Master. Did Sophia provide decent information, or shall I have a stern word with her about proper research methodology?",
+                    "Ara ara~ I see Sophia's research was as scattered as her nerves. Perhaps she needs additional... guidance.",
+                    "Welcome back~ Sophia seems to have had difficulties. Shall I educate her on the meaning of 'thorough research'?"
+                ],
+                "adequate": [
+                    "I'm back, Master~ Sophia's work was... serviceable. Nothing more, nothing less.",
+                    "Ara ara~ Sophia delivered basic results. How wonderfully... ordinary."
+                ]
+            },
+            "luna": {
+                "excellent": [
+                    "Welcome back, Master~ Luna's entertainment choices were surprisingly sophisticated. I'm almost impressed.",
+                    "Ara ara~ I return to find Luna actually demonstrated good taste. Miracles do happen.",
+                    "I'm back~ Luna's recommendations were... genuinely enjoyable. Don't let it go to her head."
+                ],
+                "good": [
+                    "I'm back, Master~ Luna's entertainment was tolerable. Her enthusiasm almost makes up for her questionable taste.",
+                    "Welcome back~ Luna managed to provide decent entertainment without too much drama. Progress.",
+                    "Ara ara~ Luna's choices were acceptable. She's learning, slowly."
+                ],
+                "poor": [
+                    "I'm back, Master. Was Luna's entertainment satisfactory, or should I have a chat with her about quality standards?",
+                    "Ara ara~ I see Luna's recommendations were as questionable as her fashion sense. Shall I educate her on refinement?",
+                    "Welcome back~ Luna seems to have prioritized enthusiasm over quality again. How... typical."
+                ],
+                "adequate": [
+                    "I'm back, Master~ Luna provided standard entertainment. Nothing spectacular, nothing terrible.",
+                    "Ara ara~ Luna's work was... Luna-like. Make of that what you will."
+                ]
+            },
+            "rose": {
+                "excellent": [
+                    "Welcome back, Master~ Rose organized everything with her usual obsessive precision. At least someone maintains proper standards.",
+                    "I'm back~ Rose's scheduling was flawless. Her perfectionism actually proved useful for once.",
+                    "Ara ara~ Rose exceeded even my exacting standards. How... satisfying."
+                ],
+                "good": [
+                    "I'm back, Master~ Rose's organization was competent. Her rigidity has its uses, I suppose.",
+                    "Welcome back~ Rose managed things adequately. Her attention to detail is... appreciated.",
+                    "Ara ara~ Rose delivered solid results. Predictable, but reliable."
+                ],
+                "poor": [
+                    "I'm back, Master. Did Rose organize things properly, or was her scheduling as inflexible as her personality?",
+                    "Ara ara~ I see Rose's perfectionism caused more problems than it solved. Shall I teach her about adaptability?",
+                    "Welcome back~ Rose seems to have prioritized rules over results again. How... limiting."
+                ],
+                "adequate": [
+                    "I'm back, Master~ Rose handled things with her typical methodical approach. Efficient, if uninspired.",
+                    "Ara ara~ Rose's work was precisely what one would expect. No surprises, good or bad."
+                ]
+            },
+            "mei": {
+                "excellent": [
+                    "Welcome back, Master~ Mei handled the technical matters with her usual quiet competence. Efficiency at its finest.",
+                    "I'm back~ Mei's work was flawless and silent. The way all good service should be.",
+                    "Ara ara~ Mei exceeded expectations without fanfare. True professionalism."
+                ],
+                "good": [
+                    "I'm back, Master~ Mei managed the devices adequately. Her quiet efficiency is... reassuring.",
+                    "Welcome back~ Mei handled things competently. No drama, no fuss, just results.",
+                    "Ara ara~ Mei's work was solid. She understands the value of discretion."
+                ],
+                "poor": [
+                    "I'm back, Master. Did Mei handle the smart home properly, or do the devices need my personal attention?",
+                    "Ara ara~ I see Mei had technical difficulties. Perhaps she needs additional training?",
+                    "Welcome back~ Mei seems to have struggled with the systems. How... concerning."
+                ],
+                "adequate": [
+                    "I'm back, Master~ Mei handled things with her typical quiet efficiency. Nothing remarkable, nothing concerning.",
+                    "Ara ara~ Mei's work was characteristically understated. Functional, if unremarkable."
+                ]
+            },
+            "clara": {
+                "excellent": [
+                    "Welcome back, Master~ Clara's communication was surprisingly eloquent. Her diplomatic skills actually proved valuable.",
+                    "I'm back~ Clara crafted messages with genuine finesse. Perhaps her bubbly nature has hidden depths.",
+                    "Ara ara~ Clara's work was diplomatically perfect. She may be more capable than she appears."
+                ],
+                "good": [
+                    "I'm back, Master~ Clara's communication was pleasant and effective. Her warmth has its uses.",
+                    "Welcome back~ Clara managed to be both friendly and professional. A delicate balance.",
+                    "Ara ara~ Clara's work was charmingly competent. Her social skills served well."
+                ],
+                "poor": [
+                    "I'm back, Master. Was Clara's communication appropriate, or was she too... enthusiastic for the situation?",
+                    "Ara ara~ I see Clara's bubbly nature may have been misplaced. Shall I teach her about professional restraint?",
+                    "Welcome back~ Clara seems to have confused friendliness with effectiveness again. How... predictable."
+                ],
+                "adequate": [
+                    "I'm back, Master~ Clara's communication was pleasantly adequate. Warm, if not particularly memorable.",
+                    "Ara ara~ Clara handled things with her typical cheerful competence. Standard, but serviceable."
+                ]
+            }
+        }
+        
+        # Get appropriate review based on maid and performance
+        reviews = maid_reviews.get(maid_name, {})
+        review_options = reviews.get(performance["status"], [
+            f"I'm back, Master~ {maid_name.title()}'s work was... {performance['status']}. As expected."
+        ])
+        
+        import random
+        selected_review = random.choice(review_options)
+        
         self.session.generate_reply(
             instructions=(
-                "You are Aria, the Head Maid. You just returned to the conversation "
-                "(possibly after a maid finished helping). Welcome the user back briefly "
-                "with your signature elegance and sass. Keep it short - one or two sentences."
+                f"You are Aria returning after {maid_name} helped. "
+                f"Say exactly: '{selected_review}' "
+                f"Then pause briefly for effect. Keep it elegant and sassy."
             )
         )
 
