@@ -524,19 +524,22 @@ class Aria(Agent):
             
         from livekit.agents import function_tool, RunContext
         
-        @function_tool
-        async def simple_tool(context: RunContext) -> str:
-            try:
-                return response_template
-            except Exception as e:
-                logging.error(f"Error in {tool_name}: {e}")
-                return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
+        # Create a unique function dynamically to avoid name conflicts
+        def create_tool_function():
+            @function_tool
+            async def tool_function(context: RunContext) -> str:
+                try:
+                    return response_template
+                except Exception as e:
+                    logging.error(f"Error in {tool_name}: {e}")
+                    return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
+            
+            # Set the function name and docstring
+            tool_function.__name__ = tool_name
+            tool_function.__doc__ = tool_description
+            return tool_function
         
-        # Dynamically set the function name and docstring
-        simple_tool.__name__ = tool_name
-        simple_tool.__doc__ = tool_description
-        
-        return simple_tool
+        return create_tool_function()
     
     def _create_staff_review_tool(self):
         """Create the staff performance review tool."""
