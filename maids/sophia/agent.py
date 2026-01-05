@@ -50,6 +50,9 @@ class Sophia(BaseMaid):
     def get_instructions(self) -> str:
         return SOPHIA_INSTRUCTION
     
+    def get_farewell_phrase(self) -> str:
+        return "I hope that was helpful! Returning you to Aria now."
+    
     async def on_enter(self) -> None:
         """Called when Sophia becomes active after handoff from Aria."""
         logger.info("🎭 Sophia stepping forward")

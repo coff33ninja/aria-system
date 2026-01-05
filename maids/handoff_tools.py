@@ -9,11 +9,9 @@ Usage:
     - When user asks for a maid, Aria calls the appropriate summon tool
     - The tool returns the maid Agent instance
     - LiveKit automatically switches voice and calls maid's on_enter()
-    
-Note: Aria should announce her farewell BEFORE calling these tools.
-This is handled via her system prompt instructions.
 """
 import logging
+import random
 from livekit.agents import function_tool, RunContext
 from typing import TYPE_CHECKING, Optional, Any
 
@@ -21,6 +19,53 @@ if TYPE_CHECKING:
     from livekit.agents import Agent
 
 logger = logging.getLogger("maids.handoff")
+
+# Aria's farewell phrases when summoning maids
+ARIA_FAREWELLS = {
+    "sophia": [
+        "I'll have Sophia look into that.",
+        "Sophia will handle this.",
+        "Let me get Sophia for you.",
+    ],
+    "luna": [
+        "Luna will take care of the entertainment.",
+        "Let me get Luna for you.",
+        "Luna's your girl for this.",
+    ],
+    "rose": [
+        "Rose will organize this.",
+        "Let me get Rose for you.",
+        "Rose handles all scheduling.",
+    ],
+    "mei": [
+        "Mei will handle the devices.",
+        "Let me get Mei.",
+        "Mei's on it.",
+    ],
+    "clara": [
+        "Clara will help with that.",
+        "Let me get Clara for you.",
+        "Clara's perfect for this.",
+    ],
+}
+
+
+def _get_aria_farewell(maid_name: str) -> str:
+    """Get a random farewell phrase for Aria when summoning a maid."""
+    phrases = ARIA_FAREWELLS.get(maid_name.lower(), [f"Let me get {maid_name} for you."])
+    return random.choice(phrases)
+
+
+async def _speak_farewell(context: RunContext, maid_name: str) -> None:
+    """Have Aria speak her farewell before handoff using session.say()."""
+    try:
+        session = getattr(context, 'session', None)
+        if session and hasattr(session, 'say'):
+            farewell = _get_aria_farewell(maid_name)
+            await session.say(farewell, allow_interruptions=False)
+            logger.info(f"Aria said farewell: {farewell}")
+    except Exception as e:
+        logger.debug(f"Could not speak farewell: {e}")
 
 
 def _get_chat_ctx(context: RunContext) -> Optional[Any]:
@@ -51,12 +96,13 @@ async def summon_sophia(context: RunContext):
     """
     Summon Sophia, the Research & Knowledge maid.
     Use this when the user needs research, explanations, fact-checking, or knowledge lookup.
-    IMPORTANT: Say your farewell to the user BEFORE calling this tool.
     Sophia will take over the conversation with her own voice.
     """
     from maids import Sophia
     
     logger.info("🎭 Aria summoning Sophia for research")
+    
+    await _speak_farewell(context, "sophia")
     
     chat_ctx = _get_chat_ctx(context)
     return Sophia(chat_ctx=chat_ctx)
@@ -67,12 +113,13 @@ async def summon_luna(context: RunContext):
     """
     Summon Luna, the Entertainment & Media maid.
     Use this when the user wants movie/music recommendations, entertainment, games, or stories.
-    IMPORTANT: Say your farewell to the user BEFORE calling this tool.
     Luna will take over the conversation with her own voice.
     """
     from maids import Luna
     
     logger.info("🎭 Aria summoning Luna for entertainment")
+    
+    await _speak_farewell(context, "luna")
     
     chat_ctx = _get_chat_ctx(context)
     return Luna(chat_ctx=chat_ctx)
@@ -83,12 +130,13 @@ async def summon_rose(context: RunContext):
     """
     Summon Rose, the Scheduling & Organization maid.
     Use this when the user needs help with calendar, scheduling, tasks, or organization.
-    IMPORTANT: Say your farewell to the user BEFORE calling this tool.
     Rose will take over the conversation with her own voice.
     """
     from maids import Rose
     
     logger.info("🎭 Aria summoning Rose for scheduling")
+    
+    await _speak_farewell(context, "rose")
     
     chat_ctx = _get_chat_ctx(context)
     return Rose(chat_ctx=chat_ctx)
@@ -99,12 +147,13 @@ async def summon_mei(context: RunContext):
     """
     Summon Mei, the Smart Home & IoT maid.
     Use this when the user wants to control lights, thermostat, devices, or smart home features.
-    IMPORTANT: Say your farewell to the user BEFORE calling this tool.
     Mei will take over the conversation with her own voice.
     """
     from maids import Mei
     
     logger.info("🎭 Aria summoning Mei for smart home")
+    
+    await _speak_farewell(context, "mei")
     
     chat_ctx = _get_chat_ctx(context)
     return Mei(chat_ctx=chat_ctx)
@@ -115,12 +164,13 @@ async def summon_clara(context: RunContext):
     """
     Summon Clara, the Communication & Social maid.
     Use this when the user needs help drafting emails, messages, or communication.
-    IMPORTANT: Say your farewell to the user BEFORE calling this tool.
     Clara will take over the conversation with her own voice.
     """
     from maids import Clara
     
     logger.info("🎭 Aria summoning Clara for communication")
+    
+    await _speak_farewell(context, "clara")
     
     chat_ctx = _get_chat_ctx(context)
     return Clara(chat_ctx=chat_ctx)
@@ -131,7 +181,6 @@ async def summon_maid_by_name(context: RunContext, maid_name: str):
     """
     Summon a specific maid by name.
     Use this when the user explicitly asks for a maid by name.
-    IMPORTANT: Say your farewell to the user BEFORE calling this tool.
     
     Args:
         maid_name: Name of the maid (sophia, luna, rose, mei, clara)
@@ -147,6 +196,8 @@ async def summon_maid_by_name(context: RunContext, maid_name: str):
     
     logger.info(f"🎭 Aria summoning {maid_name_lower} by name")
     
+    await _speak_farewell(context, maid_name_lower)
+    
     chat_ctx = _get_chat_ctx(context)
     return maid_class(chat_ctx=chat_ctx)
 
@@ -156,7 +207,6 @@ async def suggest_and_summon_maid(context: RunContext, task_description: str):
     """
     Automatically determine which maid is best for a task and summon them.
     Use this when the user describes a task but doesn't specify which maid.
-    IMPORTANT: Say your farewell to the user BEFORE calling this tool.
     
     Args:
         task_description: Description of what the user needs help with
@@ -174,6 +224,8 @@ async def suggest_and_summon_maid(context: RunContext, task_description: str):
         return f"I was going to summon {suggested}, but they seem unavailable. How troublesome."
     
     logger.info(f"🎭 Aria auto-summoning {suggested} for: {task_description}")
+    
+    await _speak_farewell(context, suggested)
     
     chat_ctx = _get_chat_ctx(context)
     return maid_class(chat_ctx=chat_ctx)

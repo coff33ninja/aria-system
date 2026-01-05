@@ -278,7 +278,6 @@ class BaseMaid(Agent, ABC):
             """
             Return control to Aria, the Head Maid.
             Use this when you've completed your task or the user wants to speak with Aria.
-            IMPORTANT: Say your farewell to the user BEFORE calling this tool.
             """
             # Import here to avoid circular imports
             from maids import get_aria_class
@@ -289,6 +288,15 @@ class BaseMaid(Agent, ABC):
             
             logger.info(f"🎭 {maid_self.name} returning control to Aria")
             maid_self.memory.remember("Returned control to Aria", category="handoffs")
+            
+            # Try to speak farewell before handoff
+            try:
+                session = getattr(context, 'session', None)
+                if session and hasattr(session, 'say'):
+                    farewell = maid_self.get_farewell_phrase()
+                    await session.say(farewell, allow_interruptions=False)
+            except Exception as e:
+                logger.debug(f"Could not speak farewell: {e}")
             
             # Return Aria instance with chat context preserved
             chat_ctx = _get_chat_ctx_from_session(maid_self.session)
@@ -304,3 +312,7 @@ class BaseMaid(Agent, ABC):
     def introduce(self) -> str:
         """Return a self-introduction for this maid."""
         return f"I am {self.name}, specializing in {self.specialty}. {self.personality}."
+    
+    def get_farewell_phrase(self) -> str:
+        """Return a farewell phrase when handing back to Aria. Override in subclass."""
+        return f"Returning you to Aria now."

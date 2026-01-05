@@ -75,6 +75,9 @@ class Luna(BaseMaid):
     def get_instructions(self) -> str:
         return LUNA_INSTRUCTION
     
+    def get_farewell_phrase(self) -> str:
+        return "That was fun! Back to Aria you go!"
+    
     async def on_enter(self) -> None:
         """Called when Luna becomes active after handoff from Aria."""
         logger.info("🎭 Luna stepping forward")

@@ -39,6 +39,9 @@ class Rose(BaseMaid):
     def get_instructions(self) -> str:
         return ROSE_INSTRUCTION
     
+    def get_farewell_phrase(self) -> str:
+        return "Everything is in order. Returning to Aria."
+    
     async def on_enter(self) -> None:
         """Called when Rose becomes active after handoff from Aria."""
         logger.info("🎭 Rose stepping forward")

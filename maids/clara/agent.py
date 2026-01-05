@@ -39,6 +39,9 @@ class Clara(BaseMaid):
     def get_instructions(self) -> str:
         return CLARA_INSTRUCTION
     
+    def get_farewell_phrase(self) -> str:
+        return "Hope that helps! Handing you back to Aria!"
+    
     async def on_enter(self) -> None:
         """Called when Clara becomes active after handoff from Aria."""
         logger.info("🎭 Clara stepping forward")

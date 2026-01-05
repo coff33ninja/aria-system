@@ -39,6 +39,9 @@ class Mei(BaseMaid):
     def get_instructions(self) -> str:
         return MEI_INSTRUCTION
     
+    def get_farewell_phrase(self) -> str:
+        return "Complete. Aria."
+    
     async def on_enter(self) -> None:
         """Called when Mei becomes active after handoff from Aria."""
         logger.info("🎭 Mei stepping forward")
