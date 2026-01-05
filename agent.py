@@ -546,24 +546,33 @@ class Aria(Agent):
             
         from livekit.agents import function_tool, RunContext
         
-        # Create a unique function dynamically to avoid name conflicts
-        # Using a factory function to ensure each tool gets a truly unique function instance
-        def create_unique_tool():
-            @function_tool
-            async def tool_function(context: RunContext) -> str:
-                try:
-                    return response_template
-                except Exception as e:
-                    error_msg = f"Error in {tool_name}: {e}"
-                    logging.error(error_msg, exc_info=True)  # Include stack trace for debugging
-                    return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
-            
-            # Set the function name and docstring for proper tool registration
-            tool_function.__name__ = tool_name
-            tool_function.__doc__ = tool_description
-            return tool_function
+        # Create a unique function dynamically using exec to ensure truly unique function objects
+        # This is the only reliable way to create functions with different actual names for LiveKit
+        function_code = f'''
+@function_tool
+async def {tool_name}(context: RunContext) -> str:
+    try:
+        return """{response_template}"""
+    except Exception as e:
+        error_msg = f"Error in {tool_name}: {{e}}"
+        logging.error(error_msg, exc_info=True)  # Include stack trace for debugging
+        return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
+
+{tool_name}.__doc__ = """{tool_description}"""
+'''
         
-        return create_unique_tool()
+        # Execute the function definition in a local namespace
+        local_namespace = {
+            'function_tool': function_tool,
+            'RunContext': RunContext,
+            'logging': logging,
+            'response_template': response_template,
+            'tool_name': tool_name,
+            'tool_description': tool_description
+        }
+        
+        exec(function_code, globals(), local_namespace)
+        return local_namespace[tool_name]
     
     def _create_staff_review_tool(self):
         """Create the staff performance review tool."""
