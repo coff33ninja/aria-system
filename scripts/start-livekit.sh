@@ -1,8 +1,8 @@
 #!/bin/bash
-# Aria Maid System - Linux/Mac LiveKit Mode Start Script
+# Aria System - Linux/Mac LiveKit Mode Start Script
 
 echo "============================================"
-echo "  Aria Maid System - LiveKit Mode"
+echo "  Aria System - LiveKit Mode"
 echo "============================================"
 echo
 

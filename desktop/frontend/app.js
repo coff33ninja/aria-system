@@ -1,5 +1,5 @@
 /**
- * Aria Maid System - Desktop Mode Frontend
+ * Aria System - Desktop Mode Frontend
  * 
  * Handles:
  * - WebSocket connection to Python backend
@@ -462,7 +462,7 @@ window.addEventListener('resize', () => {
 // ============================================================================
 
 async function init() {
-    console.log('🎭 Aria Maid System - Desktop Mode');
+    console.log('🎭 Aria System - Desktop Mode');
     
     // Initialize Live2D
     await initLive2D();

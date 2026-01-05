@@ -1,8 +1,8 @@
 @echo off
-REM Aria Maid System - Windows Start Script (Desktop Mode)
+REM Aria System - Windows Start Script (Desktop Mode)
 
 echo ============================================
-echo   Aria Maid System - Desktop Mode
+echo   Aria System - Desktop Mode
 echo ============================================
 echo.
 

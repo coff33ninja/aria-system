@@ -1,5 +1,5 @@
 """
-Core shared components for the Aria Maid System.
+Core shared components for the Aria System.
 
 This module contains shared utilities used by both Desktop (Gemini direct)
 and LiveKit (online) modes:

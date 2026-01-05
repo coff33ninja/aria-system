@@ -1,9 +1,9 @@
 #!/bin/bash
-# Aria Maid System - Linux/Mac Setup Script
+# Aria System - Linux/Mac Setup Script
 # Tested on Python 3.12, Node.js 18+
 
 echo "============================================"
-echo "  Aria Maid System - Setup (Linux/Mac)"
+echo "  Aria System - Setup (Linux/Mac)"
 echo "============================================"
 echo
 

@@ -20,7 +20,7 @@ data/
 *.db
 aria-memory.json
 .git-deploy.md
-thirdparty/python-agents-examples-main/
+thirdparty/
 
 # Backup files from restructure (reference only, not for production)
 backups/

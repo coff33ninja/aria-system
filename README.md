@@ -1,24 +1,28 @@
-# 🎀 Aria — AI Maid Café Voice Assistant
+# 🎀 Aria System — AI Maid Café Voice Assistant
 
-A sophisticated multi-agent voice assistant system built on LiveKit, featuring Aria as the elegant Head Maid who commands a staff of specialized AI maids — each with their own voice, personality, and domain expertise.
-
-> **Forked from** [ruxakK/friday_jarvis2](https://github.com/ruxakK/friday_jarvis2) — completely reimagined and rebuilt.
+A sophisticated multi-agent voice assistant system featuring Aria as the elegant Head Maid who commands a staff of specialized AI maids — each with their own voice, personality, Live2D avatar, and domain expertise.
 
 ---
 
-## ✨ What's New (vs Original)
+## 📜 Origin Story
 
-The original project was a basic voice assistant with 3 tools (weather, web search, email) using Mem0 cloud memory and a single OpenAI voice. This fork transforms it into a full multi-agent maid café system:
+Aria System began as a fork of [ruxakK/friday_jarvis2](https://github.com/ruxakK/friday_jarvis2), a basic voice assistant tutorial project. What started as learning from that foundation evolved into a complete reimagining — the codebase has been entirely rewritten and expanded far beyond the original scope.
 
-| Feature | Original | This Fork |
-|---------|----------|-----------|
+**January 2026**: The project was detached from the upstream fork and now stands as an independent project. We acknowledge and thank the original author for the inspiration and starting point.
+
+### Evolution from Original
+
+| Feature | Original (friday_jarvis2) | Aria System |
+|---------|---------------------------|-------------|
 | **Agents** | 1 (Friday/Assistant) | 6 (Aria + 5 specialized maids) |
 | **Tools** | 3 (weather, search, email) | 30+ (todos, notes, reminders, research, smart home, scheduling, etc.) |
 | **Voices** | 1 (OpenAI sage) | 6 unique voices (Gemini Live native audio) |
-| **Memory** | Mem0 cloud (requires API key) | Local JSON (MCP knowledge graph temporarily disabled) |
+| **Memory** | Mem0 cloud (requires API key) | Local JSON + MCP knowledge graph |
 | **LLM Provider** | OpenAI only | OpenAI or Google Gemini (configurable) |
 | **Voice Handoffs** | None | Full agent swapping with voice changes |
 | **Per-Agent Memory** | None | Each maid has personal memory |
+| **Avatars** | None | Live2D with expressions and lip sync |
+| **Desktop Mode** | None | Direct Gemini Live + Electron overlay |
 | **Performance Reviews** | None | Aria evaluates maid performance with sassy commentary |
 | **API Key Management** | Single key | Round-robin rotation for rate limit handling |
 | **Personality** | Generic assistant | Rich character personalities with sass |
@@ -541,9 +545,9 @@ When you summon a maid in Desktop Mode, they bring their specialized tools:
 
 ---
 
-## 📽️ Original Tutorials
+## 📽️ Learning Resources
 
-The base LiveKit setup follows these tutorials:
+The original LiveKit voice agent tutorials that inspired this project:
 - **Part 1** (Voice Agent Setup): [Watch here](https://youtu.be/An4NwL8QSQ4)
 - **Part 2** (Memory & MCP): [Watch here](https://www.youtube.com/watch?v=gqmSKEUpRv8)
 
@@ -551,17 +555,14 @@ The base LiveKit setup follows these tutorials:
 
 ## 📄 License & Attribution
 
-### ⚠️ A Note on the Original License
+### Acknowledgments
 
-The original project by [Thanh-Y Nguyen](https://github.com/ruxakK/friday_jarvis2) has a custom license that prohibits redistribution and commercial use of proprietary portions. This fork has been significantly modified and extended, but we acknowledge that it builds upon the original work.
-
-**To the original author**: We apologize for any license terms we may have inadvertently violated by publishing this fork. This project is shared purely for educational purposes and personal use. If you have concerns, please reach out and we'll address them promptly.
+Aria System evolved from [friday_jarvis2](https://github.com/ruxakK/friday_jarvis2) by Thanh-Y Nguyen. While the codebase has been completely rewritten, we acknowledge and thank the original author for the foundation and inspiration.
 
 ### License Terms
 
-- **Original portions** (from Thanh-Y Nguyen): Subject to the original custom license — personal/educational use only, no redistribution or commercial use without permission.
 - **mcp_client**: MIT License (LiveKit, Inc.) — see `thirdparty/LICENSE-LIVEKIT`
-- **New additions in this fork** (maids system, tools, memory systems, etc.): Available under the same terms as the original — personal/educational use only.
+- **Aria System code**: Personal/educational use. See LICENSE file for details.
 
 ### Live2D Model Attributions
 

@@ -1,8 +1,8 @@
 #!/bin/bash
-# Aria Maid System - Linux/Mac Start Script (Desktop Mode)
+# Aria System - Linux/Mac Start Script (Desktop Mode)
 
 echo "============================================"
-echo "  Aria Maid System - Desktop Mode"
+echo "  Aria System - Desktop Mode"
 echo "============================================"
 echo
 

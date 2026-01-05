@@ -1,7 +1,7 @@
 {
   "name": "aria-desktop-avatar",
   "version": "1.0.0",
-  "description": "Aria Maid System - Desktop Avatar Overlay",
+  "description": "Aria System - Desktop Avatar Overlay",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

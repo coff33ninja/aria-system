@@ -1,5 +1,5 @@
 """
-Memory subsystem for the Aria Maid System.
+Memory subsystem for the Aria System.
 
 Provides both MCP-based knowledge graph storage and local JSON fallback.
 """

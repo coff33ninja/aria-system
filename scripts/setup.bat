@@ -1,9 +1,9 @@
 @echo off
-REM Aria Maid System - Windows Setup Script
+REM Aria System - Windows Setup Script
 REM Tested on Python 3.12, Node.js 18+
 
 echo ============================================
-echo   Aria Maid System - Setup (Windows)
+echo   Aria System - Setup (Windows)
 echo ============================================
 echo.
 

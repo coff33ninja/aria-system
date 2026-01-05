@@ -1,8 +1,8 @@
 @echo off
-REM Aria Maid System - Windows LiveKit Mode Start Script
+REM Aria System - Windows LiveKit Mode Start Script
 
 echo ============================================
-echo   Aria Maid System - LiveKit Mode
+echo   Aria System - LiveKit Mode
 echo ============================================
 echo.
 
