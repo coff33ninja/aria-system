@@ -19,6 +19,7 @@ The original project was a basic voice assistant with 3 tools (weather, web sear
 | **LLM Provider** | OpenAI only | OpenAI or Google Gemini (configurable) |
 | **Voice Handoffs** | None | Full agent swapping with voice changes |
 | **Per-Agent Memory** | None | Each maid has personal memory |
+| **Performance Reviews** | None | Aria evaluates maid performance with sassy commentary |
 | **API Key Management** | Single key | Round-robin rotation for rate limit handling |
 | **Personality** | Generic assistant | Rich character personalities with sass |
 
