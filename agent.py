@@ -547,19 +547,23 @@ class Aria(Agent):
         from livekit.agents import function_tool, RunContext
         
         # Create a unique function dynamically to avoid name conflicts
-        @function_tool
-        async def tool_function(context: RunContext) -> str:
-            try:
-                return response_template
-            except Exception as e:
-                error_msg = f"Error in {tool_name}: {e}"
-                logging.error(error_msg, exc_info=True)  # Include stack trace for debugging
-                return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
+        # Using a factory function to ensure each tool gets a truly unique function instance
+        def create_unique_tool():
+            @function_tool
+            async def tool_function(context: RunContext) -> str:
+                try:
+                    return response_template
+                except Exception as e:
+                    error_msg = f"Error in {tool_name}: {e}"
+                    logging.error(error_msg, exc_info=True)  # Include stack trace for debugging
+                    return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
+            
+            # Set the function name and docstring for proper tool registration
+            tool_function.__name__ = tool_name
+            tool_function.__doc__ = tool_description
+            return tool_function
         
-        # Set the function name and docstring for proper tool registration
-        tool_function.__name__ = tool_name
-        tool_function.__doc__ = tool_description
-        return tool_function
+        return create_unique_tool()
     
     def _create_staff_review_tool(self):
         """Create the staff performance review tool."""
