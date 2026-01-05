@@ -26,7 +26,7 @@ def get_all_mcp_content_types() -> Dict[str, Any]:
         Dict mapping type names to mcp.types classes
     """
     return {
-        "TextContent": mcp.types.TextContent,
+        "TextContent": TextContent,
         "ImageContent": mcp.types.ImageContent,
         "AudioContent": mcp.types.AudioContent,
         "EmbeddedResource": mcp.types.EmbeddedResource,

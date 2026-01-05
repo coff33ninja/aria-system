@@ -9,7 +9,7 @@ Features:
 - Local audio input/output via PyAudio
 - Maid handoffs via session swapping (different voice per maid)
 - Live2D avatar support (via WebSocket to frontend)
-- MCP memory integration
+- MCP memory integration (same as LiveKit mode via uvx mcp-memory-py)
 
 Usage:
     python -m desktop.agent
@@ -24,7 +24,7 @@ import asyncio
 import base64
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any, Callable
+from typing import Optional, Dict, Any, Callable, List
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -34,6 +34,8 @@ logger = logging.getLogger("desktop.agent")
 
 # Configuration
 MEMORY_FILE = Path(os.environ.get("ARIA_MEMORY_FILE", "./data/aria-memory.json"))
+USE_MCP_MEMORY = os.environ.get("ARIA_USE_MCP_MEMORY", "true").lower() == "true"
+USER_NAME = os.environ.get("ARIA_USER_NAME", "Master")
 
 # Gemini Live API configuration
 GEMINI_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
@@ -213,6 +215,230 @@ def _setup_api_key() -> Optional[str]:
         return keys[0]
     
     return None
+
+
+# ============================================================================
+# Memory Systems (Local + MCP via uvx)
+# ============================================================================
+
+class LocalMemory:
+    """
+    Local memory fallback — simple JSON file persistence.
+    Used when MCP memory server is unavailable.
+    """
+    
+    def __init__(self, memory_file: Path = MEMORY_FILE):
+        self.memory_file = memory_file
+        self.memory_file.parent.mkdir(parents=True, exist_ok=True)
+        self._cache: Dict[str, Any] = self._load()
+    
+    def _load(self) -> Dict[str, Any]:
+        """Load memory from file."""
+        if self.memory_file.exists():
+            try:
+                with open(self.memory_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load memory file: {e}. Starting fresh.")
+        return {"entities": [], "relations": [], "observations": []}
+    
+    def _save(self) -> None:
+        """Persist memory to file."""
+        try:
+            with open(self.memory_file, 'w', encoding='utf-8') as f:
+                json.dump(self._cache, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.error(f"Failed to save memory: {e}")
+    
+    def add_observation(self, entity_name: str, observation: str, entity_type: str = "user") -> None:
+        """Add an observation about an entity."""
+        entity = next((e for e in self._cache["entities"] if e["name"] == entity_name), None)
+        if not entity:
+            entity = {"name": entity_name, "type": entity_type, "observations": []}
+            self._cache["entities"].append(entity)
+        
+        if observation not in entity["observations"]:
+            entity["observations"].append(observation)
+            self._save()
+            logger.info(f"Memory added: {entity_name} -> {observation}")
+    
+    def get_observations(self, entity_name: str) -> List[str]:
+        """Get all observations for an entity."""
+        entity = next((e for e in self._cache["entities"] if e["name"] == entity_name), None)
+        return entity["observations"] if entity else []
+    
+    def get_all_for_user(self, user_name: str) -> List[Dict[str, Any]]:
+        """Get all memories related to a user."""
+        memories: List[Dict[str, Any]] = []
+        for entity in self._cache["entities"]:
+            if entity["name"] == user_name or entity.get("related_to") == user_name:
+                for obs in entity["observations"]:
+                    memories.append({
+                        "entity": entity["name"],
+                        "type": entity["type"],
+                        "memory": obs
+                    })
+        return memories
+    
+    def add_conversation_summary(self, user_name: str, summary: str) -> None:
+        """Add a conversation summary as an observation."""
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        self.add_observation(user_name, f"[{timestamp}] {summary}", entity_type="user")
+    
+    def search(self, query: str) -> List[Dict[str, Any]]:
+        """Search memories by keyword."""
+        results: List[Dict[str, Any]] = []
+        query_lower = query.lower()
+        for entity in self._cache["entities"]:
+            for obs in entity["observations"]:
+                if query_lower in obs.lower() or query_lower in entity["name"].lower():
+                    results.append({
+                        "entity": entity["name"],
+                        "type": entity["type"],
+                        "memory": obs
+                    })
+        return results
+
+
+class MCPMemory:
+    """
+    MCP-based memory system — knowledge graph via mcp-memory-py.
+    Same implementation as LiveKit mode for consistency.
+    Uses uvx to run the MCP server.
+    """
+    
+    def __init__(self, server):
+        self.server = server
+        self._logger = logging.getLogger(__name__)
+    
+    @classmethod
+    async def create(cls, memory_file: Path = MEMORY_FILE) -> "MCPMemory":
+        """Create and connect to the MCP memory server via uvx."""
+        from core.memory.mcp_client import MCPServerStdio
+        
+        # Find uvx in the venv
+        venv_bin = Path(sys.executable).parent
+        uvx_path = venv_bin / "uvx"
+        
+        # On Windows, try uvx.exe
+        if sys.platform == "win32" and not uvx_path.exists():
+            uvx_path = venv_bin / "uvx.exe"
+        
+        # Fallback to system uvx
+        if not uvx_path.exists():
+            uvx_path = Path("uvx")
+        
+        server = MCPServerStdio(
+            params={
+                "command": str(uvx_path),
+                "args": ["--refresh", "--quiet", "mcp-memory-py"],
+                "env": {"MEMORY_FILE_PATH": str(memory_file.absolute())},
+            },
+            cache_tools_list=True,
+            name="Aria's Memory (MCP)"
+        )
+        await server.connect()
+        logger.info(f"MCP memory connected: {memory_file}")
+        return cls(server)
+    
+    async def cleanup(self):
+        """Cleanup the MCP server connection."""
+        await self.server.cleanup()
+    
+    async def read_graph(self) -> Dict[str, Any]:
+        """Read the entire knowledge graph."""
+        try:
+            result = await self.server.call_tool("read_graph", {})
+            return self._parse_result(result)
+        except Exception as e:
+            self._logger.error(f"Failed to read graph: {e}")
+            return {"entities": [], "relations": []}
+    
+    async def create_entity(self, name: str, entity_type: str, observations: List[str]) -> None:
+        """Create a new entity in the knowledge graph."""
+        try:
+            await self.server.call_tool("create_entities", {
+                "entities": [{
+                    "name": name,
+                    "entityType": entity_type,
+                    "observations": observations
+                }]
+            })
+            self._logger.info(f"Created entity: {name} ({entity_type})")
+        except Exception as e:
+            self._logger.error(f"Failed to create entity: {e}")
+    
+    async def add_observation(self, entity_name: str, observation: str, entity_type: str = "user") -> None:
+        """Add an observation to an entity (creates entity if needed)."""
+        try:
+            await self.server.call_tool("add_observations", {
+                "observations": [{
+                    "entityName": entity_name,
+                    "contents": [observation]
+                }]
+            })
+            self._logger.info(f"Memory added: {entity_name} -> {observation}")
+        except Exception:
+            self._logger.debug(f"Creating entity {entity_name} as it may not exist")
+            await self.create_entity(entity_name, entity_type, [observation])
+    
+    async def search(self, query: str) -> List[Dict[str, Any]]:
+        """Search the knowledge graph."""
+        try:
+            result = await self.server.call_tool("search_nodes", {"query": query})
+            return self._parse_result(result)
+        except Exception as e:
+            self._logger.error(f"Failed to search: {e}")
+            return []
+    
+    async def get_entity(self, name: str) -> Optional[Dict[str, Any]]:
+        """Get a specific entity by name."""
+        try:
+            result = await self.server.call_tool("open_nodes", {"names": [name]})
+            data = self._parse_result(result)
+            entities = data.get("entities", [])
+            return entities[0] if entities else None
+        except Exception as e:
+            self._logger.error(f"Failed to get entity: {e}")
+            return None
+    
+    async def get_all_for_user(self, user_name: str) -> List[Dict[str, Any]]:
+        """Get all memories related to a user."""
+        try:
+            result = await self.server.call_tool("open_nodes", {"names": [user_name]})
+            data = self._parse_result(result)
+            
+            memories: List[Dict[str, Any]] = []
+            for entity in data.get("entities", []):
+                for obs in entity.get("observations", []):
+                    memories.append({
+                        "entity": entity.get("name", "unknown"),
+                        "type": entity.get("entityType", "unknown"),
+                        "memory": obs
+                    })
+            return memories
+        except Exception as e:
+            self._logger.error(f"Failed to get memories for user: {e}")
+            return []
+    
+    async def add_conversation_summary(self, user_name: str, summary: str) -> None:
+        """Add a conversation summary as an observation."""
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        await self.add_observation(user_name, f"[{timestamp}] {summary}", entity_type="user")
+    
+    def _parse_result(self, result) -> Dict[str, Any]:
+        """Parse MCP tool result into a dictionary."""
+        try:
+            if hasattr(result, 'content') and result.content:
+                for content in result.content:
+                    if hasattr(content, 'text'):
+                        return json.loads(content.text)
+            return {}
+        except Exception as e:
+            self._logger.error(f"Failed to parse result: {e}")
+            return {}
 
 
 # ============================================================================
@@ -549,6 +775,8 @@ class DesktopMaidAgent:
     
     Unlike LiveKit mode which uses native agent handoffs, desktop mode
     implements handoffs by swapping Gemini sessions (different voice/personality).
+    
+    Memory is shared with LiveKit mode via MCP (mcp-memory-py via uvx).
     """
     
     def __init__(self):
@@ -561,6 +789,11 @@ class DesktopMaidAgent:
         # Current maid state
         self._current_maid: str = "aria"
         self._handoff_pending: Optional[str] = None
+        
+        # Memory system (initialized in start())
+        self._memory: Optional[MCPMemory] = None
+        self._local_memory: Optional[LocalMemory] = None
+        self._user_name = USER_NAME
     
     def _get_maid_config(self, maid_name: str) -> MaidConfig:
         """Get configuration for a maid."""
@@ -843,6 +1076,12 @@ class DesktopMaidAgent:
             return
         
         try:
+            # Initialize memory system (MCP or local fallback)
+            await self._init_memory()
+            
+            # Load existing memories for context
+            memory_context = await self._load_memories()
+            
             # Initialize audio
             self.recorder = AudioRecorder()
             self.player = AudioPlayer()
@@ -854,10 +1093,15 @@ class DesktopMaidAgent:
             self._current_maid = "aria"
             config = self._get_maid_config("aria")
             
+            # Build system instruction with memory context
+            system_instruction = self._get_system_instruction("aria")
+            if memory_context:
+                system_instruction = f"{system_instruction}\n\n{memory_context}"
+            
             self.session = GeminiLiveSession(
                 model=GEMINI_MODEL,
                 voice=config.voice,
-                system_instruction=self._get_system_instruction("aria"),
+                system_instruction=system_instruction,
                 on_audio=lambda data: asyncio.create_task(self._on_audio(data)),
                 on_text=self._on_text,
                 on_transcript=self._on_transcript,
@@ -891,9 +1135,71 @@ class DesktopMaidAgent:
         finally:
             await self.stop()
     
+    async def _init_memory(self):
+        """Initialize memory system (MCP preferred, local fallback)."""
+        if USE_MCP_MEMORY:
+            try:
+                self._memory = await MCPMemory.create(MEMORY_FILE)
+                logger.info("MCP memory system initialized — knowledge graph ready~")
+            except Exception as e:
+                logger.warning(f"MCP memory failed: {e}. Falling back to local memory.")
+                self._local_memory = LocalMemory(MEMORY_FILE)
+        else:
+            self._local_memory = LocalMemory(MEMORY_FILE)
+            logger.info("Using local memory system")
+    
+    async def _load_memories(self) -> str:
+        """Load existing memories and return context string."""
+        try:
+            if self._memory:
+                memories = await self._memory.get_all_for_user(self._user_name)
+            elif self._local_memory:
+                memories = self._local_memory.get_all_for_user(self._user_name)
+            else:
+                return ""
+            
+            if memories:
+                memory_str = json.dumps(memories[-10:], indent=2)
+                logger.info(f"Loaded {len(memories)} memories about {self._user_name}")
+                return f"You remember the following about {self._user_name}: {memory_str}"
+            else:
+                logger.info(f"No prior memories for {self._user_name}")
+                return ""
+        except Exception as e:
+            logger.warning(f"Could not load memories: {e}")
+            return ""
+    
+    async def _save_conversation_summary(self, summary: str):
+        """Save a conversation summary to memory."""
+        try:
+            if self._memory:
+                await self._memory.add_conversation_summary(self._user_name, summary)
+            elif self._local_memory:
+                self._local_memory.add_conversation_summary(self._user_name, summary)
+            logger.info("Conversation archived to memory")
+        except Exception as e:
+            logger.error(f"Failed to save conversation: {e}")
+    
     async def stop(self):
         """Stop the desktop agent."""
         self._running = False
+        
+        # Archive conversation to memory before shutdown
+        # Note: We don't have full transcript tracking yet, but we can save a session marker
+        try:
+            from datetime import datetime
+            session_end = datetime.now().strftime("%Y-%m-%d %H:%M")
+            await self._save_conversation_summary(f"Desktop session ended at {session_end}")
+        except Exception as e:
+            logger.warning(f"Could not save session end: {e}")
+        
+        # Cleanup MCP memory server
+        if self._memory:
+            try:
+                await self._memory.cleanup()
+                logger.info("MCP memory server cleaned up")
+            except Exception as e:
+                logger.warning(f"MCP cleanup error: {e}")
         
         if self._receive_task and not self._receive_task.done():
             self._receive_task.cancel()
