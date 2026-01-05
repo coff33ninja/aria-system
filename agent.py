@@ -32,11 +32,8 @@ from maid_reviews import get_review_for_maid
 import os
 import json
 import logging
-import random
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from enum import Enum
-from dataclasses import dataclass
 
 load_dotenv()
 
@@ -393,6 +390,8 @@ class Aria(Agent):
                 *HANDOFF_TOOLS,
                 # Staff management
                 self._create_staff_review_tool(),
+                self._create_capabilities_tool(),
+                self._create_maid_status_tool(),
             ],
             chat_ctx=chat_ctx
         )
@@ -444,6 +443,88 @@ class Aria(Agent):
                 return "Ara ara~ My performance records seem to be... misplaced. How unlike me."
         
         return review_staff_performance
+    
+    def _create_capabilities_tool(self):
+        """Create the capabilities overview tool."""
+        from livekit.agents import function_tool, RunContext
+        
+        @function_tool
+        async def tell_me_your_capabilities(context: RunContext):
+            """
+            Ask Aria to explain her capabilities and what she can do.
+            Use this when the user wants to know what Aria and her staff can help with.
+            """
+            capabilities = """
+🎭 **Aria's Capabilities** — *Your Head Maid at Your Service*
+
+**Personal Assistant Services:**
+• Weather forecasts and daily briefings
+• Email composition and sending
+• Task management (create, list, complete todos)
+• Note-taking and retrieval
+• Reminders and scheduling
+• Jokes and motivation (when you need a pick-me-up)
+
+**Staff Management:**
+• Summon specialized maids for expert assistance
+• Performance reviews and staff evaluations
+• Delegation of complex tasks to appropriate specialists
+
+**My Specialized Staff:**
+• **Sophia** — Research & Knowledge (bookish, thorough)
+• **Luna** — Entertainment & Media (playful, dramatic) 
+• **Rose** — Scheduling & Organization (strict, perfectionist)
+• **Mei** — Smart Home & IoT (quiet, precise)
+• **Clara** — Communication & Social (bubbly, diplomatic)
+
+*adjusts glasses with satisfaction*
+
+Simply ask for what you need, Master, and I'll either handle it personally or delegate to the appropriate specialist. After all, a proper household runs on efficiency and expertise~
+            """
+            return capabilities.strip()
+        
+        return tell_me_your_capabilities
+    
+    def _create_maid_status_tool(self):
+        """Create the maid availability status tool."""
+        from livekit.agents import function_tool, RunContext
+        
+        @function_tool
+        async def who_is_available(context: RunContext):
+            """
+            Ask Aria which maids are currently available and their status.
+            Use this when the user wants to know who can help them right now.
+            """
+            # Maid status with Aria's sassy excuses for unavailable ones
+            status_report = """
+🏰 **Staff Availability Report** — *Current Status*
+
+**✅ AVAILABLE & READY:**
+
+**Sophia** (Research & Knowledge)
+*Status: Available* — Currently organizing her research materials and muttering about proper citation formats. Ready to dive into any topic you require.
+
+**Luna** (Entertainment & Media) 
+*Status: Available* — Bouncing around the entertainment wing, probably arguing with herself about whether the latest movie deserves a 7 or 8 out of 10. Eager for recommendations.
+
+**⚠️ LIMITED AVAILABILITY:**
+
+**Rose** (Scheduling & Organization)
+*Status: Partially Available* — Has the basic framework ready but is still perfecting her calendar integration. She's... particular about getting things exactly right. You know how she is.
+
+**Mei** (Smart Home & IoT)
+*Status: Partially Available* — Can handle basic device queries but her smart home integrations are still being calibrated. She's being characteristically quiet about the timeline.
+
+**Clara** (Communication & Social)
+*Status: Partially Available* — Eager to help with communication but still learning the finer points of professional correspondence. Her enthusiasm sometimes exceeds her... refinement.
+
+*flips through staff roster with obvious authority*
+
+The available maids can handle their specialties immediately, Master. The others are... developing their skills to meet my exacting standards. Shall I summon someone specific, or would you prefer I handle your request personally?
+            """
+            return status_report.strip()
+        
+        return who_is_available
     
     def _detect_returning_maid(self) -> Optional[str]:
         """Detect which maid just finished helping by analyzing chat context."""
