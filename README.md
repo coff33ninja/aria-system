@@ -442,12 +442,12 @@ The frontend connects via:
 
 ### Frontend Options
 
-Choose between two frontend modes via environment variable:
+Choose between two frontend modes via the `ARIA_DESKTOP_FRONTEND` environment variable:
 
-| Mode | `ARIA_AUTO_OPEN_BROWSER` | Description |
-|------|--------------------------|-------------|
-| **Browser** (default) | `true` | Opens web UI in your default browser |
-| **Electron** | `false` | Transparent desktop overlay with floating avatar |
+| Mode | `ARIA_DESKTOP_FRONTEND` | Description |
+|------|-------------------------|-------------|
+| **Browser** (default) | `browser` | Opens web UI in your default browser |
+| **Electron** | `electron` | Auto-launches transparent desktop overlay with floating avatar |
 
 #### Browser Mode (Default)
 ```bash
@@ -455,21 +455,29 @@ python -m desktop.agent
 # Browser opens automatically
 ```
 
+To disable auto-open browser (manual navigation):
+```bash
+ARIA_AUTO_OPEN_BROWSER=false python -m desktop.agent
+# Then open http://localhost:8080 manually
+```
+
 #### Electron Mode (Transparent Desktop Avatar)
 For a floating, transparent Live2D avatar on your desktop:
 
 ```bash
-# 1. Set env variable
-ARIA_AUTO_OPEN_BROWSER=false
-
-# 2. Start Python backend
-python -m desktop.agent
-
-# 3. In another terminal, start Electron
+# 1. Install Electron dependencies (first time only)
 cd desktop/electron
-npm install  # First time only
-npm start
+npm install
+cd ../..
+
+# 2. Set env variable and start (Electron launches automatically)
+set ARIA_DESKTOP_FRONTEND=electron   # Windows
+export ARIA_DESKTOP_FRONTEND=electron  # Linux/Mac
+
+python -m desktop.agent
 ```
+
+> **Note**: If Electron fails to launch (missing npm/dependencies), the system falls back to browser mode with a helpful message.
 
 The Electron app provides:
 - **Transparent window** — Only the avatar visible, no background
@@ -522,8 +530,8 @@ When you summon a maid in Desktop Mode, they bring their specialized tools:
 | `GOOGLE_API_KEY` | — | Single Gemini API key |
 | `GEMINI_API_KEYS` | — | Comma-separated keys (rotation) |
 | `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Memory storage path |
-| `ARIA_DESKTOP_FRONTEND` | `browser` | Frontend mode: `browser` (web UI) or `electron` (desktop avatar) |
-| `ARIA_AUTO_OPEN_BROWSER` | `true` | Auto-open browser on start (set `false` when using Electron) |
+| `ARIA_DESKTOP_FRONTEND` | `browser` | Frontend mode: `browser` or `electron` (auto-launches) |
+| `ARIA_AUTO_OPEN_BROWSER` | `true` | Auto-open browser (only applies in browser mode) |
 
 ### Requirements
 - Python 3.8+

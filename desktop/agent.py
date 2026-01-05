@@ -985,6 +985,28 @@ class DesktopMaidAgent:
             asyncio.create_task(
                 self._ws_server.broadcast_transcript(text, is_user=False, maid=self._current_maid)
             )
+            
+            # Trigger expression based on text content
+            asyncio.create_task(self._trigger_expression_for_text(text))
+    
+    async def _trigger_expression_for_text(self, text: str):
+        """Analyze text and trigger appropriate Live2D expression."""
+        try:
+            from desktop.expressions import get_expression_manager
+            
+            manager = get_expression_manager()
+            result = manager.get_expression_for_text(self._current_maid, text)
+            
+            if result and self._ws_server:
+                expression, category = result
+                logger.debug(f"Expression: {expression} ({category})")
+                await self._ws_server.broadcast_expression(
+                    expression, 
+                    maid=self._current_maid,
+                    duration=2.0  # Hold expression for 2 seconds
+                )
+        except Exception as e:
+            logger.debug(f"Expression trigger error: {e}")
     
     def _on_transcript(self, text: str, is_input: bool):
         """Handle transcription."""
@@ -998,8 +1020,47 @@ class DesktopMaidAgent:
                 asyncio.create_task(
                     self._ws_server.broadcast_transcript(text, is_user=True)
                 )
+                
+                # Trigger listening expression
+                asyncio.create_task(self._trigger_listening_expression())
         else:
             logger.debug(f"[Transcript] {text}")
+    
+    async def _trigger_listening_expression(self):
+        """Trigger listening expression when user speaks."""
+        try:
+            from desktop.expressions import get_expression_manager
+            
+            manager = get_expression_manager()
+            expression = manager.get_listening_expression(self._current_maid)
+            
+            if expression and self._ws_server:
+                logger.debug(f"Listening expression: {expression}")
+                await self._ws_server.broadcast_expression(
+                    expression,
+                    maid=self._current_maid,
+                    duration=1.0
+                )
+        except Exception as e:
+            logger.debug(f"Listening expression error: {e}")
+    
+    async def _trigger_handoff_expression(self, to_maid: str):
+        """Trigger greeting expression when maid receives handoff."""
+        try:
+            from desktop.expressions import get_expression_manager
+            
+            manager = get_expression_manager()
+            expression = manager.get_handoff_expression(to_maid)
+            
+            if expression and self._ws_server:
+                logger.debug(f"Handoff expression for {to_maid}: {expression}")
+                await self._ws_server.broadcast_expression(
+                    expression,
+                    maid=to_maid,
+                    duration=2.5  # Hold greeting expression longer
+                )
+        except Exception as e:
+            logger.debug(f"Handoff expression error: {e}")
     
     async def _perform_handoff(self, target_maid: str):
         """Perform a maid handoff by swapping sessions, preserving conversation history."""
@@ -1012,6 +1073,9 @@ class DesktopMaidAgent:
         # Broadcast handoff to WebSocket clients
         if self._ws_server:
             await self._ws_server.broadcast_handoff(from_maid, target_maid)
+        
+        # Trigger greeting expression for incoming maid
+        await self._trigger_handoff_expression(target_maid)
         
         # Pause recording during handoff
         if self.recorder:
