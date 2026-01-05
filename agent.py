@@ -184,11 +184,19 @@ def get_realtime_model(provider: str = None):
             model="gemini-2.5-flash-native-audio-preview-12-2025",  # Native audio model for Live API
             voice="Aoede",
             temperature=0.9,  # A little unpredictable, just like her wit
+            # Optimize for faster voice detection and response
+            vad_threshold=0.5,  # Lower threshold for faster voice detection
+            vad_prefix_padding_ms=300,  # Reduce padding for quicker response
+            vad_silence_timeout_ms=1000,  # Shorter silence timeout
         )
     else:
         # Shimmer: Smooth and expressive, ideal for delivering those cutting remarks
         return openai.realtime.RealtimeModel(
             voice="shimmer",
+            # OpenAI VAD optimization
+            vad_threshold=0.5,  # Lower threshold for faster detection
+            vad_prefix_padding_ms=300,  # Reduce padding
+            vad_silence_timeout_ms=1000,  # Shorter timeout
         )
 
 

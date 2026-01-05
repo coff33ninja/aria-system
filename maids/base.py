@@ -204,11 +204,19 @@ class BaseMaid(Agent, ABC):
                 model="gemini-2.5-flash-native-audio-preview-12-2025",
                 voice=self.voice_google,
                 temperature=self.temperature,
+                # Optimize for faster voice detection and response
+                vad_threshold=0.5,  # Lower threshold for faster voice detection
+                vad_prefix_padding_ms=300,  # Reduce padding for quicker response
+                vad_silence_timeout_ms=1000,  # Shorter silence timeout
             )
         else:
             return openai.realtime.RealtimeModel(
                 voice=self.voice_openai,
                 temperature=self.temperature,
+                # OpenAI VAD optimization
+                vad_threshold=0.5,  # Lower threshold for faster detection
+                vad_prefix_padding_ms=300,  # Reduce padding
+                vad_silence_timeout_ms=1000,  # Shorter timeout
             )
     
     async def on_enter(self) -> None:
