@@ -79,6 +79,20 @@ def _get_chat_ctx(context: RunContext) -> Optional[Any]:
     return None
 
 
+async def _aria_farewell(context: RunContext, maid_name: str) -> None:
+    """Have Aria speak her delegation phrase before handing off."""
+    phrase = _get_delegation_phrase(maid_name)
+    try:
+        session = getattr(context, 'session', None)
+        if session and hasattr(session, 'generate_reply'):
+            # Aria speaks her farewell before the handoff
+            await session.generate_reply(
+                instructions=f"Say exactly this to the user (don't add anything else): '{phrase}'"
+            )
+    except Exception as e:
+        logger.warning(f"Could not have Aria speak farewell: {e}")
+
+
 @function_tool
 async def summon_sophia(context: RunContext):
     """
@@ -90,10 +104,13 @@ async def summon_sophia(context: RunContext):
     
     logger.info("🎭 Aria summoning Sophia for research")
     
+    # Aria speaks her farewell before handing off
+    await _aria_farewell(context, "sophia")
+    
     # Return Sophia instance - LiveKit will handle the voice switch
     # Pass chat context to preserve conversation history
     chat_ctx = _get_chat_ctx(context)
-    return Sophia(chat_ctx=chat_ctx), _get_delegation_phrase("sophia")
+    return Sophia(chat_ctx=chat_ctx)
 
 
 @function_tool
@@ -107,8 +124,10 @@ async def summon_luna(context: RunContext):
     
     logger.info("🎭 Aria summoning Luna for entertainment")
     
+    await _aria_farewell(context, "luna")
+    
     chat_ctx = _get_chat_ctx(context)
-    return Luna(chat_ctx=chat_ctx), _get_delegation_phrase("luna")
+    return Luna(chat_ctx=chat_ctx)
 
 
 @function_tool
@@ -122,8 +141,10 @@ async def summon_rose(context: RunContext):
     
     logger.info("🎭 Aria summoning Rose for scheduling")
     
+    await _aria_farewell(context, "rose")
+    
     chat_ctx = _get_chat_ctx(context)
-    return Rose(chat_ctx=chat_ctx), _get_delegation_phrase("rose")
+    return Rose(chat_ctx=chat_ctx)
 
 
 @function_tool
@@ -137,8 +158,10 @@ async def summon_mei(context: RunContext):
     
     logger.info("🎭 Aria summoning Mei for smart home")
     
+    await _aria_farewell(context, "mei")
+    
     chat_ctx = _get_chat_ctx(context)
-    return Mei(chat_ctx=chat_ctx), _get_delegation_phrase("mei")
+    return Mei(chat_ctx=chat_ctx)
 
 
 @function_tool
@@ -152,8 +175,10 @@ async def summon_clara(context: RunContext):
     
     logger.info("🎭 Aria summoning Clara for communication")
     
+    await _aria_farewell(context, "clara")
+    
     chat_ctx = _get_chat_ctx(context)
-    return Clara(chat_ctx=chat_ctx), _get_delegation_phrase("clara")
+    return Clara(chat_ctx=chat_ctx)
 
 
 @function_tool
@@ -176,8 +201,10 @@ async def summon_maid_by_name(context: RunContext, maid_name: str):
     
     logger.info(f"🎭 Aria summoning {maid_name_lower} by name")
     
+    await _aria_farewell(context, maid_name_lower)
+    
     chat_ctx = _get_chat_ctx(context)
-    return maid_class(chat_ctx=chat_ctx), _get_delegation_phrase(maid_name_lower)
+    return maid_class(chat_ctx=chat_ctx)
 
 
 @function_tool
@@ -203,8 +230,10 @@ async def suggest_and_summon_maid(context: RunContext, task_description: str):
     
     logger.info(f"🎭 Aria auto-summoning {suggested} for: {task_description}")
     
+    await _aria_farewell(context, suggested)
+    
     chat_ctx = _get_chat_ctx(context)
-    return maid_class(chat_ctx=chat_ctx), _get_delegation_phrase(suggested)
+    return maid_class(chat_ctx=chat_ctx)
 
 
 @function_tool
