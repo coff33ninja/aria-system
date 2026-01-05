@@ -1,59 +1,117 @@
 /**
  * Aria Desktop Avatar - Electron Main Process
  * 
- * Creates a transparent, frameless window with the Live2D avatar
- * that floats on the desktop. Connects to the Python backend via WebSocket.
+ * Features:
+ * - Transparent, frameless window with Live2D avatar
+ * - System tray with full controls
+ * - Maid switcher
+ * - Zoom controls
+ * - Movement mode selection
+ * - Auto-hide options
+ * - Settings persistence
  */
 
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, globalShortcut, nativeImage } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let mainWindow = null;
 let tray = null;
+let settings = null;
 
-// Window configuration
-const DEFAULT_WIDTH = 400;
-const DEFAULT_HEIGHT = 500;
-const DEFAULT_POSITION = 'bottom-right'; // bottom-right, bottom-left, top-right, top-left
+// Settings file path
+const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
 
-function createWindow() {
+// Default settings
+const DEFAULT_SETTINGS = {
+    window: {
+        width: 400,
+        height: 500,
+        x: null, // null = auto position
+        y: null,
+        zoom: 1.0,
+        opacity: 1.0,
+        alwaysOnTop: true,
+        startMinimized: false
+    },
+    avatar: {
+        currentMaid: 'aria',
+        movementMode: 'idle', // static, idle, mouse, camera
+        trackingSpeed: 0.5,
+        idleIntensity: 0.5
+    },
+    autoHide: {
+        enabled: false,
+        inactivityMinutes: 5,
+        hideInFullscreen: false
+    }
+};
+
+// Available maids
+const MAIDS = {
+    aria: { name: 'Aria', role: 'Head Maid', hasModel: true },
+    sophia: { name: 'Sophia', role: 'Research', hasModel: false },
+    luna: { name: 'Luna', role: 'Entertainment', hasModel: true },
+    rose: { name: 'Rose', role: 'Scheduling', hasModel: false },
+    mei: { name: 'Mei', role: 'Smart Home', hasModel: false },
+    clara: { name: 'Clara', role: 'Communication', hasModel: false }
+};
+
+// Load settings
+function loadSettings() {
+    try {
+        if (fs.existsSync(SETTINGS_PATH)) {
+            const data = fs.readFileSync(SETTINGS_PATH, 'utf8');
+            settings = { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+        } else {
+            settings = { ...DEFAULT_SETTINGS };
+        }
+    } catch (e) {
+        console.error('Failed to load settings:', e);
+        settings = { ...DEFAULT_SETTINGS };
+    }
+    return settings;
+}
+
+// Save settings
+function saveSettings() {
+    try {
+        fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+    } catch (e) {
+        console.error('Failed to save settings:', e);
+    }
+}
+
+// Calculate window position
+function getWindowPosition() {
     const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
     
-    // Calculate position
-    let x, y;
-    switch (DEFAULT_POSITION) {
-        case 'bottom-right':
-            x = screenWidth - DEFAULT_WIDTH - 20;
-            y = screenHeight - DEFAULT_HEIGHT - 20;
-            break;
-        case 'bottom-left':
-            x = 20;
-            y = screenHeight - DEFAULT_HEIGHT - 20;
-            break;
-        case 'top-right':
-            x = screenWidth - DEFAULT_WIDTH - 20;
-            y = 20;
-            break;
-        case 'top-left':
-            x = 20;
-            y = 20;
-            break;
-        default:
-            x = screenWidth - DEFAULT_WIDTH - 20;
-            y = screenHeight - DEFAULT_HEIGHT - 20;
+    if (settings.window.x !== null && settings.window.y !== null) {
+        return { x: settings.window.x, y: settings.window.y };
     }
+    
+    // Default: bottom-right
+    return {
+        x: screenWidth - settings.window.width - 20,
+        y: screenHeight - settings.window.height - 20
+    };
+}
 
+function createWindow() {
+    const pos = getWindowPosition();
+    
     mainWindow = new BrowserWindow({
-        width: DEFAULT_WIDTH,
-        height: DEFAULT_HEIGHT,
-        x: x,
-        y: y,
+        width: settings.window.width,
+        height: settings.window.height,
+        x: pos.x,
+        y: pos.y,
         transparent: true,
         frame: false,
-        alwaysOnTop: true,
-        skipTaskbar: false,
+        alwaysOnTop: settings.window.alwaysOnTop,
+        skipTaskbar: true, // Hide from taskbar, show in tray only
         resizable: true,
         hasShadow: false,
+        opacity: settings.window.opacity,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -61,86 +119,404 @@ function createWindow() {
         }
     });
 
-    // Load the avatar HTML
     mainWindow.loadFile(path.join(__dirname, 'avatar.html'));
 
-    // Make window click-through except for the avatar
-    // This is handled in the renderer via CSS pointer-events
-    
-    // Dev tools in dev mode
+    // Send initial settings to renderer
+    mainWindow.webContents.on('did-finish-load', () => {
+        mainWindow.webContents.send('settings-loaded', settings);
+    });
+
+    // Save position on move
+    mainWindow.on('moved', () => {
+        const bounds = mainWindow.getBounds();
+        settings.window.x = bounds.x;
+        settings.window.y = bounds.y;
+        saveSettings();
+    });
+
+    // Save size on resize
+    mainWindow.on('resized', () => {
+        const bounds = mainWindow.getBounds();
+        settings.window.width = bounds.width;
+        settings.window.height = bounds.height;
+        saveSettings();
+    });
+
+    // Minimize to tray instead of closing
+    mainWindow.on('close', (event) => {
+        if (!app.isQuitting) {
+            event.preventDefault();
+            mainWindow.hide();
+        }
+    });
+
+    // Dev tools
     if (process.argv.includes('--dev')) {
         mainWindow.webContents.openDevTools({ mode: 'detach' });
     }
+}
 
-    mainWindow.on('closed', () => {
-        mainWindow = null;
-    });
+// Create tray icon (with fallback if no icon file)
+function createTrayIcon() {
+    const iconPath = path.join(__dirname, 'icon.png');
+    
+    if (fs.existsSync(iconPath)) {
+        return nativeImage.createFromPath(iconPath);
+    }
+    
+    // Create a simple colored square as fallback
+    const size = 16;
+    const canvas = Buffer.alloc(size * size * 4);
+    
+    // Pink color (#ff6b9d)
+    for (let i = 0; i < size * size; i++) {
+        canvas[i * 4] = 255;     // R
+        canvas[i * 4 + 1] = 107; // G
+        canvas[i * 4 + 2] = 157; // B
+        canvas[i * 4 + 3] = 255; // A
+    }
+    
+    return nativeImage.createFromBuffer(canvas, { width: size, height: size });
 }
 
 function createTray() {
-    // Create system tray icon for controls
-    // Using a simple icon path - you can replace with a proper icon
-    try {
-        tray = new Tray(path.join(__dirname, 'icon.png'));
-    } catch (e) {
-        // No icon file, skip tray
-        console.log('No tray icon found, skipping tray creation');
-        return;
-    }
+    const icon = createTrayIcon();
+    tray = new Tray(icon);
+    tray.setToolTip('Aria Desktop Avatar');
+    
+    // Double-click to show/hide
+    tray.on('double-click', () => {
+        if (mainWindow.isVisible()) {
+            mainWindow.hide();
+        } else {
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+    
+    updateTrayMenu();
+}
+
+function updateTrayMenu() {
+    const currentMaid = MAIDS[settings.avatar.currentMaid];
     
     const contextMenu = Menu.buildFromTemplate([
-        { 
-            label: 'Show/Hide Avatar', 
+        {
+            label: `🎭 ${currentMaid?.name || 'Aria'} (${currentMaid?.role || 'Head Maid'})`,
+            enabled: false
+        },
+        { type: 'separator' },
+        
+        // Show/Hide
+        {
+            label: mainWindow?.isVisible() ? '👁️ Hide Avatar' : '👁️ Show Avatar',
             click: () => {
                 if (mainWindow.isVisible()) {
                     mainWindow.hide();
                 } else {
                     mainWindow.show();
+                    mainWindow.focus();
                 }
+                updateTrayMenu();
             }
         },
-        { 
-            label: 'Always on Top', 
-            type: 'checkbox', 
-            checked: true,
-            click: (menuItem) => {
-                mainWindow.setAlwaysOnTop(menuItem.checked);
-            }
-        },
+        
         { type: 'separator' },
-        { 
-            label: 'Reset Position', 
-            click: () => {
-                const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-                mainWindow.setPosition(screenWidth - DEFAULT_WIDTH - 20, screenHeight - DEFAULT_HEIGHT - 20);
-            }
+        
+        // Maid Switcher
+        {
+            label: '🎀 Switch Maid',
+            submenu: Object.entries(MAIDS).map(([id, maid]) => ({
+                label: `${maid.name} (${maid.role})${!maid.hasModel ? ' [No Avatar]' : ''}`,
+                type: 'radio',
+                checked: settings.avatar.currentMaid === id,
+                enabled: maid.hasModel,
+                click: () => {
+                    settings.avatar.currentMaid = id;
+                    saveSettings();
+                    mainWindow.webContents.send('switch-maid', id);
+                    updateTrayMenu();
+                }
+            }))
         },
+        
         { type: 'separator' },
-        { 
-            label: 'Quit', 
+        
+        // Zoom
+        {
+            label: '🔍 Zoom',
+            submenu: [
+                { label: '50%', type: 'radio', checked: settings.window.zoom === 0.5, click: () => setZoom(0.5) },
+                { label: '75%', type: 'radio', checked: settings.window.zoom === 0.75, click: () => setZoom(0.75) },
+                { label: '100%', type: 'radio', checked: settings.window.zoom === 1.0, click: () => setZoom(1.0) },
+                { label: '125%', type: 'radio', checked: settings.window.zoom === 1.25, click: () => setZoom(1.25) },
+                { label: '150%', type: 'radio', checked: settings.window.zoom === 1.5, click: () => setZoom(1.5) },
+                { label: '200%', type: 'radio', checked: settings.window.zoom === 2.0, click: () => setZoom(2.0) }
+            ]
+        },
+        
+        // Movement Mode
+        {
+            label: '🎬 Movement',
+            submenu: [
+                { 
+                    label: 'Static', 
+                    type: 'radio', 
+                    checked: settings.avatar.movementMode === 'static',
+                    click: () => setMovementMode('static')
+                },
+                { 
+                    label: 'Idle Animation', 
+                    type: 'radio', 
+                    checked: settings.avatar.movementMode === 'idle',
+                    click: () => setMovementMode('idle')
+                },
+                { 
+                    label: 'Mouse Tracking', 
+                    type: 'radio', 
+                    checked: settings.avatar.movementMode === 'mouse',
+                    click: () => setMovementMode('mouse')
+                },
+                { 
+                    label: 'Camera Tracking', 
+                    type: 'radio', 
+                    checked: settings.avatar.movementMode === 'camera',
+                    click: () => setMovementMode('camera')
+                },
+                { 
+                    label: 'Random Wander', 
+                    type: 'radio', 
+                    checked: settings.avatar.movementMode === 'wander',
+                    click: () => setMovementMode('wander')
+                }
+            ]
+        },
+        
+        { type: 'separator' },
+        
+        // Expressions
+        {
+            label: '😊 Expressions',
+            submenu: [
+                { label: 'Default', click: () => triggerExpression('default') },
+                { label: 'Happy', click: () => triggerExpression('happy') },
+                { label: 'Thinking', click: () => triggerExpression('thinking') },
+                { type: 'separator' },
+                { label: 'Sassy (Aria)', click: () => triggerExpression('sassy') },
+                { label: 'Heart Eyes', click: () => triggerExpression('heart_eyes') },
+                { label: 'Blush', click: () => triggerExpression('blush') },
+                { type: 'separator' },
+                { label: 'Wave 👋', click: () => mainWindow.webContents.send('trigger-action', 'wave') },
+                { label: 'Blink', click: () => mainWindow.webContents.send('trigger-action', 'blink') }
+            ]
+        },
+        
+        { type: 'separator' },
+        
+        // Window Options
+        {
+            label: '⚙️ Options',
+            submenu: [
+                {
+                    label: 'Always on Top',
+                    type: 'checkbox',
+                    checked: settings.window.alwaysOnTop,
+                    click: (menuItem) => {
+                        settings.window.alwaysOnTop = menuItem.checked;
+                        mainWindow.setAlwaysOnTop(menuItem.checked);
+                        saveSettings();
+                    }
+                },
+                {
+                    label: 'Start Minimized',
+                    type: 'checkbox',
+                    checked: settings.window.startMinimized,
+                    click: (menuItem) => {
+                        settings.window.startMinimized = menuItem.checked;
+                        saveSettings();
+                    }
+                },
+                { type: 'separator' },
+                {
+                    label: 'Auto-Hide',
+                    submenu: [
+                        {
+                            label: 'Disabled',
+                            type: 'radio',
+                            checked: !settings.autoHide.enabled,
+                            click: () => {
+                                settings.autoHide.enabled = false;
+                                saveSettings();
+                                mainWindow.webContents.send('auto-hide-changed', settings.autoHide);
+                            }
+                        },
+                        {
+                            label: 'After 5 min inactive',
+                            type: 'radio',
+                            checked: settings.autoHide.enabled && settings.autoHide.inactivityMinutes === 5,
+                            click: () => {
+                                settings.autoHide.enabled = true;
+                                settings.autoHide.inactivityMinutes = 5;
+                                saveSettings();
+                                mainWindow.webContents.send('auto-hide-changed', settings.autoHide);
+                            }
+                        },
+                        {
+                            label: 'After 15 min inactive',
+                            type: 'radio',
+                            checked: settings.autoHide.enabled && settings.autoHide.inactivityMinutes === 15,
+                            click: () => {
+                                settings.autoHide.enabled = true;
+                                settings.autoHide.inactivityMinutes = 15;
+                                saveSettings();
+                                mainWindow.webContents.send('auto-hide-changed', settings.autoHide);
+                            }
+                        },
+                        { type: 'separator' },
+                        {
+                            label: 'Hide in Fullscreen Apps',
+                            type: 'checkbox',
+                            checked: settings.autoHide.hideInFullscreen,
+                            click: (menuItem) => {
+                                settings.autoHide.hideInFullscreen = menuItem.checked;
+                                saveSettings();
+                                mainWindow.webContents.send('auto-hide-changed', settings.autoHide);
+                            }
+                        }
+                    ]
+                },
+                { type: 'separator' },
+                {
+                    label: 'Reset Position',
+                    click: () => {
+                        settings.window.x = null;
+                        settings.window.y = null;
+                        const pos = getWindowPosition();
+                        mainWindow.setPosition(pos.x, pos.y);
+                        saveSettings();
+                    }
+                },
+                {
+                    label: 'Reset All Settings',
+                    click: () => {
+                        settings = { ...DEFAULT_SETTINGS };
+                        saveSettings();
+                        mainWindow.webContents.send('settings-loaded', settings);
+                        updateTrayMenu();
+                    }
+                }
+            ]
+        },
+        
+        { type: 'separator' },
+        
+        {
+            label: '❌ Quit Aria',
             click: () => {
+                app.isQuitting = true;
                 app.quit();
             }
         }
     ]);
     
-    tray.setToolTip('Aria Desktop Avatar');
     tray.setContextMenu(contextMenu);
 }
 
+function setZoom(zoom) {
+    settings.window.zoom = zoom;
+    saveSettings();
+    mainWindow.webContents.send('set-zoom', zoom);
+    updateTrayMenu();
+}
+
+function setMovementMode(mode) {
+    settings.avatar.movementMode = mode;
+    saveSettings();
+    mainWindow.webContents.send('set-movement-mode', mode);
+    updateTrayMenu();
+}
+
+function triggerExpression(expression) {
+    mainWindow.webContents.send('trigger-expression', expression);
+}
+
+// Register global hotkeys
+function registerHotkeys() {
+    // Toggle visibility
+    globalShortcut.register('Ctrl+Shift+A', () => {
+        if (mainWindow.isVisible()) {
+            mainWindow.hide();
+        } else {
+            mainWindow.show();
+            mainWindow.focus();
+        }
+        updateTrayMenu();
+    });
+    
+    // Zoom in
+    globalShortcut.register('Ctrl+Shift+Plus', () => {
+        const zooms = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+        const idx = zooms.indexOf(settings.window.zoom);
+        if (idx < zooms.length - 1) {
+            setZoom(zooms[idx + 1]);
+        }
+    });
+    
+    // Zoom out
+    globalShortcut.register('Ctrl+Shift+-', () => {
+        const zooms = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+        const idx = zooms.indexOf(settings.window.zoom);
+        if (idx > 0) {
+            setZoom(zooms[idx - 1]);
+        }
+    });
+    
+    // Cycle maids
+    globalShortcut.register('Ctrl+Shift+M', () => {
+        const maidIds = Object.keys(MAIDS).filter(id => MAIDS[id].hasModel);
+        const idx = maidIds.indexOf(settings.avatar.currentMaid);
+        const nextIdx = (idx + 1) % maidIds.length;
+        const nextMaid = maidIds[nextIdx];
+        
+        settings.avatar.currentMaid = nextMaid;
+        saveSettings();
+        mainWindow.webContents.send('switch-maid', nextMaid);
+        updateTrayMenu();
+    });
+}
+
 // IPC handlers
-ipcMain.handle('get-window-bounds', () => {
-    return mainWindow.getBounds();
+ipcMain.handle('get-window-bounds', () => mainWindow.getBounds());
+ipcMain.handle('get-settings', () => settings);
+ipcMain.handle('save-settings', (event, newSettings) => {
+    settings = { ...settings, ...newSettings };
+    saveSettings();
+    return settings;
 });
 
 ipcMain.handle('set-click-through', (event, clickThrough) => {
     mainWindow.setIgnoreMouseEvents(clickThrough, { forward: true });
 });
 
+ipcMain.handle('get-cursor-position', () => {
+    return screen.getCursorScreenPoint();
+});
+
+ipcMain.handle('get-screen-size', () => {
+    return screen.getPrimaryDisplay().workAreaSize;
+});
+
 // App lifecycle
 app.whenReady().then(() => {
+    loadSettings();
     createWindow();
     createTray();
+    registerHotkeys();
+    
+    // Start minimized if configured
+    if (settings.window.startMinimized) {
+        mainWindow.hide();
+    }
 });
 
 app.on('window-all-closed', () => {
@@ -153,4 +529,12 @@ app.on('activate', () => {
     if (mainWindow === null) {
         createWindow();
     }
+});
+
+app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+});
+
+app.on('before-quit', () => {
+    app.isQuitting = true;
 });

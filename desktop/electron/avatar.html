@@ -16,7 +16,6 @@
             height: 100%;
             overflow: hidden;
             background: transparent;
-            /* Allow dragging the window from anywhere */
             -webkit-app-region: drag;
         }
         
@@ -24,7 +23,6 @@
             width: 100%;
             height: 100%;
             position: relative;
-            /* Avatar itself is not draggable - allows interaction */
             -webkit-app-region: no-drag;
         }
         
@@ -101,6 +99,27 @@
             font-size: 12px;
             font-weight: 500;
             -webkit-app-region: no-drag;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        #maid-badge:hover {
+            transform: scale(1.05);
+        }
+        
+        /* Movement mode indicator */
+        #mode-indicator {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 10px;
+            opacity: 0.7;
+            -webkit-app-region: no-drag;
         }
     </style>
 </head>
@@ -114,6 +133,7 @@
             <div class="speak-dot"></div>
         </div>
         <div id="status">Connecting...</div>
+        <div id="mode-indicator">idle</div>
     </div>
 
     <!-- PIXI.js and Live2D -->
@@ -127,7 +147,6 @@
         const WS_URL = 'ws://localhost:8765';
         const RECONNECT_DELAY = 3000;
         
-        // Model paths - relative to project root served by HTTP server
         const MODEL_BASE_URL = 'http://localhost:8080';
         const MAIDS = {
             aria: {
@@ -154,21 +173,680 @@
         let live2dModel = null;
         let currentMaid = 'aria';
         let reconnectTimer = null;
+        let settings = null;
+        
+        // Movement state
+        let movementMode = 'idle';
+        let mouseTrackingInterval = null;
+        let idleAnimationFrame = null;
+        let currentZoom = 1.0;
+        
+        // Tracking state
+        let targetAngleX = 0;
+        let targetAngleY = 0;
+        let currentAngleX = 0;
+        let currentAngleY = 0;
+        
+        // Idle animation state
+        let idleTime = 0;
+        let breathTime = 0;
+        let blinkTimer = 0;
+        let nextBlinkTime = 2000 + Math.random() * 4000;
 
         // DOM
         const canvas = document.getElementById('live2d-canvas');
         const status = document.getElementById('status');
         const maidBadge = document.getElementById('maid-badge');
         const speakingIndicator = document.getElementById('speaking-indicator');
+        const modeIndicator = document.getElementById('mode-indicator');
 
-        // Show status temporarily
+        // ============ Electron API Integration ============
+        
+        if (window.electronAPI) {
+            // Settings loaded from main process
+            window.electronAPI.onSettingsLoaded((loadedSettings) => {
+                settings = loadedSettings;
+                currentZoom = settings.window.zoom;
+                movementMode = settings.avatar.movementMode;
+                currentMaid = settings.avatar.currentMaid;
+                
+                modeIndicator.textContent = movementMode;
+                updateMovementMode();
+                
+                if (live2dModel) {
+                    resizeModel();
+                }
+            });
+            
+            // Maid switch from tray
+            window.electronAPI.onSwitchMaid((maidId) => {
+                console.log(`🎀 Switching to ${maidId}`);
+                loadMaidModel(maidId);
+            });
+            
+            // Zoom change from tray
+            window.electronAPI.onSetZoom((zoom) => {
+                currentZoom = zoom;
+                resizeModel();
+                showStatus(`Zoom: ${Math.round(zoom * 100)}%`);
+            });
+            
+            // Movement mode change from tray
+            window.electronAPI.onSetMovementMode((mode) => {
+                movementMode = mode;
+                modeIndicator.textContent = mode;
+                updateMovementMode();
+                showStatus(`Mode: ${mode}`);
+            });
+            
+            // Expression trigger from tray
+            window.electronAPI.onTriggerExpression((expression) => {
+                console.log(`Expression: ${expression}`);
+                if (expression === 'default') {
+                    resetModelPose();
+                    setModelParameter('ParamMouthForm', 0);
+                    setModelParameter('ParamEyeLOpen', 1);
+                    setModelParameter('ParamEyeROpen', 1);
+                } else {
+                    setExpression(expression);
+                }
+                showStatus(`Expression: ${expression}`, 1500);
+            });
+            
+            // Action trigger from tray
+            window.electronAPI.onTriggerAction((action) => {
+                console.log(`Action: ${action}`);
+                switch (action) {
+                    case 'wave':
+                        triggerGreeting();
+                        break;
+                    case 'blink':
+                        triggerBlink();
+                        break;
+                }
+            });
+        }
+
+        // ============ Movement Modes ============
+        
+        function updateMovementMode() {
+            // Stop existing tracking
+            if (mouseTrackingInterval) {
+                clearInterval(mouseTrackingInterval);
+                mouseTrackingInterval = null;
+            }
+            if (idleAnimationFrame) {
+                cancelAnimationFrame(idleAnimationFrame);
+                idleAnimationFrame = null;
+            }
+            stopCameraTracking();
+            
+            // Reset angles
+            targetAngleX = 0;
+            targetAngleY = 0;
+            
+            switch (movementMode) {
+                case 'static':
+                    // No movement, reset to center
+                    resetModelPose();
+                    break;
+                    
+                case 'idle':
+                    startIdleAnimation();
+                    break;
+                    
+                case 'mouse':
+                    startMouseTracking();
+                    break;
+                    
+                case 'camera':
+                    startCameraTracking();
+                    break;
+                    
+                case 'wander':
+                    startRandomWander();
+                    break;
+            }
+        }
+        
+        function resetModelPose() {
+            if (!live2dModel) return;
+            setModelParameter('ParamAngleX', 0);
+            setModelParameter('ParamAngleY', 0);
+            setModelParameter('ParamAngleZ', 0);
+            setModelParameter('ParamEyeBallX', 0);
+            setModelParameter('ParamEyeBallY', 0);
+            setModelParameter('ParamBodyAngleX', 0);
+        }
+        
+        // ============ Idle Animation ============
+        
+        function startIdleAnimation() {
+            let lastTime = performance.now();
+            
+            function animate(currentTime) {
+                if (movementMode !== 'idle') return;
+                
+                const deltaTime = currentTime - lastTime;
+                lastTime = currentTime;
+                
+                idleTime += deltaTime;
+                breathTime += deltaTime;
+                blinkTimer += deltaTime;
+                
+                if (!live2dModel) {
+                    idleAnimationFrame = requestAnimationFrame(animate);
+                    return;
+                }
+                
+                // Breathing (subtle body movement)
+                const breathValue = Math.sin(breathTime / 3000) * 0.02;
+                setModelParameter('ParamBreath', 0.5 + breathValue);
+                
+                // Subtle head sway
+                const swayX = Math.sin(idleTime / 5000) * 3;
+                const swayY = Math.sin(idleTime / 4000) * 2;
+                setModelParameter('ParamAngleX', swayX);
+                setModelParameter('ParamAngleY', swayY);
+                
+                // Random looking around
+                const lookX = Math.sin(idleTime / 7000) * 0.3;
+                const lookY = Math.sin(idleTime / 6000) * 0.2;
+                setModelParameter('ParamEyeBallX', lookX);
+                setModelParameter('ParamEyeBallY', lookY);
+                
+                // Blinking
+                if (blinkTimer > nextBlinkTime) {
+                    triggerBlink();
+                    blinkTimer = 0;
+                    nextBlinkTime = 2000 + Math.random() * 4000;
+                }
+                
+                idleAnimationFrame = requestAnimationFrame(animate);
+            }
+            
+            idleAnimationFrame = requestAnimationFrame(animate);
+        }
+        
+        function triggerBlink() {
+            if (!live2dModel) return;
+            
+            // Quick blink animation
+            const blinkDuration = 150;
+            const startTime = performance.now();
+            
+            function blinkFrame(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = elapsed / blinkDuration;
+                
+                if (progress >= 1) {
+                    setModelParameter('ParamEyeLOpen', 1);
+                    setModelParameter('ParamEyeROpen', 1);
+                    return;
+                }
+                
+                // Close then open
+                const eyeOpen = progress < 0.5 
+                    ? 1 - (progress * 2)  // Closing
+                    : (progress - 0.5) * 2; // Opening
+                
+                setModelParameter('ParamEyeLOpen', eyeOpen);
+                setModelParameter('ParamEyeROpen', eyeOpen);
+                
+                requestAnimationFrame(blinkFrame);
+            }
+            
+            requestAnimationFrame(blinkFrame);
+        }
+        
+        // ============ Mouse Tracking ============
+        
+        async function startMouseTracking() {
+            if (!window.electronAPI) {
+                console.warn('Mouse tracking requires Electron');
+                return;
+            }
+            
+            const screenSize = await window.electronAPI.getScreenSize();
+            const windowBounds = await window.electronAPI.getWindowBounds();
+            
+            // Smooth interpolation
+            function lerp(current, target, factor) {
+                return current + (target - current) * factor;
+            }
+            
+            mouseTrackingInterval = setInterval(async () => {
+                if (movementMode !== 'mouse' || !live2dModel) return;
+                
+                try {
+                    const cursor = await window.electronAPI.getCursorPosition();
+                    const bounds = await window.electronAPI.getWindowBounds();
+                    
+                    // Calculate avatar center
+                    const avatarCenterX = bounds.x + bounds.width / 2;
+                    const avatarCenterY = bounds.y + bounds.height / 2;
+                    
+                    // Calculate angle from avatar to cursor
+                    const deltaX = cursor.x - avatarCenterX;
+                    const deltaY = cursor.y - avatarCenterY;
+                    
+                    // Normalize to -1 to 1 range based on screen size
+                    const normalizedX = Math.max(-1, Math.min(1, deltaX / (screenSize.width / 2)));
+                    const normalizedY = Math.max(-1, Math.min(1, deltaY / (screenSize.height / 2)));
+                    
+                    // Map to Live2D parameters
+                    targetAngleX = normalizedX * 30; // Head rotation
+                    targetAngleY = normalizedY * 20;
+                    
+                    // Smooth interpolation
+                    currentAngleX = lerp(currentAngleX, targetAngleX, 0.1);
+                    currentAngleY = lerp(currentAngleY, targetAngleY, 0.1);
+                    
+                    setModelParameter('ParamAngleX', currentAngleX);
+                    setModelParameter('ParamAngleY', currentAngleY);
+                    setModelParameter('ParamEyeBallX', normalizedX * 0.8);
+                    setModelParameter('ParamEyeBallY', normalizedY * 0.5);
+                    setModelParameter('ParamBodyAngleX', currentAngleX * 0.3);
+                    
+                } catch (e) {
+                    console.error('Mouse tracking error:', e);
+                }
+            }, 16); // ~60fps
+        }
+        
+        // ============ Camera Tracking ============
+        
+        let cameraStream = null;
+        let cameraVideo = null;
+        let cameraCanvas = null;
+        let cameraCtx = null;
+        let faceDetectionInterval = null;
+        
+        async function startCameraTracking() {
+            showStatus('Starting camera...', 3000);
+            
+            try {
+                // Request camera permission
+                cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 320 },
+                        height: { ideal: 240 },
+                        facingMode: 'user'
+                    } 
+                });
+                
+                // Create hidden video element
+                if (!cameraVideo) {
+                    cameraVideo = document.createElement('video');
+                    cameraVideo.style.display = 'none';
+                    cameraVideo.autoplay = true;
+                    cameraVideo.playsInline = true;
+                    document.body.appendChild(cameraVideo);
+                    
+                    cameraCanvas = document.createElement('canvas');
+                    cameraCanvas.width = 320;
+                    cameraCanvas.height = 240;
+                    cameraCtx = cameraCanvas.getContext('2d');
+                }
+                
+                cameraVideo.srcObject = cameraStream;
+                await cameraVideo.play();
+                
+                showStatus('Camera active', 2000);
+                modeIndicator.textContent = 'camera 📷';
+                
+                // Start face detection loop
+                startFaceDetection();
+                
+            } catch (error) {
+                console.error('Camera access failed:', error);
+                showStatus('Camera unavailable - using idle', 3000);
+                
+                // Fall back to idle
+                movementMode = 'idle';
+                modeIndicator.textContent = 'idle (no camera)';
+                startIdleAnimation();
+            }
+        }
+        
+        function stopCameraTracking() {
+            if (faceDetectionInterval) {
+                clearInterval(faceDetectionInterval);
+                faceDetectionInterval = null;
+            }
+            
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+            
+            if (cameraVideo) {
+                cameraVideo.srcObject = null;
+            }
+        }
+        
+        function startFaceDetection() {
+            // Simple brightness-based face detection
+            // For better results, integrate face-api.js or MediaPipe
+            
+            let lastFaceX = 0.5;
+            let lastFaceY = 0.5;
+            
+            faceDetectionInterval = setInterval(() => {
+                if (movementMode !== 'camera' || !cameraVideo || !cameraCtx) return;
+                
+                try {
+                    // Draw video frame to canvas
+                    cameraCtx.drawImage(cameraVideo, 0, 0, 320, 240);
+                    const imageData = cameraCtx.getImageData(0, 0, 320, 240);
+                    const data = imageData.data;
+                    
+                    // Simple center-of-brightness detection (approximates face position)
+                    let totalBrightness = 0;
+                    let weightedX = 0;
+                    let weightedY = 0;
+                    
+                    for (let y = 0; y < 240; y++) {
+                        for (let x = 0; x < 320; x++) {
+                            const i = (y * 320 + x) * 4;
+                            // Skin tone detection (rough approximation)
+                            const r = data[i];
+                            const g = data[i + 1];
+                            const b = data[i + 2];
+                            
+                            // Check for skin-like colors
+                            if (r > 95 && g > 40 && b > 20 &&
+                                r > g && r > b &&
+                                Math.abs(r - g) > 15 &&
+                                r - g > 15) {
+                                const brightness = (r + g + b) / 3;
+                                totalBrightness += brightness;
+                                weightedX += x * brightness;
+                                weightedY += y * brightness;
+                            }
+                        }
+                    }
+                    
+                    if (totalBrightness > 1000) {
+                        // Normalize to 0-1 range
+                        const faceX = weightedX / totalBrightness / 320;
+                        const faceY = weightedY / totalBrightness / 240;
+                        
+                        // Smooth with previous values
+                        lastFaceX = lastFaceX * 0.7 + faceX * 0.3;
+                        lastFaceY = lastFaceY * 0.7 + faceY * 0.3;
+                        
+                        // Map to avatar parameters (inverted X for mirror effect)
+                        const normalizedX = (0.5 - lastFaceX) * 2; // -1 to 1
+                        const normalizedY = (lastFaceY - 0.5) * 2; // -1 to 1
+                        
+                        // Smooth interpolation
+                        targetAngleX = normalizedX * 25;
+                        targetAngleY = normalizedY * 15;
+                        
+                        currentAngleX = currentAngleX * 0.85 + targetAngleX * 0.15;
+                        currentAngleY = currentAngleY * 0.85 + targetAngleY * 0.15;
+                        
+                        if (live2dModel) {
+                            setModelParameter('ParamAngleX', currentAngleX);
+                            setModelParameter('ParamAngleY', currentAngleY);
+                            setModelParameter('ParamEyeBallX', normalizedX * 0.6);
+                            setModelParameter('ParamEyeBallY', normalizedY * 0.4);
+                            setModelParameter('ParamBodyAngleX', currentAngleX * 0.2);
+                        }
+                    }
+                    
+                } catch (e) {
+                    console.error('Face detection error:', e);
+                }
+            }, 50); // 20fps for face detection
+        }
+
+        // ============ Random Wander Mode ============
+        
+        let wanderAnimationFrame = null;
+        let wanderTargetX = 0;
+        let wanderTargetY = 0;
+        let wanderChangeTime = 0;
+        
+        function startRandomWander() {
+            let lastTime = performance.now();
+            wanderChangeTime = 0;
+            
+            function animate(currentTime) {
+                if (movementMode !== 'wander') return;
+                
+                const deltaTime = currentTime - lastTime;
+                lastTime = currentTime;
+                wanderChangeTime += deltaTime;
+                
+                if (!live2dModel) {
+                    wanderAnimationFrame = requestAnimationFrame(animate);
+                    return;
+                }
+                
+                // Change target every 2-5 seconds
+                if (wanderChangeTime > 2000 + Math.random() * 3000) {
+                    wanderTargetX = (Math.random() - 0.5) * 40; // -20 to 20
+                    wanderTargetY = (Math.random() - 0.5) * 20; // -10 to 10
+                    wanderChangeTime = 0;
+                }
+                
+                // Smooth interpolation to target
+                currentAngleX = currentAngleX * 0.98 + wanderTargetX * 0.02;
+                currentAngleY = currentAngleY * 0.98 + wanderTargetY * 0.02;
+                
+                setModelParameter('ParamAngleX', currentAngleX);
+                setModelParameter('ParamAngleY', currentAngleY);
+                setModelParameter('ParamEyeBallX', currentAngleX / 40);
+                setModelParameter('ParamEyeBallY', currentAngleY / 20);
+                
+                // Add breathing
+                breathTime += deltaTime;
+                const breathValue = Math.sin(breathTime / 3000) * 0.02;
+                setModelParameter('ParamBreath', 0.5 + breathValue);
+                
+                // Blinking
+                blinkTimer += deltaTime;
+                if (blinkTimer > nextBlinkTime) {
+                    triggerBlink();
+                    blinkTimer = 0;
+                    nextBlinkTime = 2000 + Math.random() * 4000;
+                }
+                
+                wanderAnimationFrame = requestAnimationFrame(animate);
+            }
+            
+            wanderAnimationFrame = requestAnimationFrame(animate);
+        }
+        
+        // ============ Auto-Hide ============
+        
+        let autoHideSettings = { enabled: false, inactivityMinutes: 5, hideInFullscreen: false };
+        let lastActivityTime = Date.now();
+        let autoHideCheckInterval = null;
+        let isHiddenByAutoHide = false;
+        
+        function setupAutoHide(settings) {
+            autoHideSettings = settings;
+            
+            if (autoHideCheckInterval) {
+                clearInterval(autoHideCheckInterval);
+                autoHideCheckInterval = null;
+            }
+            
+            if (!settings.enabled) {
+                if (isHiddenByAutoHide) {
+                    // Show avatar again
+                    document.body.style.opacity = '1';
+                    isHiddenByAutoHide = false;
+                }
+                return;
+            }
+            
+            // Check every 30 seconds
+            autoHideCheckInterval = setInterval(() => {
+                const inactiveMs = Date.now() - lastActivityTime;
+                const inactiveMinutes = inactiveMs / 60000;
+                
+                if (inactiveMinutes >= autoHideSettings.inactivityMinutes) {
+                    if (!isHiddenByAutoHide) {
+                        // Fade out
+                        document.body.style.transition = 'opacity 0.5s';
+                        document.body.style.opacity = '0';
+                        isHiddenByAutoHide = true;
+                    }
+                }
+            }, 30000);
+        }
+        
+        function recordActivity() {
+            lastActivityTime = Date.now();
+            
+            if (isHiddenByAutoHide) {
+                // Fade back in
+                document.body.style.transition = 'opacity 0.3s';
+                document.body.style.opacity = '1';
+                isHiddenByAutoHide = false;
+            }
+        }
+        
+        // Track activity
+        document.addEventListener('mousemove', recordActivity);
+        document.addEventListener('click', recordActivity);
+        document.addEventListener('keydown', recordActivity);
+        
+        // ============ Click Interactions ============
+        
+        let clickCount = 0;
+        let clickTimer = null;
+        
+        function setupClickInteractions() {
+            const container = document.getElementById('avatar-container');
+            
+            container.addEventListener('click', (e) => {
+                if (e.target === maidBadge) return; // Ignore badge clicks
+                
+                clickCount++;
+                recordActivity();
+                
+                if (clickTimer) clearTimeout(clickTimer);
+                
+                clickTimer = setTimeout(() => {
+                    if (clickCount === 1) {
+                        // Single click - wave/greeting
+                        triggerGreeting();
+                    } else if (clickCount === 2) {
+                        // Double click - happy expression
+                        triggerHappyReaction();
+                    } else if (clickCount >= 3) {
+                        // Triple+ click - annoyed
+                        triggerAnnoyedReaction();
+                    }
+                    clickCount = 0;
+                }, 300);
+            });
+            
+            // Right-click for context menu hint
+            container.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                showStatus('Right-click tray icon for menu', 2000);
+            });
+        }
+        
+        function triggerGreeting() {
+            if (!live2dModel) return;
+            
+            showStatus('👋', 1000);
+            
+            // Wave animation - tilt head and smile
+            const startTime = performance.now();
+            const duration = 800;
+            
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease in-out
+                const ease = progress < 0.5 
+                    ? 2 * progress * progress 
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                
+                // Head tilt
+                const tilt = Math.sin(progress * Math.PI * 2) * 10;
+                setModelParameter('ParamAngleZ', tilt);
+                
+                // Smile
+                setModelParameter('ParamMouthForm', ease * 0.8);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // Reset
+                    setModelParameter('ParamAngleZ', 0);
+                    setTimeout(() => setModelParameter('ParamMouthForm', 0), 500);
+                }
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        function triggerHappyReaction() {
+            if (!live2dModel) return;
+            
+            showStatus('💕', 1000);
+            
+            // Try to trigger happy expression
+            try {
+                live2dModel.expression('happy');
+            } catch (e) {}
+            
+            // Eyes wide + big smile
+            setModelParameter('ParamEyeLOpen', 1.2);
+            setModelParameter('ParamEyeROpen', 1.2);
+            setModelParameter('ParamMouthForm', 1);
+            
+            setTimeout(() => {
+                setModelParameter('ParamEyeLOpen', 1);
+                setModelParameter('ParamEyeROpen', 1);
+                setModelParameter('ParamMouthForm', 0);
+            }, 1500);
+        }
+        
+        function triggerAnnoyedReaction() {
+            if (!live2dModel) return;
+            
+            showStatus('😤', 1000);
+            
+            // Try annoyed/sassy expression
+            try {
+                live2dModel.expression('angry');
+            } catch (e) {}
+            
+            // Narrowed eyes + frown
+            setModelParameter('ParamEyeLOpen', 0.6);
+            setModelParameter('ParamEyeROpen', 0.6);
+            setModelParameter('ParamMouthForm', -0.5);
+            setModelParameter('ParamBrowLY', -0.5);
+            setModelParameter('ParamBrowRY', -0.5);
+            
+            setTimeout(() => {
+                setModelParameter('ParamEyeLOpen', 1);
+                setModelParameter('ParamEyeROpen', 1);
+                setModelParameter('ParamMouthForm', 0);
+                setModelParameter('ParamBrowLY', 0);
+                setModelParameter('ParamBrowRY', 0);
+            }, 2000);
+        }
+        
         function showStatus(text, duration = 2000) {
             status.textContent = text;
             status.classList.add('visible');
             setTimeout(() => status.classList.remove('visible'), duration);
         }
 
-        // WebSocket connection
+        // ============ WebSocket ============
+        
         function connectWebSocket() {
             showStatus('Connecting...', 5000);
             
@@ -208,18 +886,17 @@
             }, RECONNECT_DELAY);
         }
 
-        // Message handling
         function handleMessage(data) {
             switch (data.type) {
                 case 'init':
-                    if (data.current_maid) {
+                    if (data.current_maid && data.current_maid !== currentMaid) {
                         setCurrentMaid(data.current_maid);
+                        loadMaidModel(data.current_maid);
                     }
                     break;
                     
                 case 'transcript':
                     if (!data.is_user) {
-                        // Assistant speaking - animate
                         animateSpeaking(data.text.length);
                     }
                     break;
@@ -247,7 +924,8 @@
             maidBadge.style.background = maid?.color || '#ff6b9d';
         }
 
-        // Live2D
+        // ============ Live2D ============
+        
         async function initLive2D() {
             showStatus('Loading avatar...', 5000);
             
@@ -256,11 +934,11 @@
                     view: canvas,
                     autoStart: true,
                     resizeTo: canvas.parentElement,
-                    backgroundAlpha: 0, // Transparent!
+                    backgroundAlpha: 0,
                     antialias: true
                 });
                 
-                await loadMaidModel('aria');
+                await loadMaidModel(currentMaid);
                 
             } catch (error) {
                 console.error('Live2D init failed:', error);
@@ -277,6 +955,7 @@
                 return;
             }
             
+            setCurrentMaid(maidId);
             showStatus(`Loading ${maid.name}...`, 5000);
             
             try {
@@ -289,7 +968,7 @@
                 
                 // Load new model
                 live2dModel = await PIXI.live2d.Live2DModel.from(maid.modelPath, {
-                    autoInteract: true,
+                    autoInteract: false, // We handle interaction
                     autoUpdate: true
                 });
                 
@@ -299,17 +978,16 @@
                 live2dModel.interactive = true;
                 live2dModel.on('hit', (hitAreas) => {
                     console.log('Hit:', hitAreas);
-                    if (hitAreas.includes('body') || hitAreas.includes('Body')) {
-                        live2dModel.motion('tap_body');
-                    } else if (hitAreas.includes('head') || hitAreas.includes('Head')) {
-                        live2dModel.motion('flick_head');
-                    }
+                    triggerBlink();
                 });
                 
                 pixiApp.stage.addChild(live2dModel);
                 
                 console.log(`✅ Loaded ${maid.name}`);
                 showStatus(`${maid.name} ready`);
+                
+                // Restart movement mode
+                updateMovementMode();
                 
             } catch (error) {
                 console.error(`Failed to load ${maidId}:`, error);
@@ -320,10 +998,12 @@
         function resizeModel() {
             if (!live2dModel || !pixiApp) return;
             
-            const scale = Math.min(
+            const baseScale = Math.min(
                 pixiApp.screen.width / live2dModel.width * 0.9,
                 pixiApp.screen.height / live2dModel.height * 0.95
             );
+            
+            const scale = baseScale * currentZoom;
             live2dModel.scale.set(scale);
             live2dModel.x = pixiApp.screen.width / 2;
             live2dModel.y = pixiApp.screen.height / 2 + live2dModel.height * scale * 0.25;
@@ -383,8 +1063,15 @@
         // Init
         async function init() {
             console.log('🎭 Aria Desktop Avatar');
+            
+            // Set up click interactions
+            setupClickInteractions();
+            
             await initLive2D();
             connectWebSocket();
+            
+            // Start default movement mode
+            updateMovementMode();
             
             // Heartbeat
             setInterval(() => {
@@ -392,6 +1079,13 @@
                     ws.send(JSON.stringify({ type: 'ping' }));
                 }
             }, 30000);
+        }
+        
+        // Listen for auto-hide settings changes
+        if (window.electronAPI) {
+            window.electronAPI.onAutoHideChanged((autoHide) => {
+                setupAutoHide(autoHide);
+            });
         }
 
         init();
