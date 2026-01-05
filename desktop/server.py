@@ -17,6 +17,7 @@ Usage:
 import asyncio
 import json
 import logging
+import os
 import webbrowser
 from pathlib import Path
 from typing import Dict, Set, Optional, List, Any
@@ -326,11 +327,17 @@ def get_server() -> Optional[DesktopWebSocketServer]:
     return _ws_server
 
 
+def _should_open_browser() -> bool:
+    """Check env variable to determine if browser should auto-open."""
+    auto_open = os.environ.get("ARIA_AUTO_OPEN_BROWSER", "true").lower()
+    return auto_open in ("true", "1", "yes")
+
+
 async def start_server(
     host: str = WS_HOST, 
     ws_port: int = WS_PORT,
     http_port: int = HTTP_PORT,
-    open_browser: bool = True
+    open_browser: bool = None  # None = check env variable
 ) -> DesktopWebSocketServer:
     """
     Start the WebSocket and HTTP servers.
@@ -339,12 +346,16 @@ async def start_server(
         host: Host to bind to
         ws_port: WebSocket server port
         http_port: HTTP server port for frontend
-        open_browser: Whether to auto-open browser
+        open_browser: Whether to auto-open browser (None = check ARIA_AUTO_OPEN_BROWSER env)
     
     Returns:
         The WebSocket server instance
     """
     global _ws_server, _http_server
+    
+    # Determine if we should open browser
+    if open_browser is None:
+        open_browser = _should_open_browser()
     
     # Start HTTP server for frontend (in background thread)
     if _http_server is None:
@@ -356,11 +367,14 @@ async def start_server(
         _ws_server = DesktopWebSocketServer(host, ws_port)
         await _ws_server.start()
     
-    # Open browser to frontend
+    # Open browser to frontend (unless using Electron)
     if open_browser:
         frontend_url = f"http://{host}:{http_port}"
         logger.info(f"Opening browser: {frontend_url}")
         webbrowser.open(frontend_url)
+    else:
+        logger.info(f"Browser auto-open disabled. Frontend at http://{host}:{http_port}")
+        logger.info("For Electron: cd desktop/electron && npm start")
     
     return _ws_server
 

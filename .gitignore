@@ -24,3 +24,8 @@ thirdparty/python-agents-examples-main/
 
 # Backup files from restructure (reference only, not for production)
 backups/
+
+# Node.js (Electron app)
+node_modules/
+package-lock.json
+desktop/electron/node_modules/

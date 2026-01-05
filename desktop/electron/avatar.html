@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aria Avatar</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+            /* Allow dragging the window from anywhere */
+            -webkit-app-region: drag;
+        }
+        
+        #avatar-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            /* Avatar itself is not draggable - allows interaction */
+            -webkit-app-region: no-drag;
+        }
+        
+        #live2d-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        /* Status indicator */
+        #status {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 11px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            -webkit-app-region: no-drag;
+        }
+        
+        #status.visible {
+            opacity: 1;
+        }
+        
+        /* Speaking indicator */
+        #speaking-indicator {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        #speaking-indicator.active {
+            opacity: 1;
+        }
+        
+        .speak-dot {
+            width: 8px;
+            height: 8px;
+            background: #ff6b9d;
+            border-radius: 50%;
+            animation: pulse 0.6s ease-in-out infinite;
+        }
+        
+        .speak-dot:nth-child(2) { animation-delay: 0.2s; }
+        .speak-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.3); opacity: 1; }
+        }
+        
+        /* Maid name badge */
+        #maid-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff6b9d;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            -webkit-app-region: no-drag;
+        }
+    </style>
+</head>
+<body>
+    <div id="avatar-container">
+        <canvas id="live2d-canvas"></canvas>
+        <div id="maid-badge">Aria</div>
+        <div id="speaking-indicator">
+            <div class="speak-dot"></div>
+            <div class="speak-dot"></div>
+            <div class="speak-dot"></div>
+        </div>
+        <div id="status">Connecting...</div>
+    </div>
+
+    <!-- PIXI.js and Live2D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+
+    <script>
+        // Configuration
+        const WS_URL = 'ws://localhost:8765';
+        const RECONNECT_DELAY = 3000;
+        
+        // Model paths - relative to project root served by HTTP server
+        const MODEL_BASE_URL = 'http://localhost:8080';
+        const MAIDS = {
+            aria: {
+                name: "Aria",
+                modelPath: `${MODEL_BASE_URL}/live2d/models/aria/长离.model3.json`,
+                hasModel: true,
+                color: "#ff6b9d"
+            },
+            sophia: { name: "Sophia", modelPath: null, hasModel: false, color: "#9b59b6" },
+            luna: {
+                name: "Luna",
+                modelPath: `${MODEL_BASE_URL}/live2d/models/luna/Nicole.model3.json`,
+                hasModel: true,
+                color: "#3498db"
+            },
+            rose: { name: "Rose", modelPath: null, hasModel: false, color: "#e74c3c" },
+            mei: { name: "Mei", modelPath: null, hasModel: false, color: "#2ecc71" },
+            clara: { name: "Clara", modelPath: null, hasModel: false, color: "#f39c12" }
+        };
+
+        // State
+        let ws = null;
+        let pixiApp = null;
+        let live2dModel = null;
+        let currentMaid = 'aria';
+        let reconnectTimer = null;
+
+        // DOM
+        const canvas = document.getElementById('live2d-canvas');
+        const status = document.getElementById('status');
+        const maidBadge = document.getElementById('maid-badge');
+        const speakingIndicator = document.getElementById('speaking-indicator');
+
+        // Show status temporarily
+        function showStatus(text, duration = 2000) {
+            status.textContent = text;
+            status.classList.add('visible');
+            setTimeout(() => status.classList.remove('visible'), duration);
+        }
+
+        // WebSocket connection
+        function connectWebSocket() {
+            showStatus('Connecting...', 5000);
+            
+            try {
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = () => {
+                    console.log('✅ Connected to backend');
+                    showStatus('Connected');
+                };
+                
+                ws.onclose = () => {
+                    console.log('❌ Disconnected');
+                    showStatus('Disconnected - Reconnecting...', 5000);
+                    scheduleReconnect();
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+                
+                ws.onmessage = (event) => {
+                    handleMessage(JSON.parse(event.data));
+                };
+                
+            } catch (error) {
+                console.error('Connection failed:', error);
+                scheduleReconnect();
+            }
+        }
+
+        function scheduleReconnect() {
+            if (reconnectTimer) return;
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connectWebSocket();
+            }, RECONNECT_DELAY);
+        }
+
+        // Message handling
+        function handleMessage(data) {
+            switch (data.type) {
+                case 'init':
+                    if (data.current_maid) {
+                        setCurrentMaid(data.current_maid);
+                    }
+                    break;
+                    
+                case 'transcript':
+                    if (!data.is_user) {
+                        // Assistant speaking - animate
+                        animateSpeaking(data.text.length);
+                    }
+                    break;
+                    
+                case 'handoff':
+                    console.log(`🎭 Handoff: ${data.from_maid} → ${data.to_maid}`);
+                    setCurrentMaid(data.to_maid);
+                    loadMaidModel(data.to_maid);
+                    break;
+                    
+                case 'live2d_param':
+                    setModelParameter(data.param, data.value);
+                    break;
+                    
+                case 'expression':
+                    setExpression(data.expression);
+                    break;
+            }
+        }
+
+        function setCurrentMaid(maidId) {
+            currentMaid = maidId;
+            const maid = MAIDS[maidId];
+            maidBadge.textContent = maid?.name || maidId;
+            maidBadge.style.background = maid?.color || '#ff6b9d';
+        }
+
+        // Live2D
+        async function initLive2D() {
+            showStatus('Loading avatar...', 5000);
+            
+            try {
+                pixiApp = new PIXI.Application({
+                    view: canvas,
+                    autoStart: true,
+                    resizeTo: canvas.parentElement,
+                    backgroundAlpha: 0, // Transparent!
+                    antialias: true
+                });
+                
+                await loadMaidModel('aria');
+                
+            } catch (error) {
+                console.error('Live2D init failed:', error);
+                showStatus('Avatar failed to load');
+            }
+        }
+
+        async function loadMaidModel(maidId) {
+            const maid = MAIDS[maidId];
+            
+            if (!maid || !maid.hasModel || !maid.modelPath) {
+                console.log(`No model for ${maidId}`);
+                showStatus(`No avatar for ${maid?.name || maidId}`);
+                return;
+            }
+            
+            showStatus(`Loading ${maid.name}...`, 5000);
+            
+            try {
+                // Remove existing model
+                if (live2dModel) {
+                    pixiApp.stage.removeChild(live2dModel);
+                    live2dModel.destroy();
+                    live2dModel = null;
+                }
+                
+                // Load new model
+                live2dModel = await PIXI.live2d.Live2DModel.from(maid.modelPath, {
+                    autoInteract: true,
+                    autoUpdate: true
+                });
+                
+                resizeModel();
+                
+                // Enable interaction
+                live2dModel.interactive = true;
+                live2dModel.on('hit', (hitAreas) => {
+                    console.log('Hit:', hitAreas);
+                    if (hitAreas.includes('body') || hitAreas.includes('Body')) {
+                        live2dModel.motion('tap_body');
+                    } else if (hitAreas.includes('head') || hitAreas.includes('Head')) {
+                        live2dModel.motion('flick_head');
+                    }
+                });
+                
+                pixiApp.stage.addChild(live2dModel);
+                
+                console.log(`✅ Loaded ${maid.name}`);
+                showStatus(`${maid.name} ready`);
+                
+            } catch (error) {
+                console.error(`Failed to load ${maidId}:`, error);
+                showStatus(`Failed to load ${maid.name}`);
+            }
+        }
+
+        function resizeModel() {
+            if (!live2dModel || !pixiApp) return;
+            
+            const scale = Math.min(
+                pixiApp.screen.width / live2dModel.width * 0.9,
+                pixiApp.screen.height / live2dModel.height * 0.95
+            );
+            live2dModel.scale.set(scale);
+            live2dModel.x = pixiApp.screen.width / 2;
+            live2dModel.y = pixiApp.screen.height / 2 + live2dModel.height * scale * 0.25;
+            live2dModel.anchor.set(0.5, 0.5);
+        }
+
+        function setModelParameter(paramId, value) {
+            if (!live2dModel?.internalModel?.coreModel) return;
+            try {
+                const coreModel = live2dModel.internalModel.coreModel;
+                const index = coreModel.getParameterIndex(paramId);
+                if (index >= 0) {
+                    coreModel.setParameterValueByIndex(index, value);
+                }
+            } catch (e) {}
+        }
+
+        function setExpression(name) {
+            if (!live2dModel) return;
+            try {
+                live2dModel.expression(name);
+            } catch (e) {}
+        }
+
+        function animateSpeaking(textLength) {
+            if (!live2dModel) return;
+            
+            speakingIndicator.classList.add('active');
+            
+            const duration = Math.min(textLength * 50, 3000);
+            const startTime = Date.now();
+            
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                if (elapsed > duration) {
+                    setModelParameter('ParamMouthOpenY', 0);
+                    speakingIndicator.classList.remove('active');
+                    return;
+                }
+                
+                const value = Math.sin(elapsed / 100) * 0.5 + 0.3;
+                setModelParameter('ParamMouthOpenY', Math.max(0, value));
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
+
+        // Window resize
+        window.addEventListener('resize', () => {
+            if (pixiApp) {
+                pixiApp.renderer.resize(window.innerWidth, window.innerHeight);
+                resizeModel();
+            }
+        });
+
+        // Init
+        async function init() {
+            console.log('🎭 Aria Desktop Avatar');
+            await initLive2D();
+            connectWebSocket();
+            
+            // Heartbeat
+            setInterval(() => {
+                if (ws?.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 30000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

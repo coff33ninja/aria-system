@@ -276,6 +276,13 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
    python agent.py dev
    ```
 
+### Tested Versions
+
+| Component | Version |
+|-----------|---------|
+| Python | 3.12 |
+| Node.js | 18+ (for Electron frontend) |
+
 ### Required Environment Variables
 
 | Variable | Description |
@@ -412,6 +419,44 @@ The frontend connects via:
 - **HTTP Server** (port 8080): Serves static files and Live2D models
 - **WebSocket Server** (port 8765): Real-time transcript and state sync
 
+### Frontend Options
+
+Choose between two frontend modes via environment variable:
+
+| Mode | `ARIA_AUTO_OPEN_BROWSER` | Description |
+|------|--------------------------|-------------|
+| **Browser** (default) | `true` | Opens web UI in your default browser |
+| **Electron** | `false` | Transparent desktop overlay with floating avatar |
+
+#### Browser Mode (Default)
+```bash
+python -m desktop.agent
+# Browser opens automatically
+```
+
+#### Electron Mode (Transparent Desktop Avatar)
+For a floating, transparent Live2D avatar on your desktop:
+
+```bash
+# 1. Set env variable
+ARIA_AUTO_OPEN_BROWSER=false
+
+# 2. Start Python backend
+python -m desktop.agent
+
+# 3. In another terminal, start Electron
+cd desktop/electron
+npm install  # First time only
+npm start
+```
+
+The Electron app provides:
+- **Transparent window** — Only the avatar visible, no background
+- **Always on top** — Floats above other windows
+- **Draggable** — Click and drag to reposition
+- **Interactive** — Click avatar for reactions
+- **Auto-reconnect** — Reconnects if backend restarts
+
 ### Features
 - Direct Gemini Live API connection via WebSocket
 - Local audio input/output via PyAudio (16kHz input, 24kHz output)
@@ -456,6 +501,8 @@ When you summon a maid in Desktop Mode, they bring their specialized tools:
 | `GOOGLE_API_KEY` | — | Single Gemini API key |
 | `GEMINI_API_KEYS` | — | Comma-separated keys (rotation) |
 | `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Memory storage path |
+| `ARIA_DESKTOP_FRONTEND` | `browser` | Frontend mode: `browser` (web UI) or `electron` (desktop avatar) |
+| `ARIA_AUTO_OPEN_BROWSER` | `true` | Auto-open browser on start (set `false` when using Electron) |
 
 ### Requirements
 - Python 3.8+

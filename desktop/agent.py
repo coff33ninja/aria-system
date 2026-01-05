@@ -1141,9 +1141,10 @@ class DesktopMaidAgent:
             return
         
         try:
-            # Start WebSocket + HTTP servers for frontend (auto-opens browser)
+            # Start WebSocket + HTTP servers for frontend
+            # Browser auto-open controlled by ARIA_AUTO_OPEN_BROWSER env (default: true)
             from desktop.server import start_server, HTTP_PORT, WS_HOST
-            self._ws_server = await start_server(open_browser=True)
+            self._ws_server = await start_server()
             logger.info(f"Frontend available at http://{WS_HOST}:{HTTP_PORT}")
             
             # Initialize memory system (MCP or local fallback)
