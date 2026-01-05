@@ -98,6 +98,32 @@ User: "Can you research quantum computing?"
 
 ### Staff Management
 - `review_staff_performance` — View Aria's assessments of maid performance with signature sass
+- `tell_me_your_capabilities` — Aria explains her full range of services and staff specialties
+- `who_is_available` — Current maid availability status with Aria's sassy excuses for unavailable ones
+
+### 🔍 Capability Discovery
+
+New users can easily discover what Aria and her staff can do:
+
+**"Tell me your capabilities"** — Aria provides a comprehensive overview of:
+- Her personal assistant services (weather, email, tasks, notes, etc.)
+- Staff management and delegation capabilities  
+- Each maid's specialty and personality
+- How to request help or summon specific maids
+
+**"Who is available?"** — Real-time staff status report with:
+- ✅ **Available maids** ready for immediate assistance
+- ⚠️ **Limited availability** maids (partially implemented features)
+- Aria's signature excuses for why some maids aren't fully ready yet
+- Guidance on which maids to summon for specific needs
+
+Example interaction:
+```
+User: "Who can help me right now?"
+Aria: "🏰 Staff Availability Report — Sophia and Luna are ready for action, 
+      Rose is still perfecting her calendar integration (you know how she is), 
+      and Mei is being characteristically quiet about her timeline..."
+```
 
 ---
 
