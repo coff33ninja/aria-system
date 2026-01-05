@@ -181,9 +181,14 @@ class MCPMemory:
     @classmethod
     async def create(cls, memory_file: Path = MEMORY_FILE) -> "MCPMemory":
         """Create and connect to the MCP memory server."""
+        import sys
+        # Use uvx from the same venv as the running Python
+        venv_bin = Path(sys.executable).parent
+        uvx_path = venv_bin / "uvx"
+        
         server = MCPServerStdio(
             params={
-                "command": "uvx",
+                "command": str(uvx_path),
                 "args": ["--refresh", "--quiet", "mcp-memory-py"],
                 "env": {"MEMORY_FILE_PATH": str(memory_file.absolute())},
             },
