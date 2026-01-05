@@ -794,6 +794,12 @@ class DesktopMaidAgent:
         self._memory: Optional[MCPMemory] = None
         self._local_memory: Optional[LocalMemory] = None
         self._user_name = USER_NAME
+        
+        # WebSocket server for frontend
+        self._ws_server = None
+        
+        # Conversation history (preserved across handoffs)
+        self._conversation_history: List[Dict[str, str]] = []
     
     def _get_maid_config(self, maid_name: str) -> MaidConfig:
         """Get configuration for a maid."""
@@ -803,17 +809,50 @@ class DesktopMaidAgent:
             config = MAID_CONFIGS["aria"]
         return config
     
-    def _get_system_instruction(self, maid_name: str) -> str:
-        """Get system instruction for a maid."""
+    def _get_system_instruction(self, maid_name: str, include_history: bool = True) -> str:
+        """Get system instruction for a maid, optionally including conversation history."""
         if maid_name.lower() == "aria":
             try:
                 from core.prompts import AGENT_INSTRUCTION
-                return AGENT_INSTRUCTION
+                base_instruction = AGENT_INSTRUCTION
             except ImportError:
-                return "You are Aria, an elegant and witty AI maid assistant."
+                base_instruction = "You are Aria, an elegant and witty AI maid assistant."
+        else:
+            config = self._get_maid_config(maid_name)
+            base_instruction = config.instruction
         
-        config = self._get_maid_config(maid_name)
-        return config.instruction
+        # Add conversation history for context continuity across handoffs
+        if include_history and self._conversation_history:
+            history_context = self._format_conversation_history()
+            if history_context:
+                base_instruction = f"{base_instruction}\n\n{history_context}"
+        
+        return base_instruction
+    
+    def _format_conversation_history(self, limit: int = 15) -> str:
+        """Format recent conversation history for system instruction."""
+        if not self._conversation_history:
+            return ""
+        
+        recent = self._conversation_history[-limit:]
+        lines = ["Recent conversation history (continue naturally from here):"]
+        for msg in recent:
+            role = "User" if msg["role"] == "user" else msg.get("maid", "Assistant").title()
+            lines.append(f"{role}: {msg['content']}")
+        
+        return "\n".join(lines)
+    
+    def _add_to_history(self, role: str, content: str, maid: str = None):
+        """Add a message to conversation history."""
+        self._conversation_history.append({
+            "role": role,
+            "content": content,
+            "maid": maid or self._current_maid
+        })
+        
+        # Keep history manageable
+        if len(self._conversation_history) > 100:
+            self._conversation_history = self._conversation_history[-50:]
     
     def _get_tools_config(self, maid_name: str) -> Dict[str, Any]:
         """Get tools configuration for a maid (base + maid-specific + handoff)."""
@@ -937,17 +976,42 @@ class DesktopMaidAgent:
         """Handle text output from Gemini."""
         config = self._get_maid_config(self._current_maid)
         logger.info(f"{config.name}: {text}")
+        
+        # Add to conversation history
+        self._add_to_history("assistant", text, self._current_maid)
+        
+        # Broadcast to WebSocket clients
+        if self._ws_server:
+            asyncio.create_task(
+                self._ws_server.broadcast_transcript(text, is_user=False, maid=self._current_maid)
+            )
     
     def _on_transcript(self, text: str, is_input: bool):
         """Handle transcription."""
         if is_input:
             logger.info(f"You: {text}")
+            # Add user input to conversation history
+            self._add_to_history("user", text)
+            
+            # Broadcast to WebSocket clients
+            if self._ws_server:
+                asyncio.create_task(
+                    self._ws_server.broadcast_transcript(text, is_user=True)
+                )
         else:
             logger.debug(f"[Transcript] {text}")
     
     async def _perform_handoff(self, target_maid: str):
-        """Perform a maid handoff by swapping sessions."""
-        logger.info(f"🎭 Handoff: {self._current_maid} → {target_maid}")
+        """Perform a maid handoff by swapping sessions, preserving conversation history."""
+        from_maid = self._current_maid
+        logger.info(f"🎭 Handoff: {from_maid} → {target_maid}")
+        
+        # Add handoff to history
+        self._add_to_history("system", f"Handoff from {from_maid} to {target_maid}", target_maid)
+        
+        # Broadcast handoff to WebSocket clients
+        if self._ws_server:
+            await self._ws_server.broadcast_handoff(from_maid, target_maid)
         
         # Pause recording during handoff
         if self.recorder:
@@ -974,10 +1038,11 @@ class DesktopMaidAgent:
         config = self._get_maid_config(target_maid)
         
         # Create new session with new maid's voice/personality
+        # Include conversation history in system instruction for continuity
         self.session = GeminiLiveSession(
             model=GEMINI_MODEL,
             voice=config.voice,
-            system_instruction=self._get_system_instruction(target_maid),
+            system_instruction=self._get_system_instruction(target_maid, include_history=True),
             on_audio=lambda data: asyncio.create_task(self._on_audio(data)),
             on_text=self._on_text,
             on_transcript=self._on_transcript,
@@ -1076,6 +1141,11 @@ class DesktopMaidAgent:
             return
         
         try:
+            # Start WebSocket + HTTP servers for frontend (auto-opens browser)
+            from desktop.server import start_server, HTTP_PORT, WS_HOST
+            self._ws_server = await start_server(open_browser=True)
+            logger.info(f"Frontend available at http://{WS_HOST}:{HTTP_PORT}")
+            
             # Initialize memory system (MCP or local fallback)
             await self._init_memory()
             
@@ -1185,13 +1255,34 @@ class DesktopMaidAgent:
         self._running = False
         
         # Archive conversation to memory before shutdown
-        # Note: We don't have full transcript tracking yet, but we can save a session marker
         try:
             from datetime import datetime
             session_end = datetime.now().strftime("%Y-%m-%d %H:%M")
-            await self._save_conversation_summary(f"Desktop session ended at {session_end}")
+            
+            # Save full conversation summary if we have history
+            if self._conversation_history:
+                # Get last few exchanges for summary
+                recent = self._conversation_history[-10:]
+                summary_parts = [f"Desktop session ended at {session_end}"]
+                for msg in recent:
+                    role = "User" if msg["role"] == "user" else msg.get("maid", "Assistant")
+                    summary_parts.append(f"{role}: {msg['content'][:100]}")
+                summary = " | ".join(summary_parts)
+            else:
+                summary = f"Desktop session ended at {session_end}"
+            
+            await self._save_conversation_summary(summary)
         except Exception as e:
             logger.warning(f"Could not save session end: {e}")
+        
+        # Stop WebSocket server
+        if self._ws_server:
+            try:
+                from desktop.server import stop_server
+                await stop_server()
+                logger.info("WebSocket server stopped")
+            except Exception as e:
+                logger.warning(f"WebSocket server cleanup error: {e}")
         
         # Cleanup MCP memory server
         if self._memory:

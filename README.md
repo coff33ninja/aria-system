@@ -346,52 +346,79 @@ The system uses LiveKit's native voice activity detection with semantic understa
 ## 📁 Project Structure
 
 ```
-├── agent.py              # Main entrypoint, Aria agent
-├── tools.py              # Aria's 15+ tools
-├── prompts.py            # Aria's personality prompts
-├── key_manager.py        # API key rotation
-├── desktop/              # Desktop Mode (direct Gemini Live)
-│   ├── agent.py          # Gemini Live direct connection agent
-│   └── frontend/         # Desktop UI (planned)
-├── livekit_live2d/       # Live2D avatar integration (optional)
-│   ├── __init__.py       # Avatar system exports
-│   ├── avatar_session.py # Live2D avatar sessions
-│   ├── expressions.py    # Maid expression management (5+ expressions per maid)
-│   └── audio_sync.py     # Real-time lip sync
-├── maids/
-│   ├── __init__.py       # Maid registry & delegation
-│   ├── base.py           # BaseMaid class & MaidMemory
-│   ├── memory_tools.py   # Shared memory tools (remember, recall, learn)
-│   ├── handoff_tools.py  # Native LiveKit voice handoff tools
-│   ├── sophia/           # Research maid (8 tools)
-│   ├── luna/             # Entertainment maid (Spotify, Radio, recommendations)
-│   ├── rose/             # Scheduling maid
-│   ├── mei/              # Smart home maid
-│   └── clara/            # Communication maid
-├── mcp_client/           # MCP server integration (LiveKit)
-├── data/                 # Memory files
-└── docs/                 # Reference documentation
+├── core/                 # Shared core components
+│   ├── prompts.py        # Base prompt utilities
+│   ├── tools.py          # Tool router/dispatcher
+│   ├── key_manager.py    # API key rotation
+│   ├── maid_reviews.py   # Performance review system
+│   └── memory/           # Memory subsystem
+│       └── mcp_client/   # MCP knowledge graph client
+├── maid_system/          # The maid hierarchy
+│   ├── aria/             # HEAD MAID (orchestrates)
+│   │   ├── agent.py      # Aria agent class
+│   │   ├── prompts.py    # Aria's personality
+│   │   └── tools.py      # Aria's tools
+│   ├── maids/            # Sub-maids (specialists)
+│   │   ├── sophia/       # Research maid
+│   │   ├── luna/         # Entertainment maid
+│   │   ├── rose/         # Scheduling maid
+│   │   ├── mei/          # Smart home maid
+│   │   └── clara/        # Communication maid
+│   ├── base.py           # BaseMaid class
+│   ├── handoff_tools.py  # Voice handoff utilities
+│   └── memory_tools.py   # Shared memory tools
+├── desktop/              # Desktop Mode (Gemini Direct)
+│   ├── agent.py          # Gemini Live direct connection
+│   ├── server.py         # HTTP + WebSocket servers
+│   └── frontend/         # Web UI with Live2D
+│       ├── index.html    # Main UI
+│       └── app.js        # Frontend logic
+├── livekit_mode/         # Online Mode (LiveKit Cloud)
+│   └── agent.py          # LiveKit agent entrypoint
+├── live2d/               # Live2D Avatar System
+│   └── models/           # Avatar models per maid
+│       ├── aria/         # Changli model
+│       └── luna/         # Nicole model
+├── data/                 # Persistent memory files
+├── docs/                 # Documentation
+└── tests/                # Test suite
 ```
 
 ---
 
 ## 🖥️ Desktop Mode (Direct Gemini Live)
 
-For local-first usage without LiveKit Cloud, Desktop Mode provides a direct connection to Gemini Live API with real-time voice conversation:
+For local-first usage without LiveKit Cloud, Desktop Mode provides a direct connection to Gemini Live API with real-time voice conversation and a web-based UI with Live2D avatars:
 
 ```bash
 # Install PyAudio (required for local audio)
 pip install pyaudio
 
-# Run desktop mode
+# Run desktop mode (auto-opens browser)
 python -m desktop.agent
 ```
+
+### Desktop Mode WebUI
+
+Desktop Mode includes a full web frontend with Live2D avatar support:
+
+- **Auto-launch**: Browser opens automatically to `http://localhost:8080`
+- **Live2D Avatars**: Animated maid avatars with expressions and lip sync
+- **Chat Interface**: Real-time transcript display with message history
+- **Maid Handoffs**: Visual feedback when switching between maids
+- **WebSocket Communication**: Real-time bidirectional updates
+
+The frontend connects via:
+- **HTTP Server** (port 8080): Serves static files and Live2D models
+- **WebSocket Server** (port 8765): Real-time transcript and state sync
 
 ### Features
 - Direct Gemini Live API connection via WebSocket
 - Local audio input/output via PyAudio (16kHz input, 24kHz output)
 - Real-time voice conversation with Aria
 - **Maid handoffs via session swapping** — each maid gets their own voice (Aoede, Kore, Leda, Fenrir, Puck)
+- **Full conversation history** preserved across handoffs
+- **MCP Memory integration** — same knowledge graph as LiveKit mode
 - Input and output transcription
 - API key rotation support
 - Same Aria personality and system prompts
@@ -459,5 +486,16 @@ The original project by [Thanh-Y Nguyen](https://github.com/ruxakK/friday_jarvis
 - **Original portions** (from Thanh-Y Nguyen): Subject to the original custom license — personal/educational use only, no redistribution or commercial use without permission.
 - **mcp_client**: MIT License (LiveKit, Inc.) — see `thirdparty/LICENSE-LIVEKIT`
 - **New additions in this fork** (maids system, tools, memory systems, etc.): Available under the same terms as the original — personal/educational use only.
+
+### Live2D Model Attributions
+
+The Live2D avatar models used in this project are created by talented artists and shared for free:
+
+| Maid | Model | Artist | Source |
+|------|-------|--------|--------|
+| **Aria** | 长离 (Changli) | shibutani (涉谷芒) | [Booth.pm](https://booth.pm/en/items/7483530) — Wuthering Waves fan model |
+| **Luna** | Nicole (妮可) | bailyovo | [Booth.pm](https://booth.pm/en/items/5908939) — Zenless Zone Zero fan model |
+
+Please respect the original artists' terms of use. These models are for personal/educational use only.
 
 If you wish to use any part of this project commercially or redistribute it, please contact the original author for permission.
