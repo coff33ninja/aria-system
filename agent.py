@@ -822,7 +822,11 @@ async def entrypoint(ctx: agents.JobContext):
     memory = None
     mcp_memory = None
 
-    if USE_MCP_MEMORY:
+    # Temporarily disable MCP memory due to JSON parsing errors affecting voice input
+    # TODO: Re-enable once MCP memory issues are resolved
+    USE_MCP_MEMORY_TEMP = False
+
+    if USE_MCP_MEMORY and USE_MCP_MEMORY_TEMP:
         try:
             mcp_memory = await MCPMemory.create(MEMORY_FILE)
             logging.info("Aria's MCP memory system initialized — knowledge graph ready~")
@@ -831,6 +835,7 @@ async def entrypoint(ctx: agents.JobContext):
             memory = LocalMemory()
     else:
         memory = LocalMemory()
+        logging.info("Using local memory system (MCP temporarily disabled)")
 
     user_name = USER_NAME
 
