@@ -95,6 +95,9 @@ User: "Can you research quantum computing?"
 - `suggest_and_summon_maid` — Auto-select best maid for a task
 - `list_available_maids` — Show available maids and specialties
 
+### Staff Management
+- `review_staff_performance` — View Aria's assessments of maid performance with signature sass
+
 ---
 
 ## 🧠 Memory Systems
