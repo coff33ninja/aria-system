@@ -143,6 +143,7 @@ class BaseMaid(Agent, ABC):
     - Temperature (personality variance)
     - Specialized tools
     - Personal memory
+    - Live2D avatar (optional)
     
     Voice handoffs work automatically via LiveKit's agent system:
     - Return a maid instance from @function_tool to trigger handoff
@@ -160,14 +161,39 @@ class BaseMaid(Agent, ABC):
     voice_google: str = "Puck"
     temperature: float = 0.8
     
+    # Live2D avatar configuration — override in subclass
+    live2d_model_path: Optional[str] = None
+    live2d_expressions: Optional[Dict[str, Dict[str, float]]] = None
+    
     # Memory instance (created on init)
     _memory: Optional[MaidMemory] = None
+    
+    # Live2D avatar session (created on enter if model path provided)
+    _avatar_session: Optional[Any] = None
+    
+    def _initialize_live2d_expressions(self) -> None:
+        """
+        Initialize Live2D expressions for this maid.
+        Override this method in subclasses instead of duplicating __init__ logic.
+        """
+        if not self.live2d_expressions:
+            try:
+                from livekit_live2d.expressions import MaidExpressions
+                self.live2d_expressions = MaidExpressions.get_maid_expressions(self.name.lower())
+                logger.debug(f"✨ Live2D expressions loaded for {self.name}")
+            except ImportError:
+                logger.debug(f"Live2D expressions not available for {self.name}")
+            except Exception as e:
+                logger.warning(f"Failed to load Live2D expressions for {self.name}: {e}")
     
     def __init__(self, chat_ctx: Optional[Any] = None, provider: Optional[str] = None):
         provider = provider or LLM_PROVIDER
         
         # Ensure API key is set before creating realtime model
         _ensure_api_key()
+        
+        # Initialize Live2D expressions first
+        self._initialize_live2d_expressions()
         
         # Initialize personal memory
         self._memory = MaidMemory(self.name)
@@ -225,6 +251,9 @@ class BaseMaid(Agent, ABC):
         logger.info(f"🎭 {self.name} is now active")
         self.memory.remember("Summoned for conversation", category="conversations")
         
+        # Initialize Live2D avatar if configured
+        await self._initialize_avatar()
+        
         # Generate introduction in maid's voice
         self.session.generate_reply(
             instructions=f"You are {self.name}. You just stepped forward to help. "
@@ -236,6 +265,9 @@ class BaseMaid(Agent, ABC):
         """Called when this maid is being replaced."""
         logger.info(f"🎭 {self.name} stepping back")
         self.memory.remember("Dismissed, stepping back", category="conversations")
+        
+        # Clean up Live2D avatar
+        await self._cleanup_avatar()
     
     @abstractmethod
     def get_tools(self) -> List:
@@ -327,3 +359,92 @@ class BaseMaid(Agent, ABC):
     def get_farewell_phrase(self) -> str:
         """Return a farewell phrase when handing back to Aria. Override in subclass."""
         return f"Returning you to Aria now."
+    
+    async def _initialize_avatar(self) -> None:
+        """Initialize Live2D avatar if configured."""
+        if not self.live2d_model_path:
+            logger.debug(f"No Live2D model configured for {self.name}")
+            return
+        
+        try:
+            # Import Live2D components
+            from livekit_live2d import Live2DAvatarSession, Live2DModelConfig
+            
+            # Create avatar configuration
+            config = Live2DModelConfig(
+                model_path=self.live2d_model_path,
+                maid_name=self.name,
+                personality=self.personality,
+                expressions=self.live2d_expressions or {}
+            )
+            
+            # Create and start avatar session
+            self._avatar_session = Live2DAvatarSession(config)
+            
+            # Get room from session (if available)
+            room = getattr(self.session, 'room', None) if self.session else None
+            if room:
+                await self._avatar_session.start(self.session, room)
+                logger.info(f"✨ {self.name} Live2D avatar initialized")
+            else:
+                logger.warning(f"⚠️ No room available for {self.name} avatar")
+                
+        except ImportError:
+            logger.debug(f"Live2D not available for {self.name} (import error)")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Live2D avatar for {self.name}: {e}")
+    
+    async def _cleanup_avatar(self) -> None:
+        """Clean up Live2D avatar resources."""
+        if self._avatar_session:
+            try:
+                await self._avatar_session.stop()
+                logger.info(f"🎭 {self.name} Live2D avatar cleaned up")
+            except Exception as e:
+                logger.error(f"❌ Error cleaning up avatar for {self.name}: {e}")
+            finally:
+                self._avatar_session = None
+    
+    async def set_avatar_expression(self, expression_name: str, duration: float = 0.5) -> None:
+        """
+        Change the maid's Live2D facial expression.
+        
+        Args:
+            expression_name: Name of the expression to set
+            duration: Animation duration in seconds
+        """
+        if self._avatar_session:
+            try:
+                await self._avatar_session.set_expression(expression_name, duration)
+                logger.debug(f"😊 {self.name} expression changed to '{expression_name}'")
+            except Exception as e:
+                logger.error(f"❌ Failed to set expression for {self.name}: {e}")
+        else:
+            logger.debug(f"No avatar session for {self.name}, cannot set expression")
+    
+    def get_avatar_expressions(self) -> List[str]:
+        """Get list of available expressions for this maid's avatar."""
+        if self._avatar_session:
+            return self._avatar_session.expression_manager.list_available_expressions()
+        elif self.live2d_expressions:
+            return list(self.live2d_expressions.keys())
+        else:
+            return []
+    
+    async def update_avatar_from_context(self, message_content: str) -> None:
+        """
+        Update avatar expression based on message content.
+        Called automatically during conversation to make avatar more expressive.
+        """
+        if not self._avatar_session:
+            return
+        
+        try:
+            # Get context-appropriate expression
+            expression = self._avatar_session.expression_manager.get_context_expression(message_content)
+            
+            # Set expression with short duration for natural conversation flow
+            await self.set_avatar_expression(expression, duration=0.3)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to update avatar context for {self.name}: {e}")

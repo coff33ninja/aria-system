@@ -26,6 +26,15 @@ class Clara(BaseMaid):
     voice_google = "Aoede"
     temperature = 0.85  # Warm, natural variation
     
+    # Live2D avatar configuration
+    live2d_model_path = "./live2d_models/clara/"
+    
+    def __init__(self, *args, **kwargs):
+        # Set up Clara's Live2D expressions before calling super().__init__
+        from livekit_live2d.expressions import MaidExpressions
+        self.live2d_expressions = MaidExpressions.get_maid_expressions("clara")
+        super().__init__(*args, **kwargs)
+    
     def get_tools(self):
         return [
             draft_email,
@@ -46,6 +55,12 @@ class Clara(BaseMaid):
         """Called when Clara becomes active after handoff from Aria."""
         logger.info("🎭 Clara stepping forward")
         self.memory.remember("Summoned for communication help", category="conversations")
+        
+        # Initialize Live2D avatar
+        await self._initialize_avatar()
+        
+        # Set initial warm expression
+        await self.set_avatar_expression("warm", duration=0.5)
         
         # Clara introduces herself warmly
         self.session.generate_reply(

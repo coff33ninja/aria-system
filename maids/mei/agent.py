@@ -23,8 +23,17 @@ class Mei(BaseMaid):
     
     # Mei's voice: soft, technical
     voice_openai = "echo"
-    voice_google = "Zephyr"  # Soft, calm female voice
+    voice_google = "Puck"  # Soft, calm female voice
     temperature = 0.6  # Precise, predictable
+    
+    # Live2D avatar configuration
+    live2d_model_path = "./live2d_models/mei/"
+    
+    def __init__(self, *args, **kwargs):
+        # Set up Mei's Live2D expressions before calling super().__init__
+        from livekit_live2d.expressions import MaidExpressions
+        self.live2d_expressions = MaidExpressions.get_maid_expressions("mei")
+        super().__init__(*args, **kwargs)
     
     def get_tools(self):
         return [
@@ -46,6 +55,12 @@ class Mei(BaseMaid):
         """Called when Mei becomes active after handoff from Aria."""
         logger.info("🎭 Mei stepping forward")
         self.memory.remember("Summoned for smart home control", category="conversations")
+        
+        # Initialize Live2D avatar
+        await self._initialize_avatar()
+        
+        # Set initial shy expression
+        await self.set_avatar_expression("shy", duration=0.5)
         
         # Mei introduces herself quietly and efficiently
         self.session.generate_reply(

@@ -29,6 +29,8 @@ The original project was a basic voice assistant with 3 tools (weather, web sear
 
 Aria commands a household of specialized maids, each a fully independent agent with their own voice, temperature, tools, and persistent memory:
 
+> **🎭 Live2D Avatar Support**: Each maid can be enhanced with anime-style Live2D avatars featuring real-time lip sync, personality-based expressions, and smooth animations. The system includes 5+ unique expressions per maid (idle, speaking, excited, nervous, etc.) that automatically adapt to conversation context. See `docs/live2d-vs-vrm-comparison.md` for implementation details.
+
 | Maid | Specialty | Voice | Temp | Personality |
 |------|-----------|-------|------|-------------|
 | **Aria** | Head Maid (orchestration) | Aoede | 0.9 | Elegant, sassy, devastatingly witty |
@@ -56,6 +58,51 @@ User: "Can you research quantum computing?"
 → LiveKit swaps back (voice changes to Aoede)
 → Aria.on_enter(): "Welcome back~"
 ```
+
+---
+
+## 🎭 Live2D Expression System
+
+The Live2D avatar integration includes a comprehensive expression system with personality-based animations for each maid:
+
+### Expression Categories by Maid
+
+| Maid | Available Expressions | Personality Traits |
+|------|----------------------|-------------------|
+| **Aria** | idle, speaking, smug, sassy, thinking | Half-lidded confident eyes, elegant posture, side glances |
+| **Sophia** | idle, speaking, excited, nervous, focused | Wide research eyes, hunched bookish posture, darting nervous glances |
+| **Luna** | idle, speaking, playful, dramatic, dreamy | Mischievous side glances, dramatic head throws, dreamy half-closed eyes |
+| **Rose** | idle, speaking, stern, satisfied, annoyed | Direct authoritative gaze, disapproving frowns, proud head tilts |
+| **Mei** | idle, speaking, focused, shy, calm | Downward shy glances, reserved posture, peaceful expressions |
+| **Clara** | idle, speaking, warm, caring, diplomatic | Welcoming smiles, caring head tilts, professional but friendly |
+
+### Context-Aware Expression Changes
+
+The system automatically selects appropriate expressions based on conversation content:
+
+- **Aria**: "Obviously..." → smug expression, "That's wrong" → sassy expression
+- **Sophia**: "Let me research..." → excited expression, "Um, maybe..." → nervous expression  
+- **Luna**: "Play some music" → playful expression, "That's amazing!" → dramatic expression
+- **Rose**: "Schedule organized" → satisfied expression, "You're late" → stern expression
+- **Mei**: "Controlling device" → focused expression, "Sorry, I'm quiet" → shy expression
+- **Clara**: "Welcome!" → warm expression, "Let me help" → caring expression
+
+### Live2D Parameters
+
+Each expression controls multiple Live2D parameters:
+- **Eye Opening** (ParamEyeLOpen/ParamEyeROpen): 0.0 = closed, 1.0 = normal, 1.5 = wide
+- **Eye Direction** (ParamEyeBallX/Y): Gaze direction and emotional state
+- **Mouth Shape** (ParamMouthForm): -1.0 = frown, 0.0 = neutral, 1.0 = smile
+- **Head Rotation** (ParamAngleX/Y/Z): Personality-based head positioning
+- **Body Posture** (ParamBodyAngleX/Y/Z): Confident, shy, or authoritative stances
+
+### Real-Time Features
+
+- **Automatic Lip Sync**: Mouth movements synchronized with voice output
+- **Breathing Animation**: Subtle chest movement during idle states
+- **Random Blinking**: Natural eye blink patterns (2-6 second intervals)
+- **Smooth Transitions**: 0.5-second animations between expression changes
+- **Idle Animations**: Continuous subtle movements to maintain liveliness
 
 ---
 
@@ -249,6 +296,8 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 | `ARIA_USE_MCP_MEMORY` | `true` | Use MCP knowledge graph (temporarily disabled) |
 | `ARIA_DATA_DIR` | `./data` | Directory for maid memories |
 | `ARIA_FORCE_VOICE_RECONNECT` | `true` | Force disconnect on voice swap |
+| `ARIA_ENABLE_LIVE2D_AVATARS` | `false` | Enable Live2D avatar integration |
+| `ARIA_LIVE2D_MODELS_PATH` | `./live2d_models` | Directory for Live2D model files |
 | `GMAIL_USER` | — | Gmail address for email tool |
 | `GMAIL_APP_PASSWORD` | — | Gmail app password |
 | `N8N_MCP_SERVER_URL` | — | External MCP tools via n8n |
@@ -301,6 +350,11 @@ The system uses LiveKit's native voice activity detection with semantic understa
 ├── tools.py              # Aria's 15+ tools
 ├── prompts.py            # Aria's personality prompts
 ├── key_manager.py        # API key rotation
+├── livekit_live2d/       # Live2D avatar integration (optional)
+│   ├── __init__.py       # Avatar system exports
+│   ├── avatar_session.py # Live2D avatar sessions
+│   ├── expressions.py    # Maid expression management (5+ expressions per maid)
+│   └── audio_sync.py     # Real-time lip sync
 ├── maids/
 │   ├── __init__.py       # Maid registry & delegation
 │   ├── base.py           # BaseMaid class & MaidMemory

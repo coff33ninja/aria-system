@@ -468,9 +468,16 @@ class Aria(Agent):
     voice_google = "Aoede"
     temperature = 0.9
     
+    # Live2D avatar configuration
+    live2d_model_path = "./live2d_models/aria/"
+    
     def __init__(self, chat_ctx=None, llm_provider: str = None) -> None:
         # Initialize Aria's personal memory for staff management
         self._memory = LocalMemory(MEMORY_FILE.parent / "aria-staff-reviews.json")
+        
+        # Initialize Live2D expressions
+        self._avatar_session = None
+        self._setup_live2d_expressions()
         
         super().__init__(
             instructions=AGENT_INSTRUCTION,
@@ -761,11 +768,23 @@ async def {tool_name}(context: RunContext) -> str:
         logger = logging.getLogger("aria")
         logger.info("🎭 Aria returning with performance review")
         
+        # Initialize Live2D avatar
+        await self._initialize_avatar()
+        
+        # Set initial elegant expression
+        await self.set_avatar_expression("idle", duration=0.5)
+        
         # Detect which maid just finished and assess their performance
         last_maid = self._detect_returning_maid()
         performance = self._assess_maid_performance()
         
         if last_maid and performance["status"] != "unknown":
+            # Set appropriate expression based on performance
+            if performance["status"] in ["excellent", "good"]:
+                await self.set_avatar_expression("smug", duration=0.3)
+            elif performance["status"] == "poor":
+                await self.set_avatar_expression("sassy", duration=0.3)
+            
             # Log the performance for later review
             if performance["status"] in ["excellent", "good"]:
                 self._log_maid_performance(last_maid, performance, is_praise=True)
@@ -796,6 +815,76 @@ async def {tool_name}(context: RunContext) -> str:
                 f"Then pause briefly for effect. Keep it elegant and sassy."
             )
         )
+    
+    def _setup_live2d_expressions(self) -> None:
+        """Set up Aria's Live2D expressions."""
+        try:
+            from livekit_live2d.expressions import MaidExpressions
+            self.live2d_expressions = MaidExpressions.get_maid_expressions("aria")
+        except ImportError:
+            logging.debug("Live2D expressions not available (import error)")
+            self.live2d_expressions = {}
+    
+    async def _initialize_avatar(self) -> None:
+        """Initialize Aria's Live2D avatar if configured."""
+        if not self.live2d_model_path:
+            return
+        
+        try:
+            from livekit_live2d import Live2DAvatarSession, Live2DModelConfig
+            
+            config = Live2DModelConfig(
+                model_path=self.live2d_model_path,
+                maid_name="Aria",
+                personality=self.personality,
+                expressions=self.live2d_expressions or {}
+            )
+            
+            self._avatar_session = Live2DAvatarSession(config)
+            
+            # Get room from session if available
+            room = getattr(self.session, 'room', None) if self.session else None
+            if room:
+                await self._avatar_session.start(self.session, room)
+                logging.info("✨ Aria's Live2D avatar initialized with elegant grace")
+            else:
+                logging.warning("⚠️ No room available for Aria's avatar")
+                
+        except ImportError:
+            logging.debug("Live2D not available for Aria (import error)")
+        except Exception as e:
+            logging.error(f"❌ Failed to initialize Aria's Live2D avatar: {e}")
+    
+    async def _cleanup_avatar(self) -> None:
+        """Clean up Aria's Live2D avatar resources."""
+        if self._avatar_session:
+            try:
+                await self._avatar_session.stop()
+                logging.info("🎭 Aria's Live2D avatar gracefully dismissed")
+            except Exception as e:
+                logging.error(f"❌ Error cleaning up Aria's avatar: {e}")
+            finally:
+                self._avatar_session = None
+    
+    async def set_avatar_expression(self, expression_name: str, duration: float = 0.5) -> None:
+        """
+        Change Aria's Live2D facial expression with her signature elegance.
+        
+        Args:
+            expression_name: Name of the expression (idle, smug, sassy, thinking)
+            duration: Animation duration in seconds
+        """
+        if self._avatar_session:
+            try:
+                await self._avatar_session.set_expression(expression_name, duration)
+                logging.debug(f"😏 Aria's expression changed to '{expression_name}' with perfect timing")
+            except Exception as e:
+                logging.error(f"❌ Failed to set Aria's expression: {e}")
+    
+    @property
+    def personality(self) -> str:
+        """Aria's personality for Live2D configuration."""
+        return "Elegant, sassy, devastatingly witty"
 
 
 async def entrypoint(ctx: agents.JobContext):

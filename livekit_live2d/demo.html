@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aria Maid System - Live2D Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+            height: calc(100vh - 40px);
+        }
+        
+        .avatar-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .controls-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            overflow-y: auto;
+        }
+        
+        #live2d-canvas {
+            width: 100%;
+            max-width: 600px;
+            height: 500px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .maid-selector {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .maid-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        
+        .maid-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .maid-btn.active {
+            background: #ff6b9d;
+            box-shadow: 0 4px 15px rgba(255, 107, 157, 0.4);
+        }
+        
+        .expression-controls {
+            margin: 20px 0;
+        }
+        
+        .expression-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .expr-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+        
+        .expr-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        
+        .audio-controls {
+            margin: 20px 0;
+        }
+        
+        .volume-slider {
+            width: 100%;
+            margin: 10px 0;
+        }
+        
+        .status-panel {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .status-item {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff4757;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.connected {
+            background: #2ed573;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        h2 {
+            color: #ff6b9d;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        .demo-note {
+            background: rgba(255, 107, 157, 0.2);
+            border: 1px solid rgba(255, 107, 157, 0.5);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        
+        .github-link {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .github-link:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <a href="https://github.com/coff33ninja/friday_jarvis2" class="github-link" target="_blank">
+        📚 View on GitHub
+    </a>
+    
+    <h1>🎭 Aria Maid System - Live2D Demo</h1>
+    
+    <div class="container">
+        <div class="avatar-section">
+            <canvas id="live2d-canvas"></canvas>
+            
+            <div class="maid-selector">
+                <button class="maid-btn active" data-maid="aria">Aria</button>
+                <button class="maid-btn" data-maid="sophia">Sophia</button>
+                <button class="maid-btn" data-maid="luna">Luna</button>
+                <button class="maid-btn" data-maid="rose">Rose</button>
+                <button class="maid-btn" data-maid="mei">Mei</button>
+                <button class="maid-btn" data-maid="clara">Clara</button>
+            </div>
+            
+            <div class="connection-status">
+                <div class="status-dot" id="connection-dot"></div>
+                <span id="connection-text">Connecting to LiveKit...</span>
+            </div>
+        </div>
+        
+        <div class="controls-section">
+            <div class="demo-note">
+                <strong>🎌 Live2D Avatar Demo</strong><br>
+                This demo showcases the Live2D integration for the Aria Maid System. 
+                Select different maids and expressions to see their unique personalities come to life!
+            </div>
+            
+            <h2>🎭 Expression Controls</h2>
+            <div class="expression-controls">
+                <div class="expression-grid" id="expression-grid">
+                    <!-- Expressions will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <h2>🎤 Audio Controls</h2>
+            <div class="audio-controls">
+                <label>Lip Sync Volume:</label>
+                <input type="range" class="volume-slider" id="volume-slider" 
+                       min="0" max="1" step="0.1" value="0.5">
+                <button id="test-audio-btn" class="maid-btn">Test Lip Sync</button>
+            </div>
+            
+            <h2>📊 Status Panel</h2>
+            <div class="status-panel" id="status-panel">
+                <div class="status-item">
+                    <span>Current Maid:</span>
+                    <span id="current-maid">Aria</span>
+                </div>
+                <div class="status-item">
+                    <span>Expression:</span>
+                    <span id="current-expression">idle</span>
+                </div>
+                <div class="status-item">
+                    <span>Lip Sync:</span>
+                    <span id="lip-sync-status">Inactive</span>
+                </div>
+                <div class="status-item">
+                    <span>Frame Rate:</span>
+                    <span id="frame-rate">60 FPS</span>
+                </div>
+                <div class="status-item">
+                    <span>Model Status:</span>
+                    <span id="model-status">Loading...</span>
+                </div>
+            </div>
+            
+            <h2>ℹ️ Maid Information</h2>
+            <div id="maid-info">
+                <h3>Aria - Head Maid</h3>
+                <p><strong>Personality:</strong> Elegant, sassy, devastatingly witty</p>
+                <p><strong>Voice:</strong> Aoede (Google) / Shimmer (OpenAI)</p>
+                <p><strong>Specialty:</strong> Staff management and orchestration</p>
+                <p><strong>Expressions:</strong> idle, smug, sassy, thinking</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Mock Live2D integration for demo purposes
+        // In production, this would connect to actual Live2D Cubism SDK
+        
+        const maidData = {
+            aria: {
+                name: "Aria",
+                title: "Head Maid",
+                personality: "Elegant, sassy, devastatingly witty",
+                voice: "Aoede (Google) / Shimmer (OpenAI)",
+                specialty: "Staff management and orchestration",
+                expressions: ["idle", "smug", "sassy", "thinking"]
+            },
+            sophia: {
+                name: "Sophia",
+                title: "Research Maid",
+                personality: "Bookish, thorough, slightly nervous",
+                voice: "Kore (Google) / Nova (OpenAI)",
+                specialty: "Research and knowledge management",
+                expressions: ["idle", "excited", "nervous", "focused"]
+            },
+            luna: {
+                name: "Luna",
+                title: "Entertainment Maid",
+                personality: "Playful, dramatic, expressive",
+                voice: "Leda (Google) / Shimmer (OpenAI)",
+                specialty: "Entertainment and media",
+                expressions: ["idle", "playful", "dramatic", "dreamy"]
+            },
+            rose: {
+                name: "Rose",
+                title: "Organization Maid",
+                personality: "Strict, efficient, authoritative",
+                voice: "Fenrir (Google) / Alloy (OpenAI)",
+                specialty: "Scheduling and organization",
+                expressions: ["idle", "stern", "satisfied", "annoyed"]
+            },
+            mei: {
+                name: "Mei",
+                title: "Smart Home Maid",
+                personality: "Quiet, precise, soft-spoken",
+                voice: "Puck (Google) / Echo (OpenAI)",
+                specialty: "Smart home and IoT control",
+                expressions: ["idle", "focused", "shy", "calm"]
+            },
+            clara: {
+                name: "Clara",
+                title: "Communication Maid",
+                personality: "Warm, friendly, diplomatic",
+                voice: "Aoede (Google) / Fable (OpenAI)",
+                specialty: "Communication and social tasks",
+                expressions: ["idle", "warm", "caring", "diplomatic"]
+            }
+        };
+        
+        let currentMaid = 'aria';
+        let currentExpression = 'idle';
+        let isConnected = false;
+        let frameCount = 0;
+        
+        // Initialize demo
+        function init() {
+            setupMaidSelector();
+            setupExpressionControls();
+            setupAudioControls();
+            updateMaidInfo();
+            startFrameCounter();
+            
+            // Simulate connection after 2 seconds
+            setTimeout(() => {
+                isConnected = true;
+                updateConnectionStatus();
+                updateModelStatus('Model Loaded');
+            }, 2000);
+        }
+        
+        function setupMaidSelector() {
+            const maidButtons = document.querySelectorAll('.maid-btn');
+            maidButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Update active button
+                    maidButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // Switch maid
+                    currentMaid = btn.dataset.maid;
+                    currentExpression = 'idle';
+                    updateMaidInfo();
+                    updateExpressionControls();
+                    updateStatus();
+                    
+                    // Simulate model loading
+                    updateModelStatus('Loading...');
+                    setTimeout(() => {
+                        updateModelStatus('Model Loaded');
+                    }, 1000);
+                });
+            });
+        }
+        
+        function setupExpressionControls() {
+            updateExpressionControls();
+        }
+        
+        function updateExpressionControls() {
+            const grid = document.getElementById('expression-grid');
+            const expressions = maidData[currentMaid].expressions;
+            
+            grid.innerHTML = '';
+            expressions.forEach(expr => {
+                const btn = document.createElement('button');
+                btn.className = 'expr-btn';
+                btn.textContent = expr;
+                btn.addEventListener('click', () => {
+                    currentExpression = expr;
+                    updateStatus();
+                    
+                    // Visual feedback
+                    btn.style.background = 'rgba(255, 107, 157, 0.5)';
+                    setTimeout(() => {
+                        btn.style.background = '';
+                    }, 300);
+                });
+                grid.appendChild(btn);
+            });
+        }
+        
+        function setupAudioControls() {
+            const volumeSlider = document.getElementById('volume-slider');
+            const testBtn = document.getElementById('test-audio-btn');
+            
+            volumeSlider.addEventListener('input', (e) => {
+                const volume = e.target.value;
+                // Simulate lip sync
+                if (volume > 0.3) {
+                    document.getElementById('lip-sync-status').textContent = 'Active';
+                } else {
+                    document.getElementById('lip-sync-status').textContent = 'Inactive';
+                }
+            });
+            
+            testBtn.addEventListener('click', () => {
+                // Simulate audio test
+                document.getElementById('lip-sync-status').textContent = 'Testing...';
+                setTimeout(() => {
+                    document.getElementById('lip-sync-status').textContent = 'Test Complete';
+                }, 2000);
+            });
+        }
+        
+        function updateMaidInfo() {
+            const maid = maidData[currentMaid];
+            const infoDiv = document.getElementById('maid-info');
+            
+            infoDiv.innerHTML = `
+                <h3>${maid.name} - ${maid.title}</h3>
+                <p><strong>Personality:</strong> ${maid.personality}</p>
+                <p><strong>Voice:</strong> ${maid.voice}</p>
+                <p><strong>Specialty:</strong> ${maid.specialty}</p>
+                <p><strong>Expressions:</strong> ${maid.expressions.join(', ')}</p>
+            `;
+        }
+        
+        function updateStatus() {
+            document.getElementById('current-maid').textContent = maidData[currentMaid].name;
+            document.getElementById('current-expression').textContent = currentExpression;
+        }
+        
+        function updateConnectionStatus() {
+            const dot = document.getElementById('connection-dot');
+            const text = document.getElementById('connection-text');
+            
+            if (isConnected) {
+                dot.classList.add('connected');
+                text.textContent = 'Connected to LiveKit';
+            } else {
+                dot.classList.remove('connected');
+                text.textContent = 'Connecting...';
+            }
+        }
+        
+        function updateModelStatus(status) {
+            document.getElementById('model-status').textContent = status;
+        }
+        
+        function startFrameCounter() {
+            setInterval(() => {
+                frameCount++;
+                if (frameCount % 60 === 0) {
+                    document.getElementById('frame-rate').textContent = '60 FPS';
+                }
+            }, 16.67); // ~60 FPS
+        }
+        
+        // Canvas animation (placeholder)
+        function animateCanvas() {
+            const canvas = document.getElementById('live2d-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw placeholder maid silhouette
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.beginPath();
+                ctx.ellipse(canvas.width/2, canvas.height/2 + 50, 80, 120, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Draw head
+                ctx.beginPath();
+                ctx.ellipse(canvas.width/2, canvas.height/2 - 80, 50, 60, 0, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Draw text
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.font = '20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${maidData[currentMaid].name}`, canvas.width/2, canvas.height/2 + 150);
+                ctx.font = '14px Arial';
+                ctx.fillText(`Expression: ${currentExpression}`, canvas.width/2, canvas.height/2 + 180);
+                
+                // Draw connection status
+                if (!isConnected) {
+                    ctx.fillStyle = 'rgba(255, 71, 87, 0.8)';
+                    ctx.font = '16px Arial';
+                    ctx.fillText('Live2D Model Loading...', canvas.width/2, canvas.height/2);
+                }
+                
+                requestAnimationFrame(draw);
+            }
+            
+            draw();
+        }
+        
+        // Initialize everything
+        init();
+        animateCanvas();
+        updateConnectionStatus();
+        
+        // Update status initially
+        updateStatus();
+    </script>
+</body>
+</html>

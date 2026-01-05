@@ -35,6 +35,15 @@ class Sophia(BaseMaid):
     voice_google = "Kore"
     temperature = 0.7  # More precise, less random
     
+    # Live2D avatar configuration
+    live2d_model_path = "./live2d_models/sophia/"
+    
+    def __init__(self, *args, **kwargs):
+        # Set up Sophia's Live2D expressions before calling super().__init__
+        from livekit_live2d.expressions import MaidExpressions
+        self.live2d_expressions = MaidExpressions.get_maid_expressions("sophia")
+        super().__init__(*args, **kwargs)
+    
     def get_tools(self):
         return [
             wikipedia_lookup,
@@ -57,6 +66,12 @@ class Sophia(BaseMaid):
         """Called when Sophia becomes active after handoff from Aria."""
         logger.info("🎭 Sophia stepping forward")
         self.memory.remember("Summoned for research task", category="conversations")
+        
+        # Initialize Live2D avatar
+        await self._initialize_avatar()
+        
+        # Set initial nervous expression
+        await self.set_avatar_expression("nervous", duration=0.5)
         
         # Sophia introduces herself in her nervous, bookish way
         self.session.generate_reply(

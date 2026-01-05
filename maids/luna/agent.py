@@ -50,6 +50,23 @@ class Luna(BaseMaid):
     voice_google = "Leda"  # Youthful and energetic female voice
     temperature = 0.95  # More creative and expressive
     
+    # Live2D avatar configuration
+    live2d_model_path = "./live2d_models/luna/"
+    
+    def __init__(self, *args, **kwargs):
+        # Set up Luna's Live2D expressions before calling super().__init__
+        try:
+            from livekit_live2d.expressions import MaidExpressions
+            self.live2d_expressions = MaidExpressions.get_maid_expressions("luna")
+        except ImportError:
+            logger.debug("Live2D expressions not available for Luna")
+            self.live2d_expressions = None
+        except Exception as e:
+            logger.warning(f"Failed to load Luna's Live2D expressions: {e}")
+            self.live2d_expressions = None
+        
+        super().__init__(*args, **kwargs)
+    
     def get_tools(self):
         return [
             # Music playback
@@ -82,6 +99,15 @@ class Luna(BaseMaid):
         """Called when Luna becomes active after handoff from Aria."""
         logger.info("🎭 Luna stepping forward")
         self.memory.remember("Summoned for entertainment", category="conversations")
+        
+        # Initialize Live2D avatar
+        await self._initialize_avatar()
+        
+        # Set initial playful expression (with error handling)
+        try:
+            await self.set_avatar_expression("playful", duration=0.5)
+        except Exception as e:
+            logger.debug(f"Could not set Luna's initial expression: {e}")
         
         # Luna introduces herself with enthusiasm
         self.session.generate_reply(

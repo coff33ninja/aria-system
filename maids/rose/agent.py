@@ -23,8 +23,15 @@ class Rose(BaseMaid):
     
     # Rose's voice: authoritative, precise
     voice_openai = "onyx"
-    voice_google = "Sulafat"  # Firm, confident female voice
+    voice_google = "Fenrir"  # Firm, confident female voice
     temperature = 0.5  # Very precise, minimal variation
+    
+    # Live2D avatar configuration
+    live2d_model_path = "./live2d_models/rose/"
+    
+    def __init__(self, *args, **kwargs):
+        # Live2D expressions will be initialized by BaseMaid
+        super().__init__(*args, **kwargs)
     
     def get_tools(self):
         return [
@@ -46,6 +53,12 @@ class Rose(BaseMaid):
         """Called when Rose becomes active after handoff from Aria."""
         logger.info("🎭 Rose stepping forward")
         self.memory.remember("Summoned for scheduling", category="conversations")
+        
+        # Initialize Live2D avatar
+        await self._initialize_avatar()
+        
+        # Set initial stern expression
+        await self.set_avatar_expression("stern", duration=0.5)
         
         # Rose introduces herself with authority
         self.session.generate_reply(
