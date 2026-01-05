@@ -253,6 +253,23 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 
 ## 🚀 Setup
 
+### Quick Start (Scripts)
+
+**Windows:**
+```cmd
+scripts\setup.bat
+scripts\start.bat
+```
+
+**Linux/Mac:**
+```bash
+chmod +x scripts/*.sh
+./scripts/setup.sh
+./scripts/start.sh
+```
+
+### Manual Setup
+
 1. **Create virtual environment**
    ```bash
    python -m venv .venv
@@ -273,7 +290,11 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 
 4. **Run the agent**
    ```bash
-   python agent.py dev
+   # Desktop Mode (Gemini Direct)
+   python -m desktop.agent
+   
+   # LiveKit Mode (requires LiveKit credentials)
+   python -m livekit_mode.agent dev
    ```
 
 ### Tested Versions

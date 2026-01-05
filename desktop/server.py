@@ -18,6 +18,7 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 import webbrowser
 from pathlib import Path
 from typing import Dict, Set, Optional, List, Any
@@ -327,10 +328,67 @@ def get_server() -> Optional[DesktopWebSocketServer]:
     return _ws_server
 
 
+def _get_frontend_mode() -> str:
+    """Get frontend mode from env: 'browser' or 'electron'."""
+    import os
+    return os.environ.get("ARIA_DESKTOP_FRONTEND", "browser").lower()
+
+
 def _should_open_browser() -> bool:
     """Check env variable to determine if browser should auto-open."""
+    import os
     auto_open = os.environ.get("ARIA_AUTO_OPEN_BROWSER", "true").lower()
     return auto_open in ("true", "1", "yes")
+
+
+def _launch_electron() -> Optional[subprocess.Popen]:
+    """Launch the Electron app for desktop avatar."""
+    import subprocess
+    import shutil
+    
+    electron_dir = Path(__file__).parent / "electron"
+    
+    # Check if Electron app exists
+    if not (electron_dir / "package.json").exists():
+        logger.warning("Electron app not found at desktop/electron/")
+        logger.warning("Run: cd desktop/electron && npm install")
+        return None
+    
+    # Check if node_modules exists
+    if not (electron_dir / "node_modules").exists():
+        logger.warning("Electron dependencies not installed")
+        logger.warning("Run: cd desktop/electron && npm install")
+        return None
+    
+    # Find npm executable
+    npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
+    if not shutil.which(npm_cmd):
+        logger.warning("npm not found in PATH. Please install Node.js 18+")
+        return None
+    
+    try:
+        logger.info("Launching Electron desktop avatar...")
+        
+        # Start Electron in background
+        process = subprocess.Popen(
+            [npm_cmd, "start"],
+            cwd=str(electron_dir),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            # Don't create new console window on Windows
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        )
+        
+        logger.info("Electron app started (PID: %d)", process.pid)
+        return process
+        
+    except Exception as e:
+        logger.error(f"Failed to launch Electron: {e}")
+        return None
+
+
+# Global process handle for Electron
+_electron_process: Optional[subprocess.Popen] = None
 
 
 async def start_server(
@@ -340,22 +398,21 @@ async def start_server(
     open_browser: bool = None  # None = check env variable
 ) -> DesktopWebSocketServer:
     """
-    Start the WebSocket and HTTP servers.
+    Start the WebSocket and HTTP servers, and launch appropriate frontend.
     
     Args:
         host: Host to bind to
         ws_port: WebSocket server port
         http_port: HTTP server port for frontend
-        open_browser: Whether to auto-open browser (None = check ARIA_AUTO_OPEN_BROWSER env)
+        open_browser: Whether to auto-open browser (None = check env)
     
     Returns:
         The WebSocket server instance
     """
-    global _ws_server, _http_server
+    global _ws_server, _http_server, _electron_process
     
-    # Determine if we should open browser
-    if open_browser is None:
-        open_browser = _should_open_browser()
+    # Get frontend mode
+    frontend_mode = _get_frontend_mode()
     
     # Start HTTP server for frontend (in background thread)
     if _http_server is None:
@@ -367,21 +424,30 @@ async def start_server(
         _ws_server = DesktopWebSocketServer(host, ws_port)
         await _ws_server.start()
     
-    # Open browser to frontend (unless using Electron)
-    if open_browser:
-        frontend_url = f"http://{host}:{http_port}"
-        logger.info(f"Opening browser: {frontend_url}")
-        webbrowser.open(frontend_url)
+    # Launch appropriate frontend
+    if frontend_mode == "electron":
+        # Launch Electron app
+        _electron_process = _launch_electron()
+        if _electron_process is None:
+            logger.info(f"Fallback: Open browser at http://{host}:{http_port}")
     else:
-        logger.info(f"Browser auto-open disabled. Frontend at http://{host}:{http_port}")
-        logger.info("For Electron: cd desktop/electron && npm start")
+        # Browser mode - check if we should auto-open
+        if open_browser is None:
+            open_browser = _should_open_browser()
+        
+        if open_browser:
+            frontend_url = f"http://{host}:{http_port}"
+            logger.info(f"Opening browser: {frontend_url}")
+            webbrowser.open(frontend_url)
+        else:
+            logger.info(f"Browser auto-open disabled. Frontend at http://{host}:{http_port}")
     
     return _ws_server
 
 
 async def stop_server():
-    """Stop both WebSocket and HTTP servers."""
-    global _ws_server, _http_server
+    """Stop both WebSocket and HTTP servers, and Electron if running."""
+    global _ws_server, _http_server, _electron_process
     
     if _ws_server:
         await _ws_server.stop()
@@ -390,6 +456,16 @@ async def stop_server():
     if _http_server:
         _http_server.stop()
         _http_server = None
+    
+    # Terminate Electron if we started it
+    if _electron_process and _electron_process.poll() is None:
+        logger.info("Terminating Electron app...")
+        _electron_process.terminate()
+        try:
+            _electron_process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            _electron_process.kill()
+        _electron_process = None
 
 
 # Standalone server for testing
