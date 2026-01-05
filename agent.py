@@ -899,13 +899,10 @@ async def entrypoint(ctx: agents.JobContext):
         except Exception as e:
             logging.error(f"Failed to archive memories: {e}. How vexing.")
 
-    # Configure session with optimized voice detection parameters
+    # Configure session - voice detection parameters need further research
     # See: docs/voice-delay-research.md for research findings
-    session = AgentSession(
-        # Reduce default 500ms delay to 300ms for faster response
-        # Reference: LiveKit voice detection documentation
-        min_endpointing_delay=300,
-    )
+    # Note: min_endpointing_delay may not be valid for AgentSession constructor
+    session = AgentSession()
 
     # Load existing memories for context
     initial_ctx = ChatContext()
