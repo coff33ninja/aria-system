@@ -66,6 +66,178 @@ live2d_models/
   - `ParamBodyAngleX`, `ParamBodyAngleY` (body posture)
   - `ParamBreath` (breathing animation)
 
+## Adding a New Model (Step-by-Step)
+
+This section documents the process for adding a Live2D model to the system.
+
+### 1. Drop Model Files
+
+Place your Live2D model files in the appropriate maid folder:
+
+```
+live2d_models/<maid_name>/
+├── <model>.model3.json      # Main model config (any name works)
+├── <model>.moc3             # Compiled model
+├── <model>.physics3.json    # Physics simulation
+├── <model>.cdi3.json        # Display info (parameter names)
+├── <textures_folder>/       # Texture images
+│   ├── texture_00.png
+│   ├── texture_01.png
+│   └── ...
+└── EXP3/                    # Expression files (optional)
+    ├── expression1.exp3.json
+    └── ...
+```
+
+### 2. Configure LipSync and EyeBlink
+
+Most models come with empty LipSync/EyeBlink groups. You need to map them to the correct parameters.
+
+**Check available parameters** in the `.cdi3.json` file:
+```powershell
+# Find mouth and eye parameters
+$json = Get-Content "<model>.cdi3.json" | ConvertFrom-Json
+$json.Parameters | Where-Object { $_.Name -match "眼|嘴|口|Eye|Mouth" }
+```
+
+**Update the `.model3.json`** to map parameters:
+
+```json
+{
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": ["ParamMouthOpenY"]  // Add mouth parameter ID
+    },
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": ["ParamEyeLOpen", "ParamEyeROpen"]  // Add eye parameter IDs
+    }
+  ]
+}
+```
+
+### 3. Register Expressions
+
+Add expressions to `FileReferences.Expressions` in the `.model3.json`:
+
+```json
+{
+  "FileReferences": {
+    "Moc": "model.moc3",
+    "Textures": [...],
+    "Expressions": [
+      { "Name": "angry", "File": "EXP3/angry.exp3.json" },
+      { "Name": "blush", "File": "EXP3/blush.exp3.json" },
+      { "Name": "heart_eyes", "File": "EXP3/heart_eyes.exp3.json" }
+    ]
+  }
+}
+```
+
+### 4. Example: Aria Model Setup
+
+Aria uses **Changli (长离)** from Wuthering Waves, a free Live2D model by shibutani.
+
+**Model Source:** [shibutani - Wuthering Waves Changli Live2D Free Model](https://booth.pm/en/items/7483530)
+- Artist: 涉谷芒 (shibutani)
+- Modeler: 苏俩
+- License: Free for personal use (not for commercial streaming/profit)
+
+Here's the complete configuration:
+
+**File Structure:**
+```
+live2d_models/aria/
+├── 长离.model3.json
+├── 长离.moc3
+├── 长离.physics3.json
+├── 长离.cdi3.json
+├── 长离.4096/
+│   ├── texture_00.png
+│   ├── texture_01.png
+│   ├── texture_02.png
+│   └── texture_03.png
+└── EXP3/
+    ├── 外套穿脱.exp3.json  (coat_toggle)
+    ├── 爱心眼.exp3.json    (heart_eyes)
+    ├── 生气.exp3.json      (angry)
+    ├── 白眼.exp3.json      (eye_roll)
+    ├── 眼罩.exp3.json      (eye_mask)
+    ├── 脸红.exp3.json      (blush)
+    └── 黑脸.exp3.json      (dark_face)
+```
+
+**Configured `长离.model3.json`:**
+```json
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "长离.moc3",
+    "Textures": [
+      "长离.4096/texture_00.png",
+      "长离.4096/texture_01.png",
+      "长离.4096/texture_02.png",
+      "长离.4096/texture_03.png"
+    ],
+    "Physics": "长离.physics3.json",
+    "DisplayInfo": "长离.cdi3.json",
+    "Expressions": [
+      { "Name": "coat_toggle", "File": "EXP3/外套穿脱.exp3.json" },
+      { "Name": "heart_eyes", "File": "EXP3/爱心眼.exp3.json" },
+      { "Name": "angry", "File": "EXP3/生气.exp3.json" },
+      { "Name": "eye_roll", "File": "EXP3/白眼.exp3.json" },
+      { "Name": "eye_mask", "File": "EXP3/眼罩.exp3.json" },
+      { "Name": "blush", "File": "EXP3/脸红.exp3.json" },
+      { "Name": "dark_face", "File": "EXP3/黑脸.exp3.json" }
+    ]
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": ["ParamMouthOpenY"]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": ["ParamEyeLOpen", "ParamEyeROpen"]
+    }
+  ]
+}
+```
+
+**Available Animation Parameters (from cdi3.json):**
+
+| Parameter | Chinese Name | Use |
+|-----------|--------------|-----|
+| `ParamMouthOpenY` | 嘴张开和闭合 | Lip sync |
+| `ParamMouthForm` | 嘴变形 | Smile/frown |
+| `ParamEyeLOpen` | 右眼 | Right eye open/close |
+| `ParamEyeROpen` | 左眼开闭 | Left eye open/close |
+| `ParamEyeBallX` | 眼珠 X | Eye direction horizontal |
+| `ParamEyeBallY` | 眼珠 Y | Eye direction vertical |
+| `ParamEyeExpression1` | 怒-惊微表情 | Angry-surprised micro |
+| `ParamEyeExpression2` | 悲-喜微表情 | Sad-happy micro |
+| `JawOpen` | 下巴开闭 | Jaw movement |
+| `ParamCheekPuff` | 鼓嘴 | Puffed cheeks |
+| `MouthShrug` | 抿嘴 | Pursed lips |
+| `MouthPucker` | 撅嘴 | Pouting |
+
+### 5. Validation Checklist
+
+After adding a model, verify:
+
+- [ ] `.model3.json` exists and is valid JSON
+- [ ] `.moc3` file is present
+- [ ] All texture files referenced exist
+- [ ] LipSync group has at least one mouth parameter ID
+- [ ] EyeBlink group has eye parameter IDs
+- [ ] Expressions are registered with English names
+- [ ] Physics file exists (optional but recommended)
+
 ## Maid Expression Profiles
 
 ### Aria - Head Maid
