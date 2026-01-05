@@ -15,7 +15,7 @@ The original project was a basic voice assistant with 3 tools (weather, web sear
 | **Agents** | 1 (Friday/Assistant) | 6 (Aria + 5 specialized maids) |
 | **Tools** | 3 (weather, search, email) | 30+ (todos, notes, reminders, research, smart home, scheduling, etc.) |
 | **Voices** | 1 (OpenAI sage) | 6 unique voices (Gemini Live native audio) |
-| **Memory** | Mem0 cloud (requires API key) | Local JSON + MCP knowledge graph (no cloud dependency) |
+| **Memory** | Mem0 cloud (requires API key) | Local JSON (MCP knowledge graph temporarily disabled) |
 | **LLM Provider** | OpenAI only | OpenAI or Google Gemini (configurable) |
 | **Voice Handoffs** | None | Full agent swapping with voice changes |
 | **Per-Agent Memory** | None | Each maid has personal memory |
@@ -129,16 +129,16 @@ Aria: "🏰 Staff Availability Report — Sophia and Luna are ready for action,
 
 ## 🧠 Memory Systems
 
-### Aria's Memory (MCP Knowledge Graph)
-Aria uses an MCP-compatible memory server (`mcp-memory-py`) for persistent knowledge graph storage. Conversations are automatically archived on session end.
+### Aria's Memory (Local JSON + MCP Knowledge Graph)
+Aria currently uses local JSON storage for persistent memory. MCP knowledge graph support is temporarily disabled due to JSON parsing conflicts with voice input processing.
 
 ```env
-ARIA_USE_MCP_MEMORY=true  # Enable MCP (default)
+ARIA_USE_MCP_MEMORY=true  # Enable MCP (temporarily disabled)
 ARIA_MEMORY_FILE=./data/aria-memory.json
 ARIA_USER_NAME=Master
 ```
 
-Falls back to simple local JSON if MCP fails.
+> **Note**: MCP memory (`mcp-memory-py`) is temporarily disabled to resolve voice input issues. The system automatically falls back to local JSON storage.
 
 ### Per-Maid Memory
 Each maid maintains their own memory file (`data/<maid>-memory.json`) with:
@@ -246,7 +246,7 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 |----------|---------|-------------|
 | `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Memory storage path |
 | `ARIA_USER_NAME` | `Master` | How Aria addresses you |
-| `ARIA_USE_MCP_MEMORY` | `true` | Use MCP knowledge graph |
+| `ARIA_USE_MCP_MEMORY` | `true` | Use MCP knowledge graph (temporarily disabled) |
 | `ARIA_DATA_DIR` | `./data` | Directory for maid memories |
 | `ARIA_FORCE_VOICE_RECONNECT` | `true` | Force disconnect on voice swap |
 | `GMAIL_USER` | — | Gmail address for email tool |
@@ -262,13 +262,13 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 ## ⚡ Performance Optimizations
 
 ### Voice Detection Speed
-Aria is configured with optimized voice detection parameters for faster response times:
+Voice detection parameters are currently under research for optimal response times:
 
-- **End-of-Utterance Delay**: Reduced from 500ms (default) to 300ms
-- **Faster Response**: Aria responds more quickly when you finish speaking
-- **Research Documentation**: See `docs/voice-delay-research.md` for technical details
+- **Current Configuration**: Using LiveKit default voice detection settings
+- **Research Status**: Investigating optimal `min_endpointing_delay` values for AgentSession
+- **Research Documentation**: See `docs/voice-delay-research.md` for ongoing findings
 
-The system uses LiveKit's native voice activity detection with semantic understanding to accurately detect when you've finished speaking, while minimizing delays.
+The system uses LiveKit's native voice activity detection with semantic understanding to accurately detect when you've finished speaking. Voice detection parameter optimization is an active area of development. - Note website works perfectly for TTS.
 
 ---
 
