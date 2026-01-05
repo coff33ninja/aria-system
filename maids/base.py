@@ -278,6 +278,7 @@ class BaseMaid(Agent, ABC):
             """
             Return control to Aria, the Head Maid.
             Use this when you've completed your task or the user wants to speak with Aria.
+            IMPORTANT: Say your farewell to the user BEFORE calling this tool.
             """
             # Import here to avoid circular imports
             from maids import get_aria_class
@@ -291,7 +292,7 @@ class BaseMaid(Agent, ABC):
             
             # Return Aria instance with chat context preserved
             chat_ctx = _get_chat_ctx_from_session(maid_self.session)
-            return aria_class(chat_ctx=chat_ctx), f"{maid_self.name} has completed the task"
+            return aria_class(chat_ctx=chat_ctx)
         
         return return_to_aria
     
