@@ -7,8 +7,8 @@ from livekit.plugins import (
     openai
 )
 from livekit.plugins import google
-from prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
-from tools import (
+from core.prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
+from core.tools import (
     get_weather, 
     send_email,
     create_todo,
@@ -25,10 +25,10 @@ from tools import (
     ReminderScheduler,
 )
 # Phase 2: Proper voice handoff tools (return Agent instances)
-from maids.handoff_tools import HANDOFF_TOOLS
-from mcp_client import MCPServerSse, MCPServerStdio
-from mcp_client.agent_tools import MCPToolsIntegration
-from maid_reviews import get_review_for_maid
+from maid_system.handoff_tools import HANDOFF_TOOLS
+from core.memory.mcp_client import MCPServerSse, MCPServerStdio
+from core.memory.mcp_client.agent_tools import MCPToolsIntegration
+from core.maid_reviews import get_review_for_maid
 import os
 import json
 import logging
@@ -439,7 +439,7 @@ def _setup_api_key():
     """
     if LLM_PROVIDER == "google":
         try:
-            from key_manager import pick_and_set_key
+            from core.key_manager import pick_and_set_key
             chosen = pick_and_set_key()
             if chosen:
                 logging.getLogger(__name__).info(f"Selected Gemini API key: {chosen[:15]}...")
@@ -902,8 +902,8 @@ async def entrypoint(ctx: agents.JobContext):
     # Setup API key in the job subprocess (critical for Google provider)
     _setup_api_key()
     
-    # Register Aria class with maids module for handoff back
-    from maids import set_aria_class
+    # Register Aria class with maid_system module for handoff back
+    from maid_system import set_aria_class
     set_aria_class(Aria)
     logging.info("Aria class registered for maid handoffs")
 
@@ -911,9 +911,7 @@ async def entrypoint(ctx: agents.JobContext):
     memory = None
     mcp_memory = None
 
-    # Temporarily disable MCP memory due to JSON parsing errors affecting voice input
-    # TODO: Re-enable once MCP memory issues are resolved
-    USE_MCP_MEMORY_TEMP = False
+    USE_MCP_MEMORY_TEMP = True
 
     if USE_MCP_MEMORY and USE_MCP_MEMORY_TEMP:
         try:

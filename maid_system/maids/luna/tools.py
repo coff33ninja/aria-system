@@ -5,14 +5,29 @@ Supports multiple tiers of music/media providers with graceful fallback.
 Tier 1: Spotify (Premium), TMDB
 Tier 2: Last.fm, OMDb
 Tier 3: Radio Browser (free, no key)
+
+Supports both LiveKit mode (@function_tool) and Desktop/Gemini mode.
 """
-from livekit.agents import function_tool, RunContext
 from typing import Optional, List, Dict, Any
 import logging
 import os
 import asyncio
 
 logger = logging.getLogger("maids.luna")
+
+# LiveKit imports (optional - only needed for LiveKit mode)
+try:
+    from livekit.agents import function_tool, RunContext
+    HAS_LIVEKIT = True
+except ImportError:
+    HAS_LIVEKIT = False
+    # Dummy decorator for when LiveKit isn't available
+    def function_tool():
+        def decorator(func):
+            return func
+        return decorator
+    class RunContext:
+        pass
 
 # ============================================================================
 # Provider Detection
@@ -655,3 +670,229 @@ __all__ = [
     "tell_story",
     "rate_media",
 ]
+
+
+# ============================================================================
+# GEMINI MODE: Tool Declarations & Executor
+# ============================================================================
+
+GEMINI_TOOL_DECLARATIONS = [
+    {
+        "name": "play_radio",
+        "description": "Find and play internet radio stations by genre. Works without any API keys!",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "genre": {"type": "string", "description": "Genre/style (jazz, rock, classical, lofi, electronic, pop, etc.)"}
+            },
+            "required": ["genre"]
+        }
+    },
+    {
+        "name": "browse_radio",
+        "description": "Browse internet radio stations by country or list available options.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "country": {"type": "string", "description": "Country name to browse stations from"},
+                "list_countries": {"type": "boolean", "description": "Set to true to see available countries"},
+                "list_genres": {"type": "boolean", "description": "Set to true to see popular genres"}
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "recommend_music",
+        "description": "Recommend music for an activity.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "activity": {"type": "string", "description": "What you're doing (focus, relax, workout, party, etc.)"},
+                "genre": {"type": "string", "description": "Optional genre preference"}
+            },
+            "required": ["activity"]
+        }
+    },
+    {
+        "name": "recommend_movie",
+        "description": "Recommend a movie based on mood.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "mood": {"type": "string", "description": "Current mood (happy, sad, excited, chill, etc.)"},
+                "genre": {"type": "string", "description": "Optional genre preference"}
+            },
+            "required": ["mood"]
+        }
+    },
+    {
+        "name": "play_music",
+        "description": "Search and play music via Spotify (if configured) or suggest radio alternatives.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "What to play (song name, artist, playlist)"},
+                "type": {"type": "string", "enum": ["track", "album", "playlist", "artist"], "description": "Type of content"}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "now_playing",
+        "description": "Get the currently playing track on Spotify.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+]
+
+# Tool names for routing
+TOOL_NAMES = [t["name"] for t in GEMINI_TOOL_DECLARATIONS]
+
+
+async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Execute a Luna tool by name (for Gemini/Desktop mode).
+    """
+    try:
+        if name == "play_radio":
+            genre = args.get("genre", "")
+            stations = await _get_radio_by_tag(genre.lower(), limit=5)
+            
+            if not stations:
+                stations = await _search_radio_stations(genre, limit=5)
+            
+            if not stations:
+                return {"error": f"No {genre} radio stations found"}
+            
+            formatted = []
+            for s in stations[:3]:
+                formatted.append({
+                    "name": s.get("name", "Unknown"),
+                    "tags": s.get("tags", "")[:50],
+                    "url": s.get("url_resolved") or s.get("url", ""),
+                    "country": s.get("country", "")
+                })
+            
+            return {"genre": genre, "stations": formatted}
+        
+        elif name == "browse_radio":
+            country = args.get("country")
+            list_countries = args.get("list_countries", False)
+            list_genres = args.get("list_genres", False)
+            
+            if list_countries:
+                countries = await _get_radio_countries()
+                if countries:
+                    return {"countries": [{"name": c["name"], "stations": c["stationcount"]} for c in countries[:20]]}
+                return {"error": "Could not fetch countries"}
+            
+            if list_genres:
+                tags = await _get_radio_tags(limit=30)
+                if tags:
+                    popular = [t for t in tags if t.get("stationcount", 0) >= 100][:20]
+                    return {"genres": [{"name": t["name"], "stations": t["stationcount"]} for t in popular]}
+                return {"error": "Could not fetch genres"}
+            
+            if country:
+                stations = await _get_radio_by_country(country, limit=8)
+                if stations:
+                    formatted = [{"name": s.get("name"), "tags": s.get("tags", "")[:40], "url": s.get("url_resolved") or s.get("url")} for s in stations]
+                    return {"country": country, "stations": formatted}
+                return {"error": f"No stations found in {country}"}
+            
+            return {"help": "Use list_countries=true, list_genres=true, or specify a country"}
+        
+        elif name == "recommend_music":
+            activity = args.get("activity", "")
+            genre = args.get("genre")
+            
+            activity_genres = {
+                "focus": "lofi", "relax": "ambient", "workout": "electronic",
+                "party": "dance", "sleep": "classical", "study": "jazz", "work": "instrumental"
+            }
+            suggested = activity_genres.get(activity.lower(), genre or activity)
+            
+            return {"activity": activity, "suggested_genre": suggested, "tip": f"Try 'play radio {suggested}'"}
+        
+        elif name == "recommend_movie":
+            mood = args.get("mood", "")
+            genre = args.get("genre")
+            
+            mood_genres = {
+                "happy": "comedy", "sad": "drama", "excited": "action",
+                "chill": "indie", "scared": "horror", "romantic": "romance"
+            }
+            suggested = genre or mood_genres.get(mood.lower(), "drama")
+            
+            return {"mood": mood, "suggested_genre": suggested, "note": "Add TMDB_API_KEY for real recommendations"}
+        
+        elif name == "play_music":
+            query = args.get("query", "")
+            media_type = args.get("type", "track")
+            
+            # Try Spotify if available
+            spotify = await _get_spotify()
+            if spotify:
+                try:
+                    loop = asyncio.get_event_loop()
+                    results = await loop.run_in_executor(
+                        None,
+                        lambda: spotify.search(q=query, type=media_type, limit=1)
+                    )
+                    items = results.get(f"{media_type}s", {}).get("items", [])
+                    if items:
+                        item = items[0]
+                        return {
+                            "found": True,
+                            "name": item["name"],
+                            "uri": item["uri"],
+                            "type": media_type,
+                            "note": "Open Spotify to play"
+                        }
+                except Exception as e:
+                    logger.warning(f"Spotify search failed: {e}")
+            
+            # Fallback to radio
+            stations = await _search_radio_stations(query, limit=3)
+            if stations:
+                return {
+                    "found": True,
+                    "fallback": "radio",
+                    "stations": [{"name": s.get("name"), "url": s.get("url_resolved") or s.get("url")} for s in stations[:2]]
+                }
+            
+            return {"found": False, "error": "No Spotify configured and no matching radio stations"}
+        
+        elif name == "now_playing":
+            spotify = await _get_spotify()
+            if not spotify:
+                return {"error": "Spotify not configured"}
+            
+            try:
+                loop = asyncio.get_event_loop()
+                current = await loop.run_in_executor(None, spotify.current_playback)
+                
+                if not current or not current.get("item"):
+                    return {"playing": False}
+                
+                track = current["item"]
+                return {
+                    "playing": current.get("is_playing", False),
+                    "name": track.get("name"),
+                    "artist": ", ".join(a["name"] for a in track.get("artists", [])),
+                    "album": track.get("album", {}).get("name"),
+                    "progress_seconds": current.get("progress_ms", 0) // 1000,
+                    "duration_seconds": track.get("duration_ms", 0) // 1000
+                }
+            except Exception as e:
+                return {"error": str(e)}
+        
+        else:
+            return {"error": f"Unknown tool: {name}"}
+            
+    except Exception as e:
+        logger.error(f"Luna tool {name} failed: {e}")
+        return {"error": str(e)}

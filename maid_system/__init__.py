@@ -110,12 +110,12 @@ def get_aria_class() -> Optional[Type]:
     return _ARIA_CLASS
 
 
-# Import maids after registry is defined
-from .sophia import Sophia
-from .luna import Luna
-from .rose import Rose
-from .mei import Mei
-from .clara import Clara
+# Import maids after registry is defined (from maids/ subfolder)
+from .maids.sophia import Sophia
+from .maids.luna import Luna
+from .maids.rose import Rose
+from .maids.mei import Mei
+from .maids.clara import Clara
 
 # Register all maids
 register_maid("sophia", Sophia)

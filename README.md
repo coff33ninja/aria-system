@@ -350,6 +350,9 @@ The system uses LiveKit's native voice activity detection with semantic understa
 ├── tools.py              # Aria's 15+ tools
 ├── prompts.py            # Aria's personality prompts
 ├── key_manager.py        # API key rotation
+├── desktop/              # Desktop Mode (direct Gemini Live)
+│   ├── agent.py          # Gemini Live direct connection agent
+│   └── frontend/         # Desktop UI (planned)
 ├── livekit_live2d/       # Live2D avatar integration (optional)
 │   ├── __init__.py       # Avatar system exports
 │   ├── avatar_session.py # Live2D avatar sessions
@@ -369,6 +372,69 @@ The system uses LiveKit's native voice activity detection with semantic understa
 ├── data/                 # Memory files
 └── docs/                 # Reference documentation
 ```
+
+---
+
+## 🖥️ Desktop Mode (Direct Gemini Live)
+
+For local-first usage without LiveKit Cloud, Desktop Mode provides a direct connection to Gemini Live API with real-time voice conversation:
+
+```bash
+# Install PyAudio (required for local audio)
+pip install pyaudio
+
+# Run desktop mode
+python -m desktop.agent
+```
+
+### Features
+- Direct Gemini Live API connection via WebSocket
+- Local audio input/output via PyAudio (16kHz input, 24kHz output)
+- Real-time voice conversation with Aria
+- **Maid handoffs via session swapping** — each maid gets their own voice (Aoede, Kore, Leda, Fenrir, Puck)
+- Input and output transcription
+- API key rotation support
+- Same Aria personality and system prompts
+- **Full tool support** — weather, todos, notes, reminders, web search, email, and more via Gemini function calling
+
+### Maid-Specific Tools (Desktop Mode)
+
+When you summon a maid in Desktop Mode, they bring their specialized tools:
+
+| Maid | Tools | Description |
+|------|-------|-------------|
+| **Sophia** | `wikipedia_lookup`, `deep_research`, `fact_check`, `explain_concept`, `compare_topics` | Research & knowledge tools |
+| **Luna** | `play_radio`, `browse_radio`, `recommend_music`, `recommend_movie` | Entertainment without API keys |
+| **Rose** | `create_event`, `list_events`, `get_daily_agenda`, `check_availability` | Calendar & scheduling |
+| **Mei** | `control_lights`, `set_thermostat`, `get_device_status`, `set_scene` | Smart home control |
+| **Clara** | `draft_email`, `draft_message`, `suggest_response`, `improve_text` | Communication assistance |
+
+### Desktop vs LiveKit Mode
+
+| Feature | Desktop Mode | LiveKit Mode |
+|---------|--------------|--------------|
+| Connection | Direct to Gemini | Via LiveKit Cloud |
+| Latency | Lower | Higher (relay) |
+| Auth | API key local | Token server |
+| Use case | Personal desktop | Remote/mobile |
+| Multi-user | Single user | Multiple rooms |
+| Audio | PyAudio (local) | WebRTC |
+| Tools | ✅ Full (14 base + maid-specific) | ✅ Full |
+| Maid Handoffs | ✅ Session swap | ✅ Native |
+
+### Desktop Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GOOGLE_API_KEY` | — | Single Gemini API key |
+| `GEMINI_API_KEYS` | — | Comma-separated keys (rotation) |
+| `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Memory storage path |
+
+### Requirements
+- Python 3.8+
+- `google-genai` — Gemini Live API SDK
+- `pyaudio` — Local audio capture/playback
+- Working microphone and speakers
 
 ---
 

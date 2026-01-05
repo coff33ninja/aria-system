@@ -123,7 +123,7 @@ def _ensure_api_key() -> bool:
         return True
     
     try:
-        from key_manager import pick_and_set_key
+        from core.key_manager import pick_and_set_key
         key = pick_and_set_key()
         if key:
             logger.debug("API key set via key rotation")
@@ -319,7 +319,7 @@ class BaseMaid(Agent, ABC):
             Use this when you've completed your task or the user wants to speak with Aria.
             """
             # Import here to avoid circular imports
-            from maids import get_aria_class
+            from maid_system import get_aria_class
             
             aria_class = get_aria_class()
             if aria_class is None:

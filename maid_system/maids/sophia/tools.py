@@ -1,14 +1,29 @@
 """
 Sophia's research and knowledge tools.
 The bookish maid who loves diving deep into topics!
+
+Supports both LiveKit mode (@function_tool) and Desktop/Gemini mode.
 """
-from livekit.agents import function_tool, RunContext
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import logging
 import asyncio
 import aiohttp
 
 logger = logging.getLogger("maids.sophia")
+
+# LiveKit imports (optional - only needed for LiveKit mode)
+try:
+    from livekit.agents import function_tool, RunContext
+    HAS_LIVEKIT = True
+except ImportError:
+    HAS_LIVEKIT = False
+    # Dummy decorator for when LiveKit isn't available
+    def function_tool():
+        def decorator(func):
+            return func
+        return decorator
+    class RunContext:
+        pass
 
 
 # ============================================================================
@@ -436,3 +451,326 @@ async def compare_topics(
     
     results.append("*pushes up glasses* I-I hope this comparison helps! Let me know if you need more detail on either topic.")
     return "\n".join(results)
+
+
+# ============================================================================
+# GEMINI MODE: Tool Declarations & Executor
+# ============================================================================
+# Desktop mode uses Gemini Live API directly. These declarations mirror
+# the LiveKit @function_tool definitions above.
+# ============================================================================
+
+# Sentence count mappings for detail levels
+_DETAIL_SENTENCES: Dict[str, int] = {"brief": 2, "summary": 4, "detailed": 8}
+_LEVEL_SENTENCES: Dict[str, int] = {"beginner": 2, "intermediate": 4, "expert": 8}
+
+GEMINI_TOOL_DECLARATIONS: List[Dict[str, Any]] = [
+    {
+        "name": "wikipedia_lookup",
+        "description": "Look up a topic on Wikipedia. Sophia's favorite reference source!",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "The topic to look up"},
+                "detail_level": {
+                    "type": "string",
+                    "enum": ["brief", "summary", "detailed"],
+                    "description": "Level of detail"
+                }
+            },
+            "required": ["topic"]
+        }
+    },
+    {
+        "name": "deep_research",
+        "description": "Conduct multi-source research combining Wikipedia and web search.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic": {"type": "string", "description": "The topic to research"},
+                "depth": {
+                    "type": "string",
+                    "enum": ["quick", "standard", "thorough"],
+                    "description": "Research depth"
+                }
+            },
+            "required": ["topic"]
+        }
+    },
+    {
+        "name": "fact_check",
+        "description": "Verify a claim by searching multiple sources.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "claim": {"type": "string", "description": "The claim to verify"}
+            },
+            "required": ["claim"]
+        }
+    },
+    {
+        "name": "explain_concept",
+        "description": "Explain a concept at different complexity levels.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "concept": {"type": "string", "description": "The concept to explain"},
+                "level": {
+                    "type": "string",
+                    "enum": ["beginner", "intermediate", "expert"],
+                    "description": "Explanation level"
+                }
+            },
+            "required": ["concept"]
+        }
+    },
+    {
+        "name": "compare_topics",
+        "description": "Compare two topics by researching both.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic_a": {"type": "string", "description": "First topic"},
+                "topic_b": {"type": "string", "description": "Second topic"}
+            },
+            "required": ["topic_a", "topic_b"]
+        }
+    },
+    {
+        "name": "search_web",
+        "description": "Search the web for information using DuckDuckGo.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "The search query"}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "lookup_definition",
+        "description": "Look up the definition of a term.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "term": {"type": "string", "description": "The term to define"}
+            },
+            "required": ["term"]
+        }
+    },
+    {
+        "name": "summarize_text",
+        "description": "Summarize a piece of text.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "content": {"type": "string", "description": "The text to summarize"},
+                "style": {
+                    "type": "string",
+                    "enum": ["concise", "detailed", "bullet_points"],
+                    "description": "Summary style"
+                }
+            },
+            "required": ["content"]
+        }
+    },
+]
+
+# Tool names for routing
+TOOL_NAMES: List[str] = [t["name"] for t in GEMINI_TOOL_DECLARATIONS]
+
+
+# ============================================================================
+# Gemini Tool Executor Helpers
+# ============================================================================
+
+async def _exec_wikipedia_lookup(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute wikipedia_lookup tool."""
+    topic = args.get("topic", "")
+    detail = args.get("detail_level", "summary")
+    
+    results = await _wikipedia_search(topic, limit=1)
+    if not results:
+        return {"error": f"No Wikipedia article found for '{topic}'"}
+    
+    title = results[0]["title"]
+    sentences = _DETAIL_SENTENCES.get(detail, 4)
+    content = await _wikipedia_summary(title, sentences)
+    
+    if content:
+        return {"title": title, "content": content, "detail_level": detail}
+    return {"error": f"Could not extract content for '{title}'"}
+
+
+async def _exec_deep_research(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute deep_research tool."""
+    topic = args.get("topic", "")
+    depth = args.get("depth", "standard")
+    
+    result: Dict[str, Any] = {"topic": topic, "depth": depth, "sources": []}
+    
+    # Wikipedia sources
+    wiki_limit = 2 if depth == "thorough" else 1
+    wiki_results = await _wikipedia_search(topic, limit=wiki_limit)
+    for article in wiki_results:
+        title = article["title"]
+        content = await _wikipedia_summary(title, sentences=4)
+        if content:
+            result["sources"].append({
+                "source": "Wikipedia",
+                "title": title,
+                "content": content
+            })
+    
+    # Web search (skip for quick if we have wiki results)
+    if depth != "quick" or not result["sources"]:
+        web_result = await _web_search(topic)
+        result["sources"].append({"source": "Web", "content": web_result[:1000]})
+    
+    return result
+
+
+async def _exec_fact_check(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute fact_check tool."""
+    claim = args.get("claim", "")
+    result: Dict[str, Any] = {"claim": claim, "sources": []}
+    
+    wiki_results = await _wikipedia_search(claim, limit=2)
+    for article in wiki_results:
+        result["sources"].append({
+            "source": "Wikipedia",
+            "title": article["title"],
+            "snippet": article.get("snippet", "")[:200]
+        })
+    
+    web_result = await _web_search(f"is it true that {claim}")
+    result["sources"].append({"source": "Web", "content": web_result[:800]})
+    
+    return result
+
+
+async def _exec_explain_concept(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute explain_concept tool."""
+    concept = args.get("concept", "")
+    level = args.get("level", "intermediate")
+    
+    wiki_results = await _wikipedia_search(concept, limit=1)
+    if wiki_results:
+        title = wiki_results[0]["title"]
+        sentences = _LEVEL_SENTENCES.get(level, 4)
+        content = await _wikipedia_summary(title, sentences)
+        if content:
+            return {"concept": title, "level": level, "explanation": content}
+    
+    # Fallback to web search
+    web_result = await _web_search(f"what is {concept} explained simply")
+    return {"concept": concept, "level": level, "explanation": web_result[:1000]}
+
+
+async def _exec_compare_topics(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute compare_topics tool."""
+    topic_a = args.get("topic_a", "")
+    topic_b = args.get("topic_b", "")
+    
+    result: Dict[str, Any] = {
+        "topic_a": topic_a,
+        "topic_b": topic_b,
+        "comparisons": []
+    }
+    
+    for topic in [topic_a, topic_b]:
+        wiki_results = await _wikipedia_search(topic, limit=1)
+        if wiki_results:
+            title = wiki_results[0]["title"]
+            content = await _wikipedia_summary(title, sentences=3)
+            result["comparisons"].append({
+                "topic": title,
+                "summary": content or "No content found"
+            })
+        else:
+            result["comparisons"].append({
+                "topic": topic,
+                "summary": "Not found on Wikipedia"
+            })
+    
+    return result
+
+
+async def _exec_search_web(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute search_web tool."""
+    query = args.get("query", "")
+    result = await _web_search(query)
+    return {"query": query, "results": result}
+
+
+async def _exec_lookup_definition(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute lookup_definition tool."""
+    term = args.get("term", "")
+    
+    wiki_results = await _wikipedia_search(term, limit=1)
+    if wiki_results:
+        title = wiki_results[0]["title"]
+        content = await _wikipedia_summary(title, sentences=2)
+        if content:
+            return {"term": title, "definition": content}
+    
+    web_result = await _web_search(f"define {term}")
+    return {"term": term, "definition": web_result[:500]}
+
+
+async def _exec_summarize_text(args: Dict[str, Any]) -> Dict[str, Any]:
+    """Execute summarize_text tool."""
+    content = args.get("content", "")
+    style = args.get("style", "concise")
+    word_count = len(content.split())
+    
+    # Split into sentences
+    sentences = content.replace('!', '.').replace('?', '.').split('.')
+    sentences = [s.strip() for s in sentences if s.strip()]
+    
+    if style == "bullet_points":
+        key_points = sentences[:5] if len(sentences) > 5 else sentences
+        return {"style": style, "word_count": word_count, "points": key_points}
+    elif style == "detailed":
+        summary = ". ".join(sentences[:4]) + "." if sentences else content[:500]
+        return {"style": style, "word_count": word_count, "summary": summary}
+    else:  # concise
+        summary = ". ".join(sentences[:2]) + "." if sentences else content[:200]
+        return {"style": style, "word_count": word_count, "summary": summary}
+
+
+# Tool executor registry - maps tool names to their handler functions
+_TOOL_EXECUTORS: Dict[str, Any] = {
+    "wikipedia_lookup": _exec_wikipedia_lookup,
+    "deep_research": _exec_deep_research,
+    "fact_check": _exec_fact_check,
+    "explain_concept": _exec_explain_concept,
+    "compare_topics": _exec_compare_topics,
+    "search_web": _exec_search_web,
+    "lookup_definition": _exec_lookup_definition,
+    "summarize_text": _exec_summarize_text,
+}
+
+
+async def execute_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Execute a Sophia tool by name (for Gemini/Desktop mode).
+    
+    Uses a registry pattern for cleaner dispatch and easier maintenance.
+    
+    Args:
+        name: Tool name (must be in TOOL_NAMES)
+        args: Tool arguments as defined in GEMINI_TOOL_DECLARATIONS
+        
+    Returns:
+        dict: Result with data or error key
+    """
+    executor = _TOOL_EXECUTORS.get(name)
+    if not executor:
+        return {"error": f"Unknown tool: {name}"}
+    
+    try:
+        return await executor(args)
+    except Exception as e:
+        logger.error(f"Sophia tool '{name}' failed: {e}", exc_info=True)
+        return {"error": str(e)}

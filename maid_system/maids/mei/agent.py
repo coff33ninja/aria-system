@@ -1,6 +1,6 @@
 """Mei — The Smart Home & IoT Maid"""
 import logging
-from maids.base import BaseMaid
+from maid_system.base import BaseMaid
 from .tools import control_lights, set_thermostat, lock_doors, get_device_status, set_scene, control_device
 from .prompts import MEI_INSTRUCTION
 

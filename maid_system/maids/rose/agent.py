@@ -1,6 +1,6 @@
 """Rose — The Scheduling & Organization Maid"""
 import logging
-from maids.base import BaseMaid
+from maid_system.base import BaseMaid
 from .tools import create_event, list_events, create_task, get_daily_agenda, reschedule_event, check_availability
 from .prompts import ROSE_INSTRUCTION
 

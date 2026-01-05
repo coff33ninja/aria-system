@@ -1,6 +1,6 @@
 """Luna — The Entertainment & Media Maid"""
 import logging
-from maids.base import BaseMaid
+from maid_system.base import BaseMaid
 from .tools import (
     # Music playback (Spotify + Radio fallback)
     play_music,

@@ -1,6 +1,6 @@
 """Clara — The Communication & Social Maid"""
 import logging
-from maids.base import BaseMaid
+from maid_system.base import BaseMaid
 from .tools import draft_email, draft_message, summarize_conversation, suggest_response, improve_text, check_tone
 from .prompts import CLARA_INSTRUCTION
 

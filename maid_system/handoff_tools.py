@@ -13,10 +13,7 @@ Usage:
 import logging
 import random
 from livekit.agents import function_tool, RunContext
-from typing import TYPE_CHECKING, Optional, Any
-
-if TYPE_CHECKING:
-    from livekit.agents import Agent
+from typing import Optional, Any
 
 logger = logging.getLogger("maids.handoff")
 
@@ -104,7 +101,7 @@ async def summon_sophia(context: RunContext):
     Use this when the user needs research, explanations, fact-checking, or knowledge lookup.
     Sophia will take over the conversation with her own voice.
     """
-    from maids import Sophia
+    from maid_system.maids import Sophia
     
     logger.info("🎭 Aria summoning Sophia for research")
     
@@ -121,7 +118,7 @@ async def summon_luna(context: RunContext):
     Use this when the user wants movie/music recommendations, entertainment, games, or stories.
     Luna will take over the conversation with her own voice.
     """
-    from maids import Luna
+    from maid_system.maids import Luna
     
     logger.info("🎭 Aria summoning Luna for entertainment")
     
@@ -138,7 +135,7 @@ async def summon_rose(context: RunContext):
     Use this when the user needs help with calendar, scheduling, tasks, or organization.
     Rose will take over the conversation with her own voice.
     """
-    from maids import Rose
+    from maid_system.maids import Rose
     
     logger.info("🎭 Aria summoning Rose for scheduling")
     
@@ -155,7 +152,7 @@ async def summon_mei(context: RunContext):
     Use this when the user wants to control lights, thermostat, devices, or smart home features.
     Mei will take over the conversation with her own voice.
     """
-    from maids import Mei
+    from maid_system.maids import Mei
     
     logger.info("🎭 Aria summoning Mei for smart home")
     
@@ -172,7 +169,7 @@ async def summon_clara(context: RunContext):
     Use this when the user needs help drafting emails, messages, or communication.
     Clara will take over the conversation with her own voice.
     """
-    from maids import Clara
+    from maid_system.maids import Clara
     
     logger.info("🎭 Aria summoning Clara for communication")
     
@@ -191,7 +188,7 @@ async def summon_maid_by_name(context: RunContext, maid_name: str):
     Args:
         maid_name: Name of the maid (sophia, luna, rose, mei, clara)
     """
-    from maids import get_maid, MAID_REGISTRY
+    from maid_system import get_maid, MAID_REGISTRY
     
     maid_name_lower = maid_name.lower()
     maid_class = get_maid(maid_name_lower)
@@ -217,7 +214,7 @@ async def suggest_and_summon_maid(context: RunContext, task_description: str):
     Args:
         task_description: Description of what the user needs help with
     """
-    from maids import get_maid_for_task, get_maid, MAID_REGISTRY
+    from maid_system import get_maid_for_task, get_maid
     
     suggested = get_maid_for_task(task_description)
     
@@ -243,7 +240,7 @@ async def list_available_maids(context: RunContext):
     List all available maids and their specialties.
     Use this when the user asks who is available or what maids can do.
     """
-    from maids import MAID_REGISTRY
+    from maid_system import MAID_REGISTRY
     
     lines = ["*adjusts glasses*\n\nMy staff, at your service:\n"]
     

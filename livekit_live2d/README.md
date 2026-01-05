@@ -256,12 +256,34 @@ if avatar_session.model_loaded:
 
 ## 🎯 Demo
 
+### Static Demo (No LiveKit)
+
 Open `demo.html` in a web browser to see an interactive demonstration of the Live2D system:
 
 - Switch between different maids
 - Test facial expressions
 - Simulate lip sync with volume controls
 - Monitor real-time status
+
+### LiveKit + Live2D Demo
+
+For the full experience with real-time voice and lip sync via LiveKit:
+
+1. **Start the token server** (serves files and generates LiveKit tokens):
+   ```bash
+   python livekit_live2d/token_server.py
+   ```
+
+2. **Open the demo** at: `http://localhost:8080/livekit_live2d/livekit-demo.html`
+
+3. **Connect** to your LiveKit room and start talking with Aria!
+
+The token server:
+- Serves static files from the project root
+- Auto-generates LiveKit access tokens at `/api/token`
+- Requires `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` in your `.env` file
+
+**Token endpoint**: `/api/token?room=aria-room&identity=web-user`
 
 ## 📚 API Reference
 

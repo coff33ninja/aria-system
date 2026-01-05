@@ -1,6 +1,6 @@
 """Sophia — The Research & Knowledge Maid"""
 import logging
-from maids.base import BaseMaid
+from maid_system.base import BaseMaid
 from .tools import (
     wikipedia_lookup,
     deep_research,
