@@ -29,6 +29,8 @@ The original project was a basic voice assistant with 3 tools (weather, web sear
 
 Aria commands a household of specialized maids, each a fully independent agent with their own voice, temperature, tools, and persistent memory:
 
+> **🎭 Live2D Avatar Support**: Each maid can be enhanced with anime-style Live2D avatars featuring real-time lip sync, personality-based expressions, and smooth animations. The system includes 5+ unique expressions per maid (idle, speaking, excited, nervous, etc.) that automatically adapt to conversation context. See `docs/live2d-vs-vrm-comparison.md` for implementation details.
+
 | Maid | Specialty | Voice | Temp | Personality |
 |------|-----------|-------|------|-------------|
 | **Aria** | Head Maid (orchestration) | Aoede | 0.9 | Elegant, sassy, devastatingly witty |
@@ -56,6 +58,51 @@ User: "Can you research quantum computing?"
 → LiveKit swaps back (voice changes to Aoede)
 → Aria.on_enter(): "Welcome back~"
 ```
+
+---
+
+## 🎭 Live2D Expression System
+
+The Live2D avatar integration includes a comprehensive expression system with personality-based animations for each maid:
+
+### Expression Categories by Maid
+
+| Maid | Available Expressions | Personality Traits |
+|------|----------------------|-------------------|
+| **Aria** | idle, speaking, smug, sassy, thinking | Half-lidded confident eyes, elegant posture, side glances |
+| **Sophia** | idle, speaking, excited, nervous, focused | Wide research eyes, hunched bookish posture, darting nervous glances |
+| **Luna** | idle, speaking, playful, dramatic, dreamy | Mischievous side glances, dramatic head throws, dreamy half-closed eyes |
+| **Rose** | idle, speaking, stern, satisfied, annoyed | Direct authoritative gaze, disapproving frowns, proud head tilts |
+| **Mei** | idle, speaking, focused, shy, calm | Downward shy glances, reserved posture, peaceful expressions |
+| **Clara** | idle, speaking, warm, caring, diplomatic | Welcoming smiles, caring head tilts, professional but friendly |
+
+### Context-Aware Expression Changes
+
+The system automatically selects appropriate expressions based on conversation content:
+
+- **Aria**: "Obviously..." → smug expression, "That's wrong" → sassy expression
+- **Sophia**: "Let me research..." → excited expression, "Um, maybe..." → nervous expression  
+- **Luna**: "Play some music" → playful expression, "That's amazing!" → dramatic expression
+- **Rose**: "Schedule organized" → satisfied expression, "You're late" → stern expression
+- **Mei**: "Controlling device" → focused expression, "Sorry, I'm quiet" → shy expression
+- **Clara**: "Welcome!" → warm expression, "Let me help" → caring expression
+
+### Live2D Parameters
+
+Each expression controls multiple Live2D parameters:
+- **Eye Opening** (ParamEyeLOpen/ParamEyeROpen): 0.0 = closed, 1.0 = normal, 1.5 = wide
+- **Eye Direction** (ParamEyeBallX/Y): Gaze direction and emotional state
+- **Mouth Shape** (ParamMouthForm): -1.0 = frown, 0.0 = neutral, 1.0 = smile
+- **Head Rotation** (ParamAngleX/Y/Z): Personality-based head positioning
+- **Body Posture** (ParamBodyAngleX/Y/Z): Confident, shy, or authoritative stances
+
+### Real-Time Features
+
+- **Automatic Lip Sync**: Mouth movements synchronized with voice output
+- **Breathing Animation**: Subtle chest movement during idle states
+- **Random Blinking**: Natural eye blink patterns (2-6 second intervals)
+- **Smooth Transitions**: 0.5-second animations between expression changes
+- **Idle Animations**: Continuous subtle movements to maintain liveliness
 
 ---
 
@@ -206,6 +253,23 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 
 ## 🚀 Setup
 
+### Quick Start (Scripts)
+
+**Windows:**
+```cmd
+scripts\setup.bat
+scripts\start.bat
+```
+
+**Linux/Mac:**
+```bash
+chmod +x scripts/*.sh
+./scripts/setup.sh
+./scripts/start.sh
+```
+
+### Manual Setup
+
 1. **Create virtual environment**
    ```bash
    python -m venv .venv
@@ -226,8 +290,19 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 
 4. **Run the agent**
    ```bash
-   python agent.py dev
+   # Desktop Mode (Gemini Direct)
+   python -m desktop.agent
+   
+   # LiveKit Mode (requires LiveKit credentials)
+   python -m livekit_mode.agent dev
    ```
+
+### Tested Versions
+
+| Component | Version |
+|-----------|---------|
+| Python | 3.12 |
+| Node.js | 18+ (for Electron frontend) |
 
 ### Required Environment Variables
 
@@ -249,6 +324,8 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 | `ARIA_USE_MCP_MEMORY` | `true` | Use MCP knowledge graph (temporarily disabled) |
 | `ARIA_DATA_DIR` | `./data` | Directory for maid memories |
 | `ARIA_FORCE_VOICE_RECONNECT` | `true` | Force disconnect on voice swap |
+| `ARIA_ENABLE_LIVE2D_AVATARS` | `false` | Enable Live2D avatar integration |
+| `ARIA_LIVE2D_MODELS_PATH` | `./live2d_models` | Directory for Live2D model files |
 | `GMAIL_USER` | — | Gmail address for email tool |
 | `GMAIL_APP_PASSWORD` | — | Gmail app password |
 | `N8N_MCP_SERVER_URL` | — | External MCP tools via n8n |
@@ -297,24 +374,170 @@ The system uses LiveKit's native voice activity detection with semantic understa
 ## 📁 Project Structure
 
 ```
-├── agent.py              # Main entrypoint, Aria agent
-├── tools.py              # Aria's 15+ tools
-├── prompts.py            # Aria's personality prompts
-├── key_manager.py        # API key rotation
-├── maids/
-│   ├── __init__.py       # Maid registry & delegation
-│   ├── base.py           # BaseMaid class & MaidMemory
-│   ├── memory_tools.py   # Shared memory tools (remember, recall, learn)
-│   ├── handoff_tools.py  # Native LiveKit voice handoff tools
-│   ├── sophia/           # Research maid (8 tools)
-│   ├── luna/             # Entertainment maid (Spotify, Radio, recommendations)
-│   ├── rose/             # Scheduling maid
-│   ├── mei/              # Smart home maid
-│   └── clara/            # Communication maid
-├── mcp_client/           # MCP server integration (LiveKit)
-├── data/                 # Memory files
-└── docs/                 # Reference documentation
+├── core/                 # Shared core components
+│   ├── prompts.py        # Base prompt utilities
+│   ├── tools.py          # Tool router/dispatcher
+│   ├── key_manager.py    # API key rotation
+│   ├── maid_reviews.py   # Performance review system
+│   └── memory/           # Memory subsystem
+│       └── mcp_client/   # MCP knowledge graph client
+├── maid_system/          # The maid hierarchy
+│   ├── aria/             # HEAD MAID (orchestrates)
+│   │   ├── agent.py      # Aria agent class
+│   │   ├── prompts.py    # Aria's personality
+│   │   └── tools.py      # Aria's tools
+│   ├── maids/            # Sub-maids (specialists)
+│   │   ├── sophia/       # Research maid
+│   │   ├── luna/         # Entertainment maid
+│   │   ├── rose/         # Scheduling maid
+│   │   ├── mei/          # Smart home maid
+│   │   └── clara/        # Communication maid
+│   ├── base.py           # BaseMaid class
+│   ├── handoff_tools.py  # Voice handoff utilities
+│   └── memory_tools.py   # Shared memory tools
+├── desktop/              # Desktop Mode (Gemini Direct)
+│   ├── agent.py          # Gemini Live direct connection
+│   ├── server.py         # HTTP + WebSocket servers
+│   └── frontend/         # Web UI with Live2D
+│       ├── index.html    # Main UI
+│       └── app.js        # Frontend logic
+├── livekit_mode/         # Online Mode (LiveKit Cloud)
+│   └── agent.py          # LiveKit agent entrypoint
+├── live2d/               # Live2D Avatar System
+│   └── models/           # Avatar models per maid
+│       ├── aria/         # Changli model
+│       └── luna/         # Nicole model
+├── data/                 # Persistent memory files
+├── docs/                 # Documentation
+└── tests/                # Test suite
 ```
+
+---
+
+## 🖥️ Desktop Mode (Direct Gemini Live)
+
+For local-first usage without LiveKit Cloud, Desktop Mode provides a direct connection to Gemini Live API with real-time voice conversation and a web-based UI with Live2D avatars:
+
+```bash
+# Install PyAudio (required for local audio)
+pip install pyaudio
+
+# Run desktop mode (auto-opens browser)
+python -m desktop.agent
+```
+
+### Desktop Mode WebUI
+
+Desktop Mode includes a full web frontend with Live2D avatar support:
+
+- **Auto-launch**: Browser opens automatically to `http://localhost:8080`
+- **Live2D Avatars**: Animated maid avatars with expressions and lip sync
+- **Chat Interface**: Real-time transcript display with message history
+- **Maid Handoffs**: Visual feedback when switching between maids
+- **WebSocket Communication**: Real-time bidirectional updates
+
+The frontend connects via:
+- **HTTP Server** (port 8080): Serves static files and Live2D models
+- **WebSocket Server** (port 8765): Real-time transcript and state sync
+
+### Frontend Options
+
+Choose between two frontend modes via the `ARIA_DESKTOP_FRONTEND` environment variable:
+
+| Mode | `ARIA_DESKTOP_FRONTEND` | Description |
+|------|-------------------------|-------------|
+| **Browser** (default) | `browser` | Opens web UI in your default browser |
+| **Electron** | `electron` | Auto-launches transparent desktop overlay with floating avatar |
+
+#### Browser Mode (Default)
+```bash
+python -m desktop.agent
+# Browser opens automatically
+```
+
+To disable auto-open browser (manual navigation):
+```bash
+ARIA_AUTO_OPEN_BROWSER=false python -m desktop.agent
+# Then open http://localhost:8080 manually
+```
+
+#### Electron Mode (Transparent Desktop Avatar)
+For a floating, transparent Live2D avatar on your desktop:
+
+```bash
+# 1. Install Electron dependencies (first time only)
+cd desktop/electron
+npm install
+cd ../..
+
+# 2. Set env variable and start (Electron launches automatically)
+set ARIA_DESKTOP_FRONTEND=electron   # Windows
+export ARIA_DESKTOP_FRONTEND=electron  # Linux/Mac
+
+python -m desktop.agent
+```
+
+> **Note**: If Electron fails to launch (missing npm/dependencies), the system falls back to browser mode with a helpful message.
+
+The Electron app provides:
+- **Transparent window** — Only the avatar visible, no background
+- **Always on top** — Floats above other windows
+- **Draggable** — Click and drag to reposition
+- **Interactive** — Click avatar for reactions
+- **Auto-reconnect** — Reconnects if backend restarts
+
+### Features
+- Direct Gemini Live API connection via WebSocket
+- Local audio input/output via PyAudio (16kHz input, 24kHz output)
+- Real-time voice conversation with Aria
+- **Maid handoffs via session swapping** — each maid gets their own voice (Aoede, Kore, Leda, Fenrir, Puck)
+- **Full conversation history** preserved across handoffs
+- **MCP Memory integration** — same knowledge graph as LiveKit mode
+- Input and output transcription
+- API key rotation support
+- Same Aria personality and system prompts
+- **Full tool support** — weather, todos, notes, reminders, web search, email, and more via Gemini function calling
+
+### Maid-Specific Tools (Desktop Mode)
+
+When you summon a maid in Desktop Mode, they bring their specialized tools:
+
+| Maid | Tools | Description |
+|------|-------|-------------|
+| **Sophia** | `wikipedia_lookup`, `deep_research`, `fact_check`, `explain_concept`, `compare_topics` | Research & knowledge tools |
+| **Luna** | `play_radio`, `browse_radio`, `recommend_music`, `recommend_movie` | Entertainment without API keys |
+| **Rose** | `create_event`, `list_events`, `get_daily_agenda`, `check_availability` | Calendar & scheduling |
+| **Mei** | `control_lights`, `set_thermostat`, `get_device_status`, `set_scene` | Smart home control |
+| **Clara** | `draft_email`, `draft_message`, `suggest_response`, `improve_text` | Communication assistance |
+
+### Desktop vs LiveKit Mode
+
+| Feature | Desktop Mode | LiveKit Mode |
+|---------|--------------|--------------|
+| Connection | Direct to Gemini | Via LiveKit Cloud |
+| Latency | Lower | Higher (relay) |
+| Auth | API key local | Token server |
+| Use case | Personal desktop | Remote/mobile |
+| Multi-user | Single user | Multiple rooms |
+| Audio | PyAudio (local) | WebRTC |
+| Tools | ✅ Full (14 base + maid-specific) | ✅ Full |
+| Maid Handoffs | ✅ Session swap | ✅ Native |
+
+### Desktop Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GOOGLE_API_KEY` | — | Single Gemini API key |
+| `GEMINI_API_KEYS` | — | Comma-separated keys (rotation) |
+| `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Memory storage path |
+| `ARIA_DESKTOP_FRONTEND` | `browser` | Frontend mode: `browser` or `electron` (auto-launches) |
+| `ARIA_AUTO_OPEN_BROWSER` | `true` | Auto-open browser (only applies in browser mode) |
+
+### Requirements
+- Python 3.8+
+- `google-genai` — Gemini Live API SDK
+- `pyaudio` — Local audio capture/playback
+- Working microphone and speakers
 
 ---
 
@@ -339,5 +562,16 @@ The original project by [Thanh-Y Nguyen](https://github.com/ruxakK/friday_jarvis
 - **Original portions** (from Thanh-Y Nguyen): Subject to the original custom license — personal/educational use only, no redistribution or commercial use without permission.
 - **mcp_client**: MIT License (LiveKit, Inc.) — see `thirdparty/LICENSE-LIVEKIT`
 - **New additions in this fork** (maids system, tools, memory systems, etc.): Available under the same terms as the original — personal/educational use only.
+
+### Live2D Model Attributions
+
+The Live2D avatar models used in this project are created by talented artists and shared for free:
+
+| Maid | Model | Artist | Source |
+|------|-------|--------|--------|
+| **Aria** | 长离 (Changli) | shibutani (涉谷芒) | [Booth.pm](https://booth.pm/en/items/7483530) — Wuthering Waves fan model |
+| **Luna** | Nicole (妮可) | bailyovo | [Booth.pm](https://booth.pm/en/items/5908939) — Zenless Zone Zero fan model |
+
+Please respect the original artists' terms of use. These models are for personal/educational use only.
 
 If you wish to use any part of this project commercially or redistribute it, please contact the original author for permission.

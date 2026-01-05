@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aria Maid System - LiveKit + Live2D</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 12px;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+        }
+        
+        .header h1 {
+            font-size: 1.5em;
+            background: linear-gradient(90deg, #ff6b9d, #c44569);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .connection-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.1);
+            font-size: 12px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4757;
+        }
+        
+        .status-dot.connected { background: #2ed573; }
+        .status-dot.connecting { background: #ffa502; animation: pulse 1s infinite; }
+        
+        @keyframes pulse { 50% { opacity: 0.5; } }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 15px;
+            padding: 15px;
+            height: calc(100vh - 60px);
+        }
+        
+        .avatar-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #live2d-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .controls-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .connect-panel {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 12px;
+        }
+        
+        .connect-panel input {
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .connect-panel input::placeholder { color: rgba(255,255,255,0.5); }
+        
+        .btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+        
+        .btn-connect {
+            background: linear-gradient(135deg, #2ed573, #1e90ff);
+            color: white;
+        }
+        
+        .btn-connect:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(46,213,115,0.3); }
+        .btn-connect:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        .btn-disconnect {
+            background: linear-gradient(135deg, #ff4757, #c44569);
+            color: white;
+        }
+        
+        .btn-mic {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-mic.active { background: #2ed573; }
+        .btn-mic.muted { background: #ff4757; }
+        
+        .section-title {
+            color: #ff6b9d;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .audio-visualizer {
+            height: 60px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 3px;
+            padding: 10px;
+        }
+        
+        .audio-bar {
+            width: 8px;
+            background: linear-gradient(to top, #2ed573, #1e90ff);
+            border-radius: 4px;
+            transition: height 0.05s;
+        }
+        
+        .transcript-box {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        
+        .transcript-line {
+            margin: 6px 0;
+            padding: 6px 10px;
+            border-radius: 8px;
+        }
+        
+        .transcript-line.agent {
+            background: rgba(255,107,157,0.2);
+            border-left: 3px solid #ff6b9d;
+        }
+        
+        .transcript-line.user {
+            background: rgba(46,213,115,0.2);
+            border-left: 3px solid #2ed573;
+        }
+        
+        .status-panel {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 10px;
+            font-family: monospace;
+        }
+        
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+        }
+        
+        .status-value { color: #2ed573; }
+        
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        
+        .loading-overlay.hidden { display: none; }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: #ff6b9d;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .loading-text { margin-top: 12px; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎭 Aria Maid System</h1>
+        <div class="connection-badge">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="status-text">Disconnected</span>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="avatar-section">
+            <canvas id="live2d-canvas"></canvas>
+            <div class="loading-overlay" id="loading-overlay">
+                <div class="spinner"></div>
+                <div class="loading-text" id="loading-text">Loading avatar...</div>
+            </div>
+        </div>
+        
+        <div class="controls-section">
+            <div class="connect-panel">
+                <input type="text" id="room-input" placeholder="Room name (default: aria-room)" value="aria-room">
+                <button class="btn btn-connect" id="connect-btn">🔗 Connect to Aria</button>
+            </div>
+            
+            <button class="btn btn-mic" id="mic-btn" disabled>
+                <span>🎤</span>
+                <span id="mic-text">Microphone Off</span>
+            </button>
+            
+            <div class="section-title">Agent Audio</div>
+            <div class="audio-visualizer" id="audio-visualizer">
+                <!-- Audio bars will be added by JS -->
+            </div>
+            
+            <div class="section-title">Conversation</div>
+            <div class="transcript-box" id="transcript">
+                <div style="color: rgba(255,255,255,0.5); text-align: center;">
+                    Connect to start talking with Aria
+                </div>
+            </div>
+            
+            <div class="section-title">Status</div>
+            <div class="status-panel">
+                <div class="status-row">
+                    <span>Room:</span>
+                    <span class="status-value" id="stat-room">-</span>
+                </div>
+                <div class="status-row">
+                    <span>Agent:</span>
+                    <span class="status-value" id="stat-agent">-</span>
+                </div>
+                <div class="status-row">
+                    <span>Lip Sync:</span>
+                    <span class="status-value" id="stat-lipsync">Inactive</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.0.0/dist/livekit-client.umd.min.js"></script>
+</body>
+</html>
+
+    <script>
+        // LiveKit configuration - UPDATE THESE
+        const LIVEKIT_URL = 'wss://miko-j89a073t.livekit.cloud';
+        // Token will be generated - for now use the one from your .env or generate via API
+        let LIVEKIT_TOKEN = '';
+        
+        // State
+        let room = null;
+        let app = null;
+        let model = null;
+        let audioContext = null;
+        let analyser = null;
+        let micEnabled = false;
+        let isConnected = false;
+        
+        // Audio analysis for lip sync
+        const NUM_BARS = 16;
+        let audioDataArray = new Uint8Array(NUM_BARS);
+        
+        // DOM elements
+        const canvas = document.getElementById('live2d-canvas');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        const connectBtn = document.getElementById('connect-btn');
+        const micBtn = document.getElementById('mic-btn');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const transcript = document.getElementById('transcript');
+        const audioVisualizer = document.getElementById('audio-visualizer');
+        
+        // Initialize
+        async function init() {
+            // Setup audio visualizer bars
+            for (let i = 0; i < NUM_BARS; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'audio-bar';
+                bar.style.height = '4px';
+                audioVisualizer.appendChild(bar);
+            }
+            
+            // Initialize PIXI
+            app = new PIXI.Application({
+                view: canvas,
+                resizeTo: canvas.parentElement,
+                backgroundColor: 0x1a1a2e,
+                antialias: true
+            });
+            
+            // Load Live2D model
+            await loadLive2DModel();
+            
+            // Setup button handlers
+            connectBtn.addEventListener('click', toggleConnection);
+            micBtn.addEventListener('click', toggleMicrophone);
+        }
+        
+        async function loadLive2DModel() {
+            loadingText.textContent = 'Loading Aria...';
+            
+            try {
+                model = await PIXI.live2d.Live2DModel.from('../live2d_models/aria/长离.model3.json', {
+                    autoInteract: false,
+                    autoUpdate: true
+                });
+                
+                // Scale and position
+                resizeModel();
+                app.stage.addChild(model);
+                
+                loadingOverlay.classList.add('hidden');
+                console.log('Live2D model loaded');
+                
+            } catch (error) {
+                console.error('Failed to load model:', error);
+                loadingText.textContent = 'Failed to load avatar';
+            }
+        }
+        
+        function resizeModel() {
+            if (!model) return;
+            
+            const scale = Math.min(
+                app.screen.width / model.width * 0.85,
+                app.screen.height / model.height * 0.95
+            );
+            model.scale.set(scale);
+            model.x = app.screen.width / 2;
+            model.y = app.screen.height / 2 + model.height * scale * 0.25;
+            model.anchor.set(0.5, 0.5);
+        }
+        
+        async function toggleConnection() {
+            if (isConnected) {
+                await disconnect();
+            } else {
+                await connect();
+            }
+        }
+        
+        async function connect() {
+            const roomName = document.getElementById('room-input').value || 'aria-room';
+            
+            updateStatus('connecting', 'Connecting...');
+            connectBtn.disabled = true;
+            connectBtn.textContent = '⏳ Connecting...';
+            
+            try {
+                // Generate token (you'd normally get this from your server)
+                // For demo, we'll use the livekit-api to generate one
+                const token = await getToken(roomName);
+                
+                room = new LivekitClient.Room({
+                    adaptiveStream: true,
+                    dynacast: true,
+                });
+                
+                // Setup event handlers
+                setupRoomEvents();
+                
+                // Connect
+                await room.connect(LIVEKIT_URL, token);
+                
+                isConnected = true;
+                updateStatus('connected', `Connected to ${roomName}`);
+                connectBtn.textContent = '🔌 Disconnect';
+                connectBtn.className = 'btn btn-disconnect';
+                micBtn.disabled = false;
+                
+                document.getElementById('stat-room').textContent = roomName;
+                
+                // Enable microphone by default
+                await enableMicrophone();
+                
+                addTranscript('system', 'Connected to Aria. Start speaking!');
+                
+            } catch (error) {
+                console.error('Connection failed:', error);
+                updateStatus('disconnected', 'Connection failed');
+                connectBtn.textContent = '🔗 Connect to Aria';
+                connectBtn.disabled = false;
+                addTranscript('system', `Error: ${error.message}`);
+            }
+        }
+        
+        async function disconnect() {
+            if (room) {
+                await room.disconnect();
+                room = null;
+            }
+            
+            isConnected = false;
+            micEnabled = false;
+            
+            updateStatus('disconnected', 'Disconnected');
+            connectBtn.textContent = '🔗 Connect to Aria';
+            connectBtn.className = 'btn btn-connect';
+            connectBtn.disabled = false;
+            micBtn.disabled = true;
+            micBtn.className = 'btn btn-mic';
+            document.getElementById('mic-text').textContent = 'Microphone Off';
+            
+            document.getElementById('stat-room').textContent = '-';
+            document.getElementById('stat-agent').textContent = '-';
+            document.getElementById('stat-lipsync').textContent = 'Inactive';
+            
+            // Reset mouth
+            if (model) {
+                setMouthOpen(0);
+            }
+        }
+        
+        function setupRoomEvents() {
+            // Track subscribed - agent audio
+            room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                console.log('Track subscribed:', track.kind, participant.identity);
+                
+                if (track.kind === 'audio') {
+                    // This is the agent's voice - setup lip sync
+                    setupAgentAudioAnalysis(track);
+                    document.getElementById('stat-agent').textContent = participant.identity;
+                }
+            });
+            
+            // Track unsubscribed
+            room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+                if (track.kind === 'audio') {
+                    document.getElementById('stat-lipsync').textContent = 'Inactive';
+                }
+            });
+            
+            // Participant connected
+            room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+                console.log('Participant connected:', participant.identity);
+                if (participant.identity.includes('agent') || participant.identity.includes('aria')) {
+                    document.getElementById('stat-agent').textContent = participant.identity;
+                    addTranscript('agent', 'Aria has joined the room');
+                }
+            });
+            
+            // Data received (for transcripts)
+            room.on(LivekitClient.RoomEvent.DataReceived, (data, participant) => {
+                try {
+                    const message = JSON.parse(new TextDecoder().decode(data));
+                    if (message.type === 'transcript') {
+                        addTranscript(message.role, message.text);
+                    } else if (message.type === 'expression') {
+                        setExpression(message.name);
+                    }
+                } catch (e) {
+                    // Not JSON, ignore
+                }
+            });
+            
+            // Disconnected
+            room.on(LivekitClient.RoomEvent.Disconnected, () => {
+                disconnect();
+            });
+        }
+        
+        function setupAgentAudioAnalysis(track) {
+            // Create audio context for analysis
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            // Attach track to audio element
+            const audioElement = track.attach();
+            audioElement.volume = 1.0;
+            document.body.appendChild(audioElement);
+            
+            // Create analyser
+            const source = audioContext.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 64;
+            analyser.smoothingTimeConstant = 0.5;
+            source.connect(analyser);
+            
+            document.getElementById('stat-lipsync').textContent = 'Active';
+            
+            // Start lip sync loop
+            animateLipSync();
+        }
+        
+        function animateLipSync() {
+            if (!analyser || !isConnected) return;
+            
+            // Get frequency data
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+            
+            // Calculate average volume (focus on voice frequencies)
+            let sum = 0;
+            const voiceRange = Math.min(dataArray.length, 16); // Lower frequencies for voice
+            for (let i = 0; i < voiceRange; i++) {
+                sum += dataArray[i];
+            }
+            const avgVolume = sum / voiceRange / 255;
+            
+            // Update visualizer bars
+            const bars = audioVisualizer.children;
+            for (let i = 0; i < bars.length; i++) {
+                const value = dataArray[i] || 0;
+                bars[i].style.height = Math.max(4, value / 255 * 50) + 'px';
+            }
+            
+            // Update Live2D mouth
+            const mouthOpen = Math.pow(avgVolume, 0.6) * 1.5; // Amplify and curve
+            setMouthOpen(Math.min(1, mouthOpen));
+            
+            requestAnimationFrame(animateLipSync);
+        }
+        
+        function setMouthOpen(value) {
+            if (!model || !model.internalModel || !model.internalModel.coreModel) return;
+            
+            try {
+                const coreModel = model.internalModel.coreModel;
+                
+                // Set mouth parameters
+                const mouthIndex = coreModel.getParameterIndex('ParamMouthOpenY');
+                if (mouthIndex >= 0) {
+                    coreModel.setParameterValueByIndex(mouthIndex, value);
+                }
+                
+                // Slight smile when speaking
+                const formIndex = coreModel.getParameterIndex('ParamMouthForm');
+                if (formIndex >= 0) {
+                    coreModel.setParameterValueByIndex(formIndex, value > 0.1 ? 0.2 : 0);
+                }
+            } catch (e) {
+                // Parameter might not exist
+            }
+        }
+        
+        function setExpression(name) {
+            if (!model) return;
+            try {
+                model.expression(name);
+            } catch (e) {
+                console.log('Expression not found:', name);
+            }
+        }
+        
+        async function toggleMicrophone() {
+            if (micEnabled) {
+                await disableMicrophone();
+            } else {
+                await enableMicrophone();
+            }
+        }
+        
+        async function enableMicrophone() {
+            if (!room) return;
+            
+            try {
+                await room.localParticipant.setMicrophoneEnabled(true);
+                micEnabled = true;
+                micBtn.className = 'btn btn-mic active';
+                document.getElementById('mic-text').textContent = 'Microphone On';
+            } catch (error) {
+                console.error('Failed to enable mic:', error);
+                addTranscript('system', 'Failed to enable microphone');
+            }
+        }
+        
+        async function disableMicrophone() {
+            if (!room) return;
+            
+            await room.localParticipant.setMicrophoneEnabled(false);
+            micEnabled = false;
+            micBtn.className = 'btn btn-mic muted';
+            document.getElementById('mic-text').textContent = 'Microphone Muted';
+        }
+        
+        function updateStatus(state, text) {
+            statusDot.className = 'status-dot ' + state;
+            statusText.textContent = text;
+        }
+        
+        function addTranscript(role, text) {
+            const line = document.createElement('div');
+            line.className = 'transcript-line ' + role;
+            line.textContent = text;
+            transcript.appendChild(line);
+            transcript.scrollTop = transcript.scrollHeight;
+            
+            // Keep only last 50 messages
+            while (transcript.children.length > 50) {
+                transcript.removeChild(transcript.firstChild);
+            }
+        }
+        
+        // Token generation - In production, get this from your server
+        async function getToken(roomName) {
+            // For demo purposes, you can paste a token here
+            // Generate one using: python -c "from livekit import api; ..."
+            
+            // Check if we have a token in URL params
+            const urlParams = new URLSearchParams(window.location.search);
+            const tokenParam = urlParams.get('token');
+            if (tokenParam) {
+                return tokenParam;
+            }
+            
+            // Try to fetch from local token server (if you have one running)
+            try {
+                const response = await fetch(`/api/token?room=${roomName}&identity=web-user-${Date.now()}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.token;
+                }
+            } catch (e) {
+                // No token server
+            }
+            
+            // Fallback: prompt user or use hardcoded token for testing
+            const hardcodedToken = prompt(
+                'Enter LiveKit token (generate with: python -c "from livekit import api; from datetime import timedelta; print(api.AccessToken(\'YOUR_API_KEY\', \'YOUR_API_SECRET\').with_identity(\'web-user\').with_grants(api.VideoGrants(room_join=True, room=\'' + roomName + '\')).with_ttl(timedelta(hours=1)).to_jwt())")'
+            );
+            
+            if (!hardcodedToken) {
+                throw new Error('No token provided');
+            }
+            
+            return hardcodedToken;
+        }
+        
+        // Handle resize
+        window.addEventListener('resize', resizeModel);
+        
+        // Start
+        init();
+    </script>
+</body>
+</html>

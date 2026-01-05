@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aria Maid System - Desktop Mode</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            height: 100vh;
+        }
+        
+        /* Avatar Section */
+        .avatar-section {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .avatar-header {
+            padding: 12px 20px;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .avatar-header h1 {
+            font-size: 1.4em;
+            background: linear-gradient(90deg, #ff6b9d, #c44569);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4757;
+        }
+        
+        .status-dot.connected { background: #2ed573; }
+        .status-dot.connecting { background: #ffa502; animation: pulse 1s infinite; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .avatar-canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #live2d-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .current-maid-badge {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255,107,157,0.9);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        /* Chat Section */
+        .chat-section {
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .chat-header {
+            padding: 15px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .chat-header h2 {
+            font-size: 1.1em;
+            color: #ff6b9d;
+        }
+        
+        .maid-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        
+        .maid-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 15px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        .maid-btn:hover { background: rgba(255,255,255,0.2); }
+        .maid-btn.active { background: #ff6b9d; }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .message {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 15px;
+            font-size: 13px;
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.user {
+            align-self: flex-end;
+            background: #ff6b9d;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .message.assistant {
+            align-self: flex-start;
+            background: rgba(255,255,255,0.15);
+            border-bottom-left-radius: 5px;
+        }
+        
+        .message.system {
+            align-self: center;
+            background: rgba(255,165,2,0.2);
+            font-size: 11px;
+            padding: 6px 12px;
+            border-radius: 10px;
+        }
+        
+        .message-header {
+            font-size: 10px;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+        
+        .chat-input-container {
+            padding: 15px;
+            background: rgba(0,0,0,0.3);
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .chat-input-wrapper {
+            display: flex;
+            gap: 10px;
+        }
+        
+        #chat-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: none;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 13px;
+            outline: none;
+        }
+        
+        #chat-input::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+        
+        #chat-input:focus {
+            background: rgba(255,255,255,0.15);
+        }
+        
+        .send-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 20px;
+            background: #ff6b9d;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .send-btn:hover { background: #c44569; }
+        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .voice-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .voice-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 15px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .voice-btn:hover { background: rgba(255,255,255,0.2); }
+        .voice-btn.active { background: #2ed573; }
+        .voice-btn.recording { background: #ff4757; animation: pulse 0.5s infinite; }
+        
+        /* Loading overlay */
+        .loading-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .loading-overlay.hidden { display: none; }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top-color: #ff6b9d;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .loading-text {
+            margin-top: 15px;
+            font-size: 14px;
+            color: rgba(255,255,255,0.8);
+        }
+        
+        /* Scrollbar styling */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .chat-messages::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Avatar Section -->
+        <div class="avatar-section">
+            <div class="avatar-header">
+                <h1>🎭 Aria Maid System</h1>
+                <div class="connection-status">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="status-text">Disconnected</span>
+                </div>
+            </div>
+            
+            <div class="avatar-canvas-container">
+                <canvas id="live2d-canvas"></canvas>
+                <div class="current-maid-badge" id="current-maid-badge">Aria</div>
+                
+                <div class="loading-overlay" id="loading-overlay">
+                    <div class="spinner"></div>
+                    <div class="loading-text" id="loading-text">Connecting...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat Section -->
+        <div class="chat-section">
+            <div class="chat-header">
+                <h2>💬 Conversation</h2>
+                <div class="maid-selector" id="maid-selector">
+                    <button class="maid-btn active" data-maid="aria">Aria</button>
+                    <button class="maid-btn" data-maid="sophia">Sophia</button>
+                    <button class="maid-btn" data-maid="luna">Luna</button>
+                    <button class="maid-btn" data-maid="rose">Rose</button>
+                    <button class="maid-btn" data-maid="mei">Mei</button>
+                    <button class="maid-btn" data-maid="clara">Clara</button>
+                </div>
+            </div>
+            
+            <div class="chat-messages" id="chat-messages">
+                <!-- Messages will be added here -->
+            </div>
+            
+            <div class="chat-input-container">
+                <div class="chat-input-wrapper">
+                    <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off">
+                    <button class="send-btn" id="send-btn">Send</button>
+                </div>
+                <div class="voice-controls">
+                    <button class="voice-btn" id="mic-btn">🎤 Voice Input</button>
+                    <button class="voice-btn" id="speaker-btn">🔊 Audio On</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIXI.js and Live2D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+    
+    <script src="app.js"></script>
+</body>
+</html>

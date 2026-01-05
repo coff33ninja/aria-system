@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aria Maid System - Live2D Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0,0,0,0.3);
+        }
+        
+        .header h1 {
+            font-size: 1.8em;
+            background: linear-gradient(90deg, #ff6b9d, #c44569);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 15px;
+            padding: 15px;
+            max-width: 1400px;
+            margin: 0 auto;
+            height: calc(100vh - 70px);
+        }
+        
+        .avatar-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #live2d-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .controls-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 15px;
+            overflow-y: auto;
+        }
+        
+        .maid-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 15px;
+        }
+        
+        .maid-btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        
+        .maid-btn:hover { background: rgba(255,255,255,0.2); }
+        .maid-btn.active { background: #ff6b9d; }
+        .maid-btn.no-model { opacity: 0.5; }
+        
+        .section-title {
+            color: #ff6b9d;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 12px 0 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .expression-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+        
+        .expr-btn {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 11px;
+        }
+        
+        .expr-btn:hover { background: rgba(255,255,255,0.2); }
+        .expr-btn.active { background: #c44569; }
+        
+        .param-control {
+            margin: 8px 0;
+        }
+        
+        .param-control label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin-bottom: 4px;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .param-control input[type="range"] {
+            width: 100%;
+            height: 5px;
+            border-radius: 3px;
+            background: rgba(255,255,255,0.2);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .param-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ff6b9d;
+            cursor: pointer;
+        }
+        
+        .status-panel {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            margin-top: 12px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .status-item:last-child { border-bottom: none; }
+        .status-value { color: #2ed573; }
+        .status-value.error { color: #ff4757; }
+        .status-value.loading { color: #ffa502; }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        
+        .loading-overlay.hidden { display: none; }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: #ff6b9d;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .loading-text {
+            margin-top: 12px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .error-message {
+            background: rgba(255,71,87,0.2);
+            border: 1px solid rgba(255,71,87,0.5);
+            border-radius: 8px;
+            padding: 10px;
+            margin: 8px 0;
+            font-size: 11px;
+        }
+        
+        .info-box {
+            background: rgba(255,107,157,0.1);
+            border: 1px solid rgba(255,107,157,0.3);
+            border-radius: 8px;
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        
+        .motion-btn {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            border: none;
+            border-radius: 12px;
+            background: rgba(46, 213, 115, 0.3);
+            color: white;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+        
+        .motion-btn:hover { background: rgba(46, 213, 115, 0.5); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎭 Aria Maid System - Live2D Demo</h1>
+    </div>
+    
+    <div class="container">
+        <div class="avatar-section">
+            <canvas id="live2d-canvas"></canvas>
+            <div class="loading-overlay" id="loading-overlay">
+                <div class="spinner"></div>
+                <div class="loading-text" id="loading-text">Initializing...</div>
+            </div>
+        </div>
+        
+        <div class="controls-section">
+            <div class="info-box">
+                Click on the avatar to interact. Use sliders to control parameters in real-time.
+            </div>
+            
+            <div class="section-title">Select Maid</div>
+            <div class="maid-selector" id="maid-selector"></div>
+            
+            <div class="section-title">Expressions</div>
+            <div class="expression-grid" id="expression-grid"></div>
+            
+            <button class="motion-btn" id="random-motion-btn">🎲 Random Motion</button>
+            
+            <div class="section-title">Parameters</div>
+            <div id="param-controls">
+                <div class="param-control">
+                    <label><span>Mouth Open</span><span id="val-mouth">0</span></label>
+                    <input type="range" id="param-mouth" min="0" max="1" step="0.01" value="0">
+                </div>
+                <div class="param-control">
+                    <label><span>Eye L</span><span id="val-eye-l">1</span></label>
+                    <input type="range" id="param-eye-l" min="0" max="1" step="0.01" value="1">
+                </div>
+                <div class="param-control">
+                    <label><span>Eye R</span><span id="val-eye-r">1</span></label>
+                    <input type="range" id="param-eye-r" min="0" max="1" step="0.01" value="1">
+                </div>
+                <div class="param-control">
+                    <label><span>Eye Ball X</span><span id="val-eyeball-x">0</span></label>
+                    <input type="range" id="param-eyeball-x" min="-1" max="1" step="0.01" value="0">
+                </div>
+                <div class="param-control">
+                    <label><span>Eye Ball Y</span><span id="val-eyeball-y">0</span></label>
+                    <input type="range" id="param-eyeball-y" min="-1" max="1" step="0.01" value="0">
+                </div>
+                <div class="param-control">
+                    <label><span>Mouth Form</span><span id="val-mouth-form">0</span></label>
+                    <input type="range" id="param-mouth-form" min="-1" max="1" step="0.01" value="0">
+                </div>
+            </div>
+            
+            <div class="section-title">Status</div>
+            <div class="status-panel">
+                <div class="status-item">
+                    <span>Model:</span>
+                    <span class="status-value" id="status-model">-</span>
+                </div>
+                <div class="status-item">
+                    <span>Expression:</span>
+                    <span class="status-value" id="status-expression">-</span>
+                </div>
+                <div class="status-item">
+                    <span>FPS:</span>
+                    <span class="status-value" id="status-fps">0</span>
+                </div>
+            </div>
+            
+            <div id="error-container"></div>
+        </div>
+    </div>
+
+    <!-- PIXI.js and pixi-live2d-display -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+</body>
+</html>
+
+    <script>
+        // Maid configuration
+        const maids = {
+            aria: {
+                name: "Aria",
+                modelPath: "../live2d_models/aria/长离.model3.json",
+                hasModel: true,
+                expressions: ["coat_toggle", "heart_eyes", "angry", "eye_roll", "eye_mask", "blush", "dark_face"]
+            },
+            sophia: { name: "Sophia", modelPath: null, hasModel: false, expressions: [] },
+            luna: { name: "Luna", modelPath: null, hasModel: false, expressions: [] },
+            rose: { name: "Rose", modelPath: null, hasModel: false, expressions: [] },
+            mei: { name: "Mei", modelPath: null, hasModel: false, expressions: [] },
+            clara: { name: "Clara", modelPath: null, hasModel: false, expressions: [] }
+        };
+
+        let app, model, currentMaid = null;
+        let frameCount = 0, lastTime = performance.now();
+
+        // DOM
+        const canvas = document.getElementById('live2d-canvas');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+
+        async function init() {
+            setupMaidSelector();
+            setupParameterControls();
+            startFPSCounter();
+            
+            // Initialize PIXI
+            loadingText.textContent = 'Initializing PIXI...';
+            
+            app = new PIXI.Application({
+                view: canvas,
+                autoStart: true,
+                resizeTo: canvas.parentElement,
+                backgroundColor: 0x1a1a2e,
+                antialias: true
+            });
+            
+            // Load Aria by default
+            await loadMaid('aria');
+        }
+
+        function setupMaidSelector() {
+            const selector = document.getElementById('maid-selector');
+            selector.innerHTML = '';
+            
+            for (const [id, maid] of Object.entries(maids)) {
+                const btn = document.createElement('button');
+                btn.className = `maid-btn ${!maid.hasModel ? 'no-model' : ''}`;
+                btn.textContent = maid.name;
+                btn.dataset.maid = id;
+                btn.addEventListener('click', () => loadMaid(id));
+                selector.appendChild(btn);
+            }
+        }
+
+        function setupExpressionButtons(maidId) {
+            const grid = document.getElementById('expression-grid');
+            const maid = maids[maidId];
+            grid.innerHTML = '';
+            
+            maid.expressions.forEach(expr => {
+                const btn = document.createElement('button');
+                btn.className = 'expr-btn';
+                btn.textContent = expr;
+                btn.addEventListener('click', () => setExpression(expr));
+                grid.appendChild(btn);
+            });
+        }
+
+        function setupParameterControls() {
+            const params = [
+                { id: 'param-mouth', param: 'ParamMouthOpenY', valId: 'val-mouth' },
+                { id: 'param-eye-l', param: 'ParamEyeLOpen', valId: 'val-eye-l' },
+                { id: 'param-eye-r', param: 'ParamEyeROpen', valId: 'val-eye-r' },
+                { id: 'param-eyeball-x', param: 'ParamEyeBallX', valId: 'val-eyeball-x' },
+                { id: 'param-eyeball-y', param: 'ParamEyeBallY', valId: 'val-eyeball-y' },
+                { id: 'param-mouth-form', param: 'ParamMouthForm', valId: 'val-mouth-form' }
+            ];
+            
+            params.forEach(({ id, param, valId }) => {
+                const slider = document.getElementById(id);
+                const valDisplay = document.getElementById(valId);
+                
+                slider.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    valDisplay.textContent = val.toFixed(2);
+                    setParameter(param, val);
+                });
+            });
+            
+            // Random motion button
+            document.getElementById('random-motion-btn').addEventListener('click', () => {
+                if (model && model.internalModel.motionManager) {
+                    const motionGroups = Object.keys(model.internalModel.settings.motions || {});
+                    if (motionGroups.length > 0) {
+                        const group = motionGroups[Math.floor(Math.random() * motionGroups.length)];
+                        model.motion(group);
+                    }
+                }
+            });
+        }
+
+        async function loadMaid(maidId) {
+            const maid = maids[maidId];
+            
+            if (!maid.hasModel) {
+                showError(`${maid.name} doesn't have a model yet.`);
+                return;
+            }
+            
+            // Update UI
+            document.querySelectorAll('.maid-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.maid === maidId);
+            });
+            
+            currentMaid = maidId;
+            setupExpressionButtons(maidId);
+            
+            loadingOverlay.classList.remove('hidden');
+            loadingText.textContent = `Loading ${maid.name}...`;
+            document.getElementById('status-model').textContent = 'Loading...';
+            clearError();
+            
+            try {
+                // Remove existing model
+                if (model) {
+                    app.stage.removeChild(model);
+                    model.destroy();
+                    model = null;
+                }
+                
+                // Load new model using pixi-live2d-display
+                model = await PIXI.live2d.Live2DModel.from(maid.modelPath, {
+                    autoInteract: true,
+                    autoUpdate: true
+                });
+                
+                // Scale and position
+                const scale = Math.min(
+                    app.screen.width / model.width * 0.8,
+                    app.screen.height / model.height * 0.9
+                );
+                model.scale.set(scale);
+                model.x = app.screen.width / 2;
+                model.y = app.screen.height / 2 + model.height * scale * 0.3;
+                model.anchor.set(0.5, 0.5);
+                
+                // Enable interaction
+                model.interactive = true;
+                model.on('hit', (hitAreas) => {
+                    console.log('Hit:', hitAreas);
+                    if (hitAreas.includes('body') || hitAreas.includes('Body')) {
+                        model.motion('tap_body');
+                    } else if (hitAreas.includes('head') || hitAreas.includes('Head')) {
+                        model.motion('flick_head');
+                    }
+                });
+                
+                app.stage.addChild(model);
+                
+                document.getElementById('status-model').textContent = maid.name;
+                loadingOverlay.classList.add('hidden');
+                
+                console.log('Model loaded:', model);
+                console.log('Expressions:', model.internalModel.settings.expressions);
+                console.log('Motions:', model.internalModel.settings.motions);
+                
+            } catch (error) {
+                console.error('Load error:', error);
+                showError(`Failed to load: ${error.message}`);
+                document.getElementById('status-model').textContent = 'Error';
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        function setExpression(name) {
+            if (!model) return;
+            
+            try {
+                model.expression(name);
+                document.getElementById('status-expression').textContent = name;
+                
+                document.querySelectorAll('.expr-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.textContent === name);
+                });
+            } catch (e) {
+                console.error('Expression error:', e);
+            }
+        }
+
+        function setParameter(paramId, value) {
+            if (!model || !model.internalModel || !model.internalModel.coreModel) return;
+            
+            try {
+                const coreModel = model.internalModel.coreModel;
+                const index = coreModel.getParameterIndex(paramId);
+                if (index >= 0) {
+                    coreModel.setParameterValueByIndex(index, value);
+                }
+            } catch (e) {
+                // Parameter might not exist
+            }
+        }
+
+        function showError(msg) {
+            document.getElementById('error-container').innerHTML = 
+                `<div class="error-message">⚠️ ${msg}</div>`;
+        }
+
+        function clearError() {
+            document.getElementById('error-container').innerHTML = '';
+        }
+
+        function startFPSCounter() {
+            setInterval(() => {
+                const now = performance.now();
+                const fps = Math.round(frameCount / ((now - lastTime) / 1000));
+                document.getElementById('status-fps').textContent = fps;
+                frameCount = 0;
+                lastTime = now;
+            }, 1000);
+            
+            function tick() {
+                frameCount++;
+                requestAnimationFrame(tick);
+            }
+            tick();
+        }
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            if (model && app) {
+                const scale = Math.min(
+                    app.screen.width / model.width * 0.8,
+                    app.screen.height / model.height * 0.9
+                );
+                model.scale.set(scale);
+                model.x = app.screen.width / 2;
+                model.y = app.screen.height / 2 + model.height * scale * 0.3;
+            }
+        });
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
