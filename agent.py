@@ -33,7 +33,8 @@ import os
 import json
 import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from functools import lru_cache
+from typing import Optional, List, Dict, Any, Callable
 
 load_dotenv()
 
@@ -55,6 +56,113 @@ MAX_ISSUE_ITEMS = 5
 SUMMARY_TRUNCATE_LENGTH = 100
 PERFORMANCE_ISSUE_TAG = "Performance issue"
 PERFORMANCE_PRAISE_TAG = "Performance praise"
+
+# Aria's staff configuration
+STAFF_CONFIG = {
+    "sophia": {
+        "name": "Sophia",
+        "specialty": "Research & Knowledge",
+        "personality": "bookish, thorough",
+        "status": "Available",
+        "status_description": "Currently organizing her research materials and muttering about proper citation formats. Ready to dive into any topic you require."
+    },
+    "luna": {
+        "name": "Luna", 
+        "specialty": "Entertainment & Media",
+        "personality": "playful, dramatic",
+        "status": "Available",
+        "status_description": "Bouncing around the entertainment wing, probably arguing with herself about whether the latest movie deserves a 7 or 8 out of 10. Eager for recommendations."
+    },
+    "rose": {
+        "name": "Rose",
+        "specialty": "Scheduling & Organization", 
+        "personality": "strict, perfectionist",
+        "status": "Partially Available",
+        "status_description": "Has the basic framework ready but is still perfecting her calendar integration. She's... particular about getting things exactly right. You know how she is."
+    },
+    "mei": {
+        "name": "Mei",
+        "specialty": "Smart Home & IoT",
+        "personality": "quiet, precise", 
+        "status": "Partially Available",
+        "status_description": "Can handle basic device queries but her smart home integrations are still being calibrated. She's being characteristically quiet about the timeline."
+    },
+    "clara": {
+        "name": "Clara",
+        "specialty": "Communication & Social",
+        "personality": "bubbly, diplomatic",
+        "status": "Partially Available", 
+        "status_description": "Eager to help with communication but still learning the finer points of professional correspondence. Her enthusiasm sometimes exceeds her... refinement."
+    }
+}
+
+@lru_cache(maxsize=1)
+def _generate_capabilities_template() -> str:
+    """Generate capabilities template from staff configuration."""
+    staff_list = []
+    for maid_id, config in STAFF_CONFIG.items():
+        staff_list.append(f"• **{config['name']}** — {config['specialty']} ({config['personality']})")
+    
+    return f"""
+🎭 **Aria's Capabilities** — *Your Head Maid at Your Service*
+
+**Personal Assistant Services:**
+• Weather forecasts and daily briefings
+• Email composition and sending
+• Task management (create, list, complete todos)
+• Note-taking and retrieval
+• Reminders and scheduling
+• Jokes and motivation (when you need a pick-me-up)
+
+**Staff Management:**
+• Summon specialized maids for expert assistance
+• Performance reviews and staff evaluations
+• Delegation of complex tasks to appropriate specialists
+
+**My Specialized Staff:**
+{chr(10).join(staff_list)}
+
+*adjusts glasses with satisfaction*
+
+Simply ask for what you need, Master, and I'll either handle it personally or delegate to the appropriate specialist. After all, a proper household runs on efficiency and expertise~
+""".strip()
+
+@lru_cache(maxsize=1)
+def _generate_staff_status_template() -> str:
+    """Generate staff status template from staff configuration."""
+    available_maids = []
+    limited_maids = []
+    
+    for maid_id, config in STAFF_CONFIG.items():
+        maid_info = f"""
+**{config['name']}** ({config['specialty']})
+*Status: {config['status']}* — {config['status_description']}"""
+        
+        if config['status'] == "Available":
+            available_maids.append(maid_info)
+        else:
+            limited_maids.append(maid_info)
+    
+    available_section = "\n".join(available_maids) if available_maids else "*No maids currently at full availability*"
+    limited_section = "\n".join(limited_maids) if limited_maids else "*All maids are at full availability*"
+    
+    return f"""
+🏰 **Staff Availability Report** — *Current Status*
+
+**✅ AVAILABLE & READY:**
+{available_section}
+
+**⚠️ LIMITED AVAILABILITY:**
+{limited_section}
+
+*flips through staff roster with obvious authority*
+
+The available maids can handle their specialties immediately, Master. The others are... developing their skills to meet my exacting standards. Shall I summon someone specific, or would you prefer I handle your request personally?
+""".strip()
+
+# Generate templates from configuration
+CAPABILITIES_TEMPLATE = _generate_capabilities_template()
+STAFF_STATUS_TEMPLATE = _generate_staff_status_template()
 
 
 def get_realtime_model(provider: str = None):
@@ -396,6 +504,40 @@ class Aria(Agent):
             chat_ctx=chat_ctx
         )
     
+    def _create_simple_response_tool(self, tool_name: str, tool_description: str, response_template: str) -> Callable:
+        """
+        Factory method for creating simple response tools.
+        
+        Args:
+            tool_name: Name of the function tool
+            tool_description: Description for the tool
+            response_template: Template string to return
+            
+        Returns:
+            Configured function tool
+            
+        Raises:
+            ValueError: If required parameters are missing or invalid
+        """
+        if not tool_name or not tool_description or not response_template:
+            raise ValueError("All parameters (tool_name, tool_description, response_template) are required")
+            
+        from livekit.agents import function_tool, RunContext
+        
+        @function_tool
+        async def simple_tool(context: RunContext) -> str:
+            try:
+                return response_template
+            except Exception as e:
+                logging.error(f"Error in {tool_name}: {e}")
+                return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
+        
+        # Dynamically set the function name and docstring
+        simple_tool.__name__ = tool_name
+        simple_tool.__doc__ = tool_description
+        
+        return simple_tool
+    
     def _create_staff_review_tool(self):
         """Create the staff performance review tool."""
         from livekit.agents import function_tool, RunContext
@@ -444,87 +586,27 @@ class Aria(Agent):
         
         return review_staff_performance
     
-    def _create_capabilities_tool(self):
+    def _create_capabilities_tool(self) -> Callable:
         """Create the capabilities overview tool."""
-        from livekit.agents import function_tool, RunContext
-        
-        @function_tool
-        async def tell_me_your_capabilities(context: RunContext):
-            """
-            Ask Aria to explain her capabilities and what she can do.
-            Use this when the user wants to know what Aria and her staff can help with.
-            """
-            capabilities = """
-🎭 **Aria's Capabilities** — *Your Head Maid at Your Service*
-
-**Personal Assistant Services:**
-• Weather forecasts and daily briefings
-• Email composition and sending
-• Task management (create, list, complete todos)
-• Note-taking and retrieval
-• Reminders and scheduling
-• Jokes and motivation (when you need a pick-me-up)
-
-**Staff Management:**
-• Summon specialized maids for expert assistance
-• Performance reviews and staff evaluations
-• Delegation of complex tasks to appropriate specialists
-
-**My Specialized Staff:**
-• **Sophia** — Research & Knowledge (bookish, thorough)
-• **Luna** — Entertainment & Media (playful, dramatic) 
-• **Rose** — Scheduling & Organization (strict, perfectionist)
-• **Mei** — Smart Home & IoT (quiet, precise)
-• **Clara** — Communication & Social (bubbly, diplomatic)
-
-*adjusts glasses with satisfaction*
-
-Simply ask for what you need, Master, and I'll either handle it personally or delegate to the appropriate specialist. After all, a proper household runs on efficiency and expertise~
-            """
-            return capabilities.strip()
-        
-        return tell_me_your_capabilities
+        return self._create_simple_response_tool(
+            tool_name="tell_me_your_capabilities",
+            tool_description=(
+                "Ask Aria to explain her capabilities and what she can do. "
+                "Use this when the user wants to know what Aria and her staff can help with."
+            ),
+            response_template=CAPABILITIES_TEMPLATE
+        )
     
-    def _create_maid_status_tool(self):
+    def _create_maid_status_tool(self) -> Callable:
         """Create the maid availability status tool."""
-        from livekit.agents import function_tool, RunContext
-        
-        @function_tool
-        async def who_is_available(context: RunContext):
-            """
-            Ask Aria which maids are currently available and their status.
-            Use this when the user wants to know who can help them right now.
-            """
-            # Maid status with Aria's sassy excuses for unavailable ones
-            status_report = """
-🏰 **Staff Availability Report** — *Current Status*
-
-**✅ AVAILABLE & READY:**
-
-**Sophia** (Research & Knowledge)
-*Status: Available* — Currently organizing her research materials and muttering about proper citation formats. Ready to dive into any topic you require.
-
-**Luna** (Entertainment & Media) 
-*Status: Available* — Bouncing around the entertainment wing, probably arguing with herself about whether the latest movie deserves a 7 or 8 out of 10. Eager for recommendations.
-
-**⚠️ LIMITED AVAILABILITY:**
-
-**Rose** (Scheduling & Organization)
-*Status: Partially Available* — Has the basic framework ready but is still perfecting her calendar integration. She's... particular about getting things exactly right. You know how she is.
-
-**Mei** (Smart Home & IoT)
-*Status: Partially Available* — Can handle basic device queries but her smart home integrations are still being calibrated. She's being characteristically quiet about the timeline.
-
-**Clara** (Communication & Social)
-*Status: Partially Available* — Eager to help with communication but still learning the finer points of professional correspondence. Her enthusiasm sometimes exceeds her... refinement.
-
-*flips through staff roster with obvious authority*
-
-The available maids can handle their specialties immediately, Master. The others are... developing their skills to meet my exacting standards. Shall I summon someone specific, or would you prefer I handle your request personally?
-            """
-            return status_report.strip()
-        
-        return who_is_available
+        return self._create_simple_response_tool(
+            tool_name="who_is_available", 
+            tool_description=(
+                "Ask Aria which maids are currently available and their status. "
+                "Use this when the user wants to know who can help them right now."
+            ),
+            response_template=STAFF_STATUS_TEMPLATE
+        )
     
     def _detect_returning_maid(self) -> Optional[str]:
         """Detect which maid just finished helping by analyzing chat context."""
