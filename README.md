@@ -15,10 +15,11 @@ The original project was a basic voice assistant with 3 tools (weather, web sear
 | **Agents** | 1 (Friday/Assistant) | 6 (Aria + 5 specialized maids) |
 | **Tools** | 3 (weather, search, email) | 30+ (todos, notes, reminders, research, smart home, scheduling, etc.) |
 | **Voices** | 1 (OpenAI sage) | 6 unique voices (Gemini Live native audio) |
-| **Memory** | Mem0 cloud (requires API key) | Local JSON + MCP knowledge graph (no cloud dependency) |
+| **Memory** | Mem0 cloud (requires API key) | Local JSON (MCP knowledge graph temporarily disabled) |
 | **LLM Provider** | OpenAI only | OpenAI or Google Gemini (configurable) |
 | **Voice Handoffs** | None | Full agent swapping with voice changes |
 | **Per-Agent Memory** | None | Each maid has personal memory |
+| **Performance Reviews** | None | Aria evaluates maid performance with sassy commentary |
 | **API Key Management** | Single key | Round-robin rotation for rate limit handling |
 | **Personality** | Generic assistant | Rich character personalities with sass |
 
@@ -95,20 +96,49 @@ User: "Can you research quantum computing?"
 - `suggest_and_summon_maid` — Auto-select best maid for a task
 - `list_available_maids` — Show available maids and specialties
 
+### Staff Management
+- `review_staff_performance` — View Aria's assessments of maid performance with signature sass
+- `tell_me_your_capabilities` — Aria explains her full range of services and staff specialties
+- `who_is_available` — Current maid availability status with Aria's sassy excuses for unavailable ones
+
+### 🔍 Capability Discovery
+
+New users can easily discover what Aria and her staff can do:
+
+**"Tell me your capabilities"** — Aria provides a comprehensive overview of:
+- Her personal assistant services (weather, email, tasks, notes, etc.)
+- Staff management and delegation capabilities  
+- Each maid's specialty and personality
+- How to request help or summon specific maids
+
+**"Who is available?"** — Real-time staff status report with:
+- ✅ **Available maids** ready for immediate assistance
+- ⚠️ **Limited availability** maids (partially implemented features)
+- Aria's signature excuses for why some maids aren't fully ready yet
+- Guidance on which maids to summon for specific needs
+
+Example interaction:
+```
+User: "Who can help me right now?"
+Aria: "🏰 Staff Availability Report — Sophia and Luna are ready for action, 
+      Rose is still perfecting her calendar integration (you know how she is), 
+      and Mei is being characteristically quiet about her timeline..."
+```
+
 ---
 
 ## 🧠 Memory Systems
 
-### Aria's Memory (MCP Knowledge Graph)
-Aria uses an MCP-compatible memory server (`mcp-memory-py`) for persistent knowledge graph storage. Conversations are automatically archived on session end.
+### Aria's Memory (Local JSON + MCP Knowledge Graph)
+Aria currently uses local JSON storage for persistent memory. MCP knowledge graph support is temporarily disabled due to JSON parsing conflicts with voice input processing.
 
 ```env
-ARIA_USE_MCP_MEMORY=true  # Enable MCP (default)
+ARIA_USE_MCP_MEMORY=true  # Enable MCP (temporarily disabled)
 ARIA_MEMORY_FILE=./data/aria-memory.json
 ARIA_USER_NAME=Master
 ```
 
-Falls back to simple local JSON if MCP fails.
+> **Note**: MCP memory (`mcp-memory-py`) is temporarily disabled to resolve voice input issues. The system automatically falls back to local JSON storage.
 
 ### Per-Maid Memory
 Each maid maintains their own memory file (`data/<maid>-memory.json`) with:
@@ -216,7 +246,7 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 |----------|---------|-------------|
 | `ARIA_MEMORY_FILE` | `./data/aria-memory.json` | Memory storage path |
 | `ARIA_USER_NAME` | `Master` | How Aria addresses you |
-| `ARIA_USE_MCP_MEMORY` | `true` | Use MCP knowledge graph |
+| `ARIA_USE_MCP_MEMORY` | `true` | Use MCP knowledge graph (temporarily disabled) |
 | `ARIA_DATA_DIR` | `./data` | Directory for maid memories |
 | `ARIA_FORCE_VOICE_RECONNECT` | `true` | Force disconnect on voice swap |
 | `GMAIL_USER` | — | Gmail address for email tool |
@@ -226,6 +256,41 @@ State is persisted in `.gemini_key_idx` with file locking for concurrent safety.
 | `SPOTIFY_CLIENT_SECRET` | — | Spotify app secret (Luna) |
 | `SPOTIFY_REDIRECT_URI` | `http://localhost:8888/callback` | Spotify OAuth redirect |
 | `TMDB_API_KEY` | — | Movie database API (Luna) |
+
+---
+
+## 🐛 Known Issues
+
+### Sophia's Output Truncation Bug
+**Issue**: Sophia tends to provide incomplete reports, stopping after 2-3 sentences and only continuing when the user acknowledges her partial output.
+
+**Symptoms**:
+- Research requests result in truncated responses
+- Sophia pauses mid-explanation waiting for user input
+- Full reports only delivered after user says "continue" or similar acknowledgment
+- Affects comprehensive research tasks and detailed explanations
+
+**Workaround**: 
+- After Sophia's initial response, prompt her to continue: "Please continue" or "Tell me more"
+- For complex research, break requests into smaller, specific questions
+- Use follow-up questions to get complete information
+
+**Status**: Under investigation - may be related to voice detection timing or response length limits
+
+**Technical Notes**: This appears to be a voice pipeline issue where Sophia's longer responses are being interrupted by the voice detection system, causing her to pause and wait for user acknowledgment before continuing.
+
+---
+
+## ⚡ Performance Optimizations
+
+### Voice Detection Speed
+Voice detection parameters are currently under research for optimal response times:
+
+- **Current Configuration**: Using LiveKit default voice detection settings
+- **Research Status**: Investigating optimal `min_endpointing_delay` values for AgentSession
+- **Research Documentation**: See `docs/voice-delay-research.md` for ongoing findings
+
+The system uses LiveKit's native voice activity detection with semantic understanding to accurately detect when you've finished speaking. Voice detection parameter optimization is an active area of development. - Note website works perfectly for TTS.
 
 ---
 

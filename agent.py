@@ -28,11 +28,13 @@ from tools import (
 from maids.handoff_tools import HANDOFF_TOOLS
 from mcp_client import MCPServerSse, MCPServerStdio
 from mcp_client.agent_tools import MCPToolsIntegration
+from maid_reviews import get_review_for_maid
 import os
 import json
 import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from functools import lru_cache
+from typing import Optional, List, Dict, Any, Callable, Awaitable
 
 load_dotenv()
 
@@ -45,6 +47,122 @@ USER_NAME = os.environ.get("ARIA_USER_NAME", "Master")
 
 # MCP Memory server configuration
 USE_MCP_MEMORY = os.environ.get("ARIA_USE_MCP_MEMORY", "true").lower() == "true"
+
+# Performance review constants
+RECENT_MESSAGES_LIMIT = 10
+PERFORMANCE_ANALYSIS_LIMIT = 15
+MAX_PRAISE_ITEMS = 5
+MAX_ISSUE_ITEMS = 5
+SUMMARY_TRUNCATE_LENGTH = 100
+PERFORMANCE_ISSUE_TAG = "Performance issue"
+PERFORMANCE_PRAISE_TAG = "Performance praise"
+
+# Aria's staff configuration
+STAFF_CONFIG = {
+    "sophia": {
+        "name": "Sophia",
+        "specialty": "Research & Knowledge",
+        "personality": "bookish, thorough",
+        "status": "Available",
+        "status_description": "Currently organizing her research materials and muttering about proper citation formats. Ready to dive into any topic you require."
+    },
+    "luna": {
+        "name": "Luna", 
+        "specialty": "Entertainment & Media",
+        "personality": "playful, dramatic",
+        "status": "Available",
+        "status_description": "Bouncing around the entertainment wing, probably arguing with herself about whether the latest movie deserves a 7 or 8 out of 10. Eager for recommendations."
+    },
+    "rose": {
+        "name": "Rose",
+        "specialty": "Scheduling & Organization", 
+        "personality": "strict, perfectionist",
+        "status": "Partially Available",
+        "status_description": "Has the basic framework ready but is still perfecting her calendar integration. She's... particular about getting things exactly right. You know how she is."
+    },
+    "mei": {
+        "name": "Mei",
+        "specialty": "Smart Home & IoT",
+        "personality": "quiet, precise", 
+        "status": "Partially Available",
+        "status_description": "Can handle basic device queries but her smart home integrations are still being calibrated. She's being characteristically quiet about the timeline."
+    },
+    "clara": {
+        "name": "Clara",
+        "specialty": "Communication & Social",
+        "personality": "bubbly, diplomatic",
+        "status": "Partially Available", 
+        "status_description": "Eager to help with communication but still learning the finer points of professional correspondence. Her enthusiasm sometimes exceeds her... refinement."
+    }
+}
+
+@lru_cache(maxsize=1)
+def _generate_capabilities_template() -> str:
+    """Generate capabilities template from staff configuration."""
+    staff_list = []
+    for maid_id, config in STAFF_CONFIG.items():
+        staff_list.append(f"• **{config['name']}** — {config['specialty']} ({config['personality']})")
+    
+    return f"""
+🎭 **Aria's Capabilities** — *Your Head Maid at Your Service*
+
+**Personal Assistant Services:**
+• Weather forecasts and daily briefings
+• Email composition and sending
+• Task management (create, list, complete todos)
+• Note-taking and retrieval
+• Reminders and scheduling
+• Jokes and motivation (when you need a pick-me-up)
+
+**Staff Management:**
+• Summon specialized maids for expert assistance
+• Performance reviews and staff evaluations
+• Delegation of complex tasks to appropriate specialists
+
+**My Specialized Staff:**
+{chr(10).join(staff_list)}
+
+*adjusts glasses with satisfaction*
+
+Simply ask for what you need, Master, and I'll either handle it personally or delegate to the appropriate specialist. After all, a proper household runs on efficiency and expertise~
+""".strip()
+
+@lru_cache(maxsize=1)
+def _generate_staff_status_template() -> str:
+    """Generate staff status template from staff configuration."""
+    available_maids = []
+    limited_maids = []
+    
+    for maid_id, config in STAFF_CONFIG.items():
+        maid_info = f"""
+**{config['name']}** ({config['specialty']})
+*Status: {config['status']}* — {config['status_description']}"""
+        
+        if config['status'] == "Available":
+            available_maids.append(maid_info)
+        else:
+            limited_maids.append(maid_info)
+    
+    available_section = "\n".join(available_maids) if available_maids else "*No maids currently at full availability*"
+    limited_section = "\n".join(limited_maids) if limited_maids else "*All maids are at full availability*"
+    
+    return f"""
+🏰 **Staff Availability Report** — *Current Status*
+
+**✅ AVAILABLE & READY:**
+{available_section}
+
+**⚠️ LIMITED AVAILABILITY:**
+{limited_section}
+
+*flips through staff roster with obvious authority*
+
+The available maids can handle their specialties immediately, Master. The others are... developing their skills to meet my exacting standards. Shall I summon someone specific, or would you prefer I handle your request personally?
+""".strip()
+
+# Generate templates from configuration
+CAPABILITIES_TEMPLATE = _generate_capabilities_template()
+STAFF_STATUS_TEMPLATE = _generate_staff_status_template()
 
 
 def get_realtime_model(provider: str = None):
@@ -341,6 +459,8 @@ class Aria(Agent):
     - summon_sophia, summon_luna, etc. return maid Agent instances
     - LiveKit automatically switches voice when handoff occurs
     - Each maid's on_enter() introduces them in their own voice
+    
+    Performance Reviews: Aria evaluates her staff's work with signature sass.
     """
     
     # Aria's voice configuration (for reference and handoff back)
@@ -349,6 +469,9 @@ class Aria(Agent):
     temperature = 0.9
     
     def __init__(self, chat_ctx=None, llm_provider: str = None) -> None:
+        # Initialize Aria's personal memory for staff management
+        self._memory = LocalMemory(MEMORY_FILE.parent / "aria-staff-reviews.json")
+        
         super().__init__(
             instructions=AGENT_INSTRUCTION,
             llm=get_realtime_model(llm_provider),
@@ -373,21 +496,304 @@ class Aria(Agent):
                 motivate,
                 # Phase 2: Voice handoff tools (return Agent instances)
                 *HANDOFF_TOOLS,
+                # Staff management
+                self._create_staff_review_tool(),
+                self._create_capabilities_tool(),
+                self._create_maid_status_tool(),
             ],
             chat_ctx=chat_ctx
         )
     
-    async def on_enter(self) -> None:
-        """Called when Aria becomes active (e.g., after returning from a maid)."""
-        logger = logging.getLogger("aria")
-        logger.info("🎭 Aria is now active")
+    def _create_simple_response_tool(self, tool_name: str, tool_description: str, response_template: str) -> Callable[..., Awaitable[str]]:
+        """
+        Factory method for creating simple response tools with dynamic function names.
         
-        # Generate a welcome back message
+        This method creates unique function tools to avoid name conflicts in LiveKit's
+        function registration system. Each tool returns a static response template.
+        
+        Args:
+            tool_name: Name of the function tool (must be valid Python identifier)
+            tool_description: Description for the tool (used in function docstring)
+            response_template: Template string to return when tool is called
+            
+        Returns:
+            Configured function tool with proper name and docstring
+            
+        Raises:
+            ValueError: If required parameters are missing, invalid, or tool_name 
+                       is not a valid Python identifier
+                       
+        Example:
+            >>> tool = self._create_simple_response_tool(
+            ...     "greet_user", 
+            ...     "Greet the user politely",
+            ...     "Hello, Master! How may I assist you?"
+            ... )
+            >>> tool.__name__
+            'greet_user'
+        """
+        # Validate inputs more comprehensively
+        if not tool_name or not isinstance(tool_name, str):
+            raise ValueError("tool_name must be a non-empty string")
+        if not tool_description or not isinstance(tool_description, str):
+            raise ValueError("tool_description must be a non-empty string")
+        if not isinstance(response_template, str):
+            raise ValueError("response_template must be a string")
+        
+        # Validate tool_name follows Python identifier rules
+        if not tool_name.isidentifier():
+            raise ValueError(f"tool_name '{tool_name}' must be a valid Python identifier")
+            
+        from livekit.agents import function_tool, RunContext
+        
+        # Create a unique function dynamically using exec to ensure truly unique function objects
+        # This is the only reliable way to create functions with different actual names for LiveKit
+        function_code = f'''
+@function_tool
+async def {tool_name}(context: RunContext) -> str:
+    try:
+        return """{response_template}"""
+    except Exception as e:
+        error_msg = f"Error in {tool_name}: {{e}}"
+        logging.error(error_msg, exc_info=True)  # Include stack trace for debugging
+        return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
+
+{tool_name}.__doc__ = """{tool_description}"""
+'''
+        
+        # Execute the function definition in a local namespace
+        local_namespace = {
+            'function_tool': function_tool,
+            'RunContext': RunContext,
+            'logging': logging,
+            'response_template': response_template,
+            'tool_name': tool_name,
+            'tool_description': tool_description
+        }
+        
+        exec(function_code, globals(), local_namespace)
+        return local_namespace[tool_name]
+    
+    def _create_staff_review_tool(self):
+        """Create the staff performance review tool."""
+        from livekit.agents import function_tool, RunContext
+        
+        aria_self = self  # Capture reference for closure
+        
+        @function_tool
+        async def review_staff_performance(context: RunContext):
+            """
+            Review Aria's assessments of maid performance.
+            See what the Head Maid really thinks about her staff's work.
+            """
+            try:
+                # Get performance logs from Aria's memory
+                issues = aria_self._memory.search(PERFORMANCE_ISSUE_TAG)
+                praise = aria_self._memory.search(PERFORMANCE_PRAISE_TAG)
+                
+                if not issues and not praise:
+                    return ("📋 **Staff Performance Review** (Aria's Assessment):\n\n"
+                           "*adjusts glasses with satisfaction*\n\n"
+                           "All staff have been performing to my exacting standards, Master. "
+                           "How refreshing when competence actually exists.")
+                
+                report = "📋 **Staff Performance Review** (Aria's Assessment):\n\n"
+                
+                if praise:
+                    report += "**✨ Commendable Performance:**\n"
+                    for item in praise[-MAX_PRAISE_ITEMS:]:  # Last 5 praise items
+                        report += f"• {item.get('memory', item)}\n"
+                    report += "\n"
+                
+                if issues:
+                    report += "**⚠️ Areas Requiring... Improvement:**\n"
+                    for item in issues[-MAX_ISSUE_ITEMS:]:  # Last 5 issues
+                        report += f"• {item.get('memory', item)}\n"
+                    report += "\n"
+                
+                report += "*flips through notes with obvious satisfaction*\n\n"
+                report += "Shall I have a word with any particular staff member, Master?"
+                
+                return report
+                
+            except Exception as e:
+                logging.error(f"Failed to generate staff review: {e}")
+                return "Ara ara~ My performance records seem to be... misplaced. How unlike me."
+        
+        return review_staff_performance
+    
+    def _create_capabilities_tool(self) -> Callable:
+        """Create the capabilities overview tool."""
+        return self._create_simple_response_tool(
+            tool_name="tell_me_your_capabilities",
+            tool_description=(
+                "Ask Aria to explain her capabilities and what she can do. "
+                "Use this when the user wants to know what Aria and her staff can help with."
+            ),
+            response_template=CAPABILITIES_TEMPLATE
+        )
+    
+    def _create_maid_status_tool(self) -> Callable:
+        """Create the maid availability status tool."""
+        return self._create_simple_response_tool(
+            tool_name="who_is_available", 
+            tool_description=(
+                "Ask Aria which maids are currently available and their status. "
+                "Use this when the user wants to know who can help them right now."
+            ),
+            response_template=STAFF_STATUS_TEMPLATE
+        )
+    
+    def _detect_returning_maid(self) -> Optional[str]:
+        """Detect which maid just finished helping by analyzing chat context."""
+        try:
+            if not hasattr(self, 'chat_ctx') or not self.chat_ctx:
+                return None
+            
+            # Look through recent messages for maid signatures
+            recent_messages = self.chat_ctx.items[-RECENT_MESSAGES_LIMIT:] if len(self.chat_ctx.items) >= RECENT_MESSAGES_LIMIT else self.chat_ctx.items
+            
+            for item in reversed(recent_messages):
+                if hasattr(item, 'content') and item.content:
+                    content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
+                    content_lower = content_str.lower()
+                    
+                    # Look for maid signatures in their messages
+                    if "returning you to aria" in content_lower or "back to aria" in content_lower:
+                        if "sophia" in content_lower or "research" in content_lower:
+                            return "sophia"
+                        elif "luna" in content_lower or "entertainment" in content_lower:
+                            return "luna"
+                        elif "rose" in content_lower or "scheduling" in content_lower:
+                            return "rose"
+                        elif "mei" in content_lower or "smart home" in content_lower:
+                            return "mei"
+                        elif "clara" in content_lower or "communication" in content_lower:
+                            return "clara"
+            
+            return None
+        except Exception as e:
+            logging.debug(f"Could not detect returning maid: {e}")
+            return None
+    
+    def _assess_maid_performance(self) -> Dict[str, Any]:
+        """Analyze recent conversation to assess maid performance."""
+        try:
+            if not hasattr(self, 'chat_ctx') or not self.chat_ctx:
+                return {"status": "unknown", "summary": "No context available"}
+            
+            # Analyze recent messages for success/failure indicators
+            recent_messages = self.chat_ctx.items[-PERFORMANCE_ANALYSIS_LIMIT:] if len(self.chat_ctx.items) >= PERFORMANCE_ANALYSIS_LIMIT else self.chat_ctx.items
+            
+            error_indicators = ["error", "failed", "couldn't", "unable", "sorry", "problem", "issue"]
+            success_indicators = ["found", "here's", "successfully", "completed", "done", "result"]
+            
+            errors = 0
+            successes = 0
+            summary_parts = []
+            
+            for item in recent_messages:
+                if hasattr(item, 'content') and hasattr(item, 'role') and item.role == 'assistant':
+                    content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
+                    content_lower = content_str.lower()
+                    
+                    # Count error indicators
+                    for indicator in error_indicators:
+                        if indicator in content_lower:
+                            errors += 1
+                            break
+                    
+                    # Count success indicators
+                    for indicator in success_indicators:
+                        if indicator in content_lower:
+                            successes += 1
+                            break
+                    
+                    # Collect summary
+                    if len(content_str) > 20:
+                        summary_parts.append(content_str[:SUMMARY_TRUNCATE_LENGTH])
+            
+            # Determine overall performance
+            if errors > successes:
+                status = "poor"
+            elif successes > errors * 2:
+                status = "excellent"
+            elif successes > errors:
+                status = "good"
+            else:
+                status = "adequate"
+            
+            return {
+                "status": status,
+                "errors": errors,
+                "successes": successes,
+                "summary": " | ".join(summary_parts[-3:])  # Last 3 interactions
+            }
+            
+        except Exception as e:
+            logging.debug(f"Could not assess performance: {e}")
+            return {"status": "unknown", "summary": "Assessment failed"}
+    
+    def _log_maid_performance(self, maid_name: str, performance: Dict[str, Any], is_praise: bool = False):
+        """Log maid performance for later review."""
+        try:
+            from datetime import datetime
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            
+            if is_praise:
+                log_entry = f"[{timestamp}] Performance praise for {maid_name}: {performance['status']} work - {performance.get('summary', 'No details')[:SUMMARY_TRUNCATE_LENGTH]}"
+                self._memory.add_observation("staff_performance", log_entry, entity_type="praise")
+                logging.info(f"🎭 Aria logged praise: {maid_name} - {performance['status']}")
+            else:
+                log_entry = f"[{timestamp}] Performance issue with {maid_name}: {performance['status']} work - {performance.get('summary', 'No details')[:SUMMARY_TRUNCATE_LENGTH]}"
+                self._memory.add_observation("staff_performance", log_entry, entity_type="issue")
+                logging.warning(f"🎭 Aria logged performance issue: {maid_name} - {performance['status']}")
+                
+        except Exception as e:
+            logging.error(f"Failed to log maid performance: {e}")
+    
+    async def on_enter(self) -> None:
+        """
+        Aria's grand return with sophisticated performance review.
+        She evaluates her staff's work with signature sass and elegance.
+        """
+        logger = logging.getLogger("aria")
+        logger.info("🎭 Aria returning with performance review")
+        
+        # Detect which maid just finished and assess their performance
+        last_maid = self._detect_returning_maid()
+        performance = self._assess_maid_performance()
+        
+        if last_maid and performance["status"] != "unknown":
+            # Log the performance for later review
+            if performance["status"] in ["excellent", "good"]:
+                self._log_maid_performance(last_maid, performance, is_praise=True)
+            elif performance["status"] == "poor":
+                self._log_maid_performance(last_maid, performance, is_praise=False)
+            
+            # Generate maid-specific performance review
+            await self._generate_performance_review(last_maid, performance)
+        else:
+            # Standard return without specific maid context
+            self.session.generate_reply(
+                instructions=(
+                    "You are Aria, the Head Maid. You just returned to the conversation. "
+                    "Welcome the user back with your signature elegance and sass. "
+                    "Say something like 'Ara ara~ I'm back, Master. How may I assist you further?' "
+                    "Keep it short and in character."
+                )
+            )
+    
+    async def _generate_performance_review(self, maid_name: str, performance: Dict[str, Any]):
+        """Generate Aria's sassy performance review for a specific maid."""
+        selected_review = get_review_for_maid(maid_name, performance["status"])
+        
         self.session.generate_reply(
             instructions=(
-                "You are Aria, the Head Maid. You just returned to the conversation "
-                "(possibly after a maid finished helping). Welcome the user back briefly "
-                "with your signature elegance and sass. Keep it short - one or two sentences."
+                f"You are Aria returning after {maid_name} helped. "
+                f"Say exactly: '{selected_review}' "
+                f"Then pause briefly for effect. Keep it elegant and sassy."
             )
         )
 
@@ -416,7 +822,11 @@ async def entrypoint(ctx: agents.JobContext):
     memory = None
     mcp_memory = None
 
-    if USE_MCP_MEMORY:
+    # Temporarily disable MCP memory due to JSON parsing errors affecting voice input
+    # TODO: Re-enable once MCP memory issues are resolved
+    USE_MCP_MEMORY_TEMP = False
+
+    if USE_MCP_MEMORY and USE_MCP_MEMORY_TEMP:
         try:
             mcp_memory = await MCPMemory.create(MEMORY_FILE)
             logging.info("Aria's MCP memory system initialized — knowledge graph ready~")
@@ -425,6 +835,7 @@ async def entrypoint(ctx: agents.JobContext):
             memory = LocalMemory()
     else:
         memory = LocalMemory()
+        logging.info("Using local memory system (MCP temporarily disabled)")
 
     user_name = USER_NAME
 
@@ -493,6 +904,9 @@ async def entrypoint(ctx: agents.JobContext):
         except Exception as e:
             logging.error(f"Failed to archive memories: {e}. How vexing.")
 
+    # Configure session - voice detection parameters need further research
+    # See: docs/voice-delay-research.md for research findings
+    # Note: min_endpointing_delay may not be valid for AgentSession constructor
     session = AgentSession()
 
     # Load existing memories for context
