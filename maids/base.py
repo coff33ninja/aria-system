@@ -15,6 +15,7 @@ from pathlib import Path
 import os
 import logging
 import json
+import asyncio
 
 logger = logging.getLogger("maids.base")
 
@@ -289,14 +290,18 @@ class BaseMaid(Agent, ABC):
             logger.info(f"🎭 {maid_self.name} returning control to Aria")
             maid_self.memory.remember("Returned control to Aria", category="handoffs")
             
-            # Try to speak farewell before handoff
+            # Try to speak farewell before handoff - use maid_self.session instead of context.session
             try:
-                session = getattr(context, 'session', None)
-                if session and hasattr(session, 'say'):
+                if maid_self.session and hasattr(maid_self.session, 'say'):
                     farewell = maid_self.get_farewell_phrase()
-                    await session.say(farewell, allow_interruptions=False)
+                    logger.info(f"🎭 {maid_self.name} saying farewell: {farewell}")
+                    await maid_self.session.say(farewell, allow_interruptions=False)
+                    # Small delay to ensure speech completes before handoff
+                    await asyncio.sleep(0.5)
+                else:
+                    logger.warning(f"Could not access session for farewell from {maid_self.name}")
             except Exception as e:
-                logger.debug(f"Could not speak farewell: {e}")
+                logger.warning(f"Could not speak farewell from {maid_self.name}: {e}")
             
             # Return Aria instance with chat context preserved
             chat_ctx = _get_chat_ctx_from_session(maid_self.session)

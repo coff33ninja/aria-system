@@ -20,3 +20,4 @@ data/
 *.db
 aria-memory.json
 .git-deploy.md
+thirdparty/python-agents-examples-main/

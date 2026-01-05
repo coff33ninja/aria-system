@@ -62,10 +62,16 @@ async def _speak_farewell(context: RunContext, maid_name: str) -> None:
         session = getattr(context, 'session', None)
         if session and hasattr(session, 'say'):
             farewell = _get_aria_farewell(maid_name)
+            logger.info(f"Aria saying farewell: {farewell}")
             await session.say(farewell, allow_interruptions=False)
-            logger.info(f"Aria said farewell: {farewell}")
+            # Small delay to ensure speech completes before handoff
+            import asyncio
+            await asyncio.sleep(0.3)
+            logger.info(f"Aria farewell completed for {maid_name}")
+        else:
+            logger.warning(f"Could not access session for Aria's farewell to {maid_name}")
     except Exception as e:
-        logger.debug(f"Could not speak farewell: {e}")
+        logger.warning(f"Could not speak Aria's farewell to {maid_name}: {e}")
 
 
 def _get_chat_ctx(context: RunContext) -> Optional[Any]:
