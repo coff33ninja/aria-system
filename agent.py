@@ -34,7 +34,7 @@ import json
 import logging
 from pathlib import Path
 from functools import lru_cache
-from typing import Optional, List, Dict, Any, Callable
+from typing import Optional, List, Dict, Any, Callable, Awaitable
 
 load_dotenv()
 
@@ -504,42 +504,62 @@ class Aria(Agent):
             chat_ctx=chat_ctx
         )
     
-    def _create_simple_response_tool(self, tool_name: str, tool_description: str, response_template: str) -> Callable:
+    def _create_simple_response_tool(self, tool_name: str, tool_description: str, response_template: str) -> Callable[..., Awaitable[str]]:
         """
-        Factory method for creating simple response tools.
+        Factory method for creating simple response tools with dynamic function names.
+        
+        This method creates unique function tools to avoid name conflicts in LiveKit's
+        function registration system. Each tool returns a static response template.
         
         Args:
-            tool_name: Name of the function tool
-            tool_description: Description for the tool
-            response_template: Template string to return
+            tool_name: Name of the function tool (must be valid Python identifier)
+            tool_description: Description for the tool (used in function docstring)
+            response_template: Template string to return when tool is called
             
         Returns:
-            Configured function tool
+            Configured function tool with proper name and docstring
             
         Raises:
-            ValueError: If required parameters are missing or invalid
+            ValueError: If required parameters are missing, invalid, or tool_name 
+                       is not a valid Python identifier
+                       
+        Example:
+            >>> tool = self._create_simple_response_tool(
+            ...     "greet_user", 
+            ...     "Greet the user politely",
+            ...     "Hello, Master! How may I assist you?"
+            ... )
+            >>> tool.__name__
+            'greet_user'
         """
-        if not tool_name or not tool_description or not response_template:
-            raise ValueError("All parameters (tool_name, tool_description, response_template) are required")
+        # Validate inputs more comprehensively
+        if not tool_name or not isinstance(tool_name, str):
+            raise ValueError("tool_name must be a non-empty string")
+        if not tool_description or not isinstance(tool_description, str):
+            raise ValueError("tool_description must be a non-empty string")
+        if not isinstance(response_template, str):
+            raise ValueError("response_template must be a string")
+        
+        # Validate tool_name follows Python identifier rules
+        if not tool_name.isidentifier():
+            raise ValueError(f"tool_name '{tool_name}' must be a valid Python identifier")
             
         from livekit.agents import function_tool, RunContext
         
         # Create a unique function dynamically to avoid name conflicts
-        def create_tool_function():
-            @function_tool
-            async def tool_function(context: RunContext) -> str:
-                try:
-                    return response_template
-                except Exception as e:
-                    logging.error(f"Error in {tool_name}: {e}")
-                    return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
-            
-            # Set the function name and docstring
-            tool_function.__name__ = tool_name
-            tool_function.__doc__ = tool_description
-            return tool_function
+        @function_tool
+        async def tool_function(context: RunContext) -> str:
+            try:
+                return response_template
+            except Exception as e:
+                error_msg = f"Error in {tool_name}: {e}"
+                logging.error(error_msg, exc_info=True)  # Include stack trace for debugging
+                return f"Ara ara~ Something went wrong with {tool_name}. How unlike me to have technical difficulties."
         
-        return create_tool_function()
+        # Set the function name and docstring for proper tool registration
+        tool_function.__name__ = tool_name
+        tool_function.__doc__ = tool_description
+        return tool_function
     
     def _create_staff_review_tool(self):
         """Create the staff performance review tool."""
