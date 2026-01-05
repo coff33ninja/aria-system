@@ -430,9 +430,21 @@ async def entrypoint(ctx: agents.JobContext):
         try:
             messages = []
             for item in chat_ctx.items:
-                content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
-                if item.role in ['user', 'assistant'] and content_str.strip():
-                    messages.append(f"{item.role}: {content_str.strip()[:100]}")
+                # Skip function calls and tool results - they don't have .content
+                if not hasattr(item, 'content') or not hasattr(item, 'role'):
+                    continue
+                # Skip non-message items
+                if item.role not in ['user', 'assistant']:
+                    continue
+                # Handle content safely
+                try:
+                    if item.content is None:
+                        continue
+                    content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
+                    if content_str.strip():
+                        messages.append(f"{item.role}: {content_str.strip()[:100]}")
+                except (TypeError, AttributeError):
+                    continue
 
             if messages:
                 summary = " | ".join(messages[-5:])
@@ -451,9 +463,21 @@ async def entrypoint(ctx: agents.JobContext):
         try:
             messages = []
             for item in chat_ctx.items:
-                content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
-                if item.role in ['user', 'assistant'] and content_str.strip():
-                    messages.append(f"{item.role}: {content_str.strip()[:100]}")
+                # Skip function calls and tool results - they don't have .content
+                if not hasattr(item, 'content') or not hasattr(item, 'role'):
+                    continue
+                # Skip non-message items
+                if item.role not in ['user', 'assistant']:
+                    continue
+                # Handle content safely
+                try:
+                    if item.content is None:
+                        continue
+                    content_str = ''.join(item.content) if isinstance(item.content, list) else str(item.content)
+                    if content_str.strip():
+                        messages.append(f"{item.role}: {content_str.strip()[:100]}")
+                except (TypeError, AttributeError):
+                    continue
 
             if messages:
                 summary = " | ".join(messages[-5:])
