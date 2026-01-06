@@ -183,41 +183,36 @@ Tray Menu:
 
 ---
 
-### Phase 5: Advanced Features
+### Phase 5: Advanced Features (Partial)
 
-#### 5.1 Multiple Monitor Support
-- [ ] Remember position per monitor
-- [ ] Move to specific monitor from tray
+#### 5.1 Multiple Monitor Support ✅
+- [x] Detect all connected monitors
+- [x] Remember position per monitor
+- [x] Move to specific monitor from settings UI
 - [ ] Follow active window option
 
-#### 5.2 Themes & Customization
-```
-Tray Menu:
-├── Appearance →
-│   ├── Window Size (Small/Medium/Large)
-│   ├── Opacity (50%-100%)
-│   ├── Border Glow (On/Off)
-│   └── Background (Transparent/Subtle/Solid)
-```
-
-- [ ] Adjustable window opacity
+#### 5.2 Themes & Customization ✅
+- [x] Adjustable window opacity
+- [x] Size presets via zoom
 - [ ] Optional subtle glow/shadow around avatar
-- [ ] Size presets (compact, normal, large)
+- [ ] Custom background options
 
 #### 5.3 Notification Integration
 - [ ] Avatar reacts to system notifications
-- [ ] Custom reactions for specific apps (Discord ping → excited)
+- [ ] Custom reactions for specific apps
 - [ ] "Do not disturb" mode
 
 #### 5.4 Voice Activity Indicator
+- [x] Speaking indicator dots
 - [ ] Pulsing ring around avatar when listening
 - [ ] Waveform visualization when speaking
 - [ ] Mute indicator overlay
 
-#### 5.5 Settings Persistence
-- [ ] Save all settings to `%APPDATA%/aria-desktop/settings.json`
-- [ ] Settings UI window (accessible from tray)
-- [ ] Import/export settings
+#### 5.5 Settings Persistence ✅
+- [x] Save all settings to `%APPDATA%/aria-desktop/settings.json`
+- [x] Settings UI window (accessible from tray)
+- [x] Import/export settings
+- [x] Reset to defaults
 
 ---
 

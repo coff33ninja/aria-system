@@ -11,11 +11,12 @@
  * - Settings persistence
  */
 
-const { app, BrowserWindow, ipcMain, screen, Tray, Menu, globalShortcut, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, Tray, Menu, globalShortcut, nativeImage, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 let mainWindow = null;
+let settingsWindow = null;
 let tray = null;
 let settings = null;
 
@@ -410,6 +411,14 @@ function updateTrayMenu() {
         
         { type: 'separator' },
         
+        // Settings
+        {
+            label: '⚙️ Settings...',
+            click: () => createSettingsWindow()
+        },
+        
+        { type: 'separator' },
+        
         {
             label: '❌ Quit Aria',
             click: () => {
@@ -438,6 +447,65 @@ function setMovementMode(mode) {
 
 function triggerExpression(expression) {
     mainWindow.webContents.send('trigger-expression', expression);
+}
+
+// Settings window
+function createSettingsWindow() {
+    if (settingsWindow) {
+        settingsWindow.focus();
+        return;
+    }
+    
+    settingsWindow = new BrowserWindow({
+        width: 600,
+        height: 700,
+        parent: mainWindow,
+        modal: false,
+        resizable: true,
+        minimizable: false,
+        maximizable: false,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        }
+    });
+    
+    settingsWindow.loadFile(path.join(__dirname, 'settings.html'));
+    settingsWindow.setMenuBarVisibility(false);
+    
+    settingsWindow.on('closed', () => {
+        settingsWindow = null;
+    });
+}
+
+// Multi-monitor support
+function getAllMonitors() {
+    return screen.getAllDisplays().map((display, index) => ({
+        id: display.id,
+        bounds: display.bounds,
+        workArea: display.workAreaSize,
+        primary: display.id === screen.getPrimaryDisplay().id,
+        index: index
+    }));
+}
+
+function moveToMonitor(monitorIndex) {
+    const displays = screen.getAllDisplays();
+    if (monitorIndex >= 0 && monitorIndex < displays.length) {
+        const display = displays[monitorIndex];
+        const bounds = display.workArea;
+        
+        // Position in bottom-right of target monitor
+        const x = bounds.x + bounds.width - settings.window.width - 20;
+        const y = bounds.y + bounds.height - settings.window.height - 20;
+        
+        mainWindow.setPosition(x, y);
+        settings.window.x = x;
+        settings.window.y = y;
+        settings.window.monitorIndex = monitorIndex;
+        saveSettings();
+    }
 }
 
 // Register global hotkeys
@@ -491,6 +559,23 @@ ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('save-settings', (event, newSettings) => {
     settings = { ...settings, ...newSettings };
     saveSettings();
+    // Apply settings to main window
+    if (mainWindow) {
+        mainWindow.setAlwaysOnTop(settings.window.alwaysOnTop);
+        mainWindow.setOpacity(settings.window.opacity);
+        mainWindow.webContents.send('settings-loaded', settings);
+    }
+    updateTrayMenu();
+    return settings;
+});
+
+ipcMain.handle('reset-settings', () => {
+    settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    saveSettings();
+    if (mainWindow) {
+        mainWindow.webContents.send('settings-loaded', settings);
+    }
+    updateTrayMenu();
     return settings;
 });
 
@@ -504,6 +589,60 @@ ipcMain.handle('get-cursor-position', () => {
 
 ipcMain.handle('get-screen-size', () => {
     return screen.getPrimaryDisplay().workAreaSize;
+});
+
+// Multi-monitor IPC
+ipcMain.handle('get-monitors', () => getAllMonitors());
+
+ipcMain.handle('move-to-monitor', (event, index) => {
+    moveToMonitor(index);
+});
+
+// Settings file operations
+ipcMain.handle('get-settings-path', () => SETTINGS_PATH);
+
+ipcMain.handle('open-settings-folder', () => {
+    shell.showItemInFolder(SETTINGS_PATH);
+});
+
+ipcMain.handle('export-settings', async () => {
+    const result = await dialog.showSaveDialog({
+        title: 'Export Settings',
+        defaultPath: 'aria-settings.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    
+    if (!result.canceled && result.filePath) {
+        fs.writeFileSync(result.filePath, JSON.stringify(settings, null, 2));
+        return true;
+    }
+    return false;
+});
+
+ipcMain.handle('import-settings', async () => {
+    const result = await dialog.showOpenDialog({
+        title: 'Import Settings',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        properties: ['openFile']
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+        try {
+            const data = fs.readFileSync(result.filePaths[0], 'utf8');
+            const imported = JSON.parse(data);
+            settings = { ...DEFAULT_SETTINGS, ...imported };
+            saveSettings();
+            if (mainWindow) {
+                mainWindow.webContents.send('settings-loaded', settings);
+            }
+            updateTrayMenu();
+            return settings;
+        } catch (e) {
+            console.error('Failed to import settings:', e);
+            return null;
+        }
+    }
+    return null;
 });
 
 // App lifecycle

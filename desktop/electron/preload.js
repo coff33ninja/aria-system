@@ -7,6 +7,7 @@
  * - Mouse/cursor tracking
  * - Maid switching
  * - Expressions and actions
+ * - Multi-monitor support
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -19,10 +20,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Settings
     getSettings: () => ipcRenderer.invoke('get-settings'),
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+    resetSettings: () => ipcRenderer.invoke('reset-settings'),
+    getSettingsPath: () => ipcRenderer.invoke('get-settings-path'),
+    openSettingsFolder: () => ipcRenderer.invoke('open-settings-folder'),
+    exportSettings: () => ipcRenderer.invoke('export-settings'),
+    importSettings: () => ipcRenderer.invoke('import-settings'),
     
     // Cursor tracking
     getCursorPosition: () => ipcRenderer.invoke('get-cursor-position'),
     getScreenSize: () => ipcRenderer.invoke('get-screen-size'),
+    
+    // Multi-monitor
+    getMonitors: () => ipcRenderer.invoke('get-monitors'),
+    moveToMonitor: (index) => ipcRenderer.invoke('move-to-monitor', index),
     
     // Event listeners from main process
     onSettingsLoaded: (callback) => {
