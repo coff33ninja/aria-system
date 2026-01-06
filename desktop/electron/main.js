@@ -137,11 +137,21 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js')
+            preload: path.join(__dirname, 'preload.js'),
+            zoomFactor: 1.0
         }
     });
 
     mainWindow.loadFile(path.join(__dirname, 'avatar.html'));
+    
+    // Disable Ctrl+scroll zoom so we can use it for character scaling
+    mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        // Block Ctrl+Plus/Minus/0 for zoom
+        if (input.control && (input.key === '+' || input.key === '-' || input.key === '=' || input.key === '0')) {
+            // Don't block - let our global shortcuts handle it
+        }
+    });
 
     // Send initial settings to renderer
     mainWindow.webContents.on('did-finish-load', () => {
