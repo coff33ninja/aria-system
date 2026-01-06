@@ -1144,6 +1144,108 @@
             setTimeout(() => status.classList.remove('visible'), duration);
         }
 
+        // ============ Modifier-Key Controls ============
+        // Hold Ctrl + drag to move window anywhere
+        // Hold Ctrl + scroll to fine-tune character scale
+        
+        let modifierDragState = {
+            isDragging: false,
+            startX: 0,
+            startY: 0,
+            windowStartX: 0,
+            windowStartY: 0
+        };
+        
+        function setupModifierControls() {
+            const container = document.getElementById('avatar-container');
+            
+            // Check if modifier controls are enabled in settings
+            function isModifierControlEnabled() {
+                return settings?.controls?.modifierDragEnabled !== false; // Default enabled
+            }
+            
+            // Ctrl + mousedown to start drag
+            container.addEventListener('mousedown', async (e) => {
+                if (!e.ctrlKey || !isModifierControlEnabled()) return;
+                if (!window.electronAPI) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const bounds = await window.electronAPI.getWindowBounds();
+                modifierDragState = {
+                    isDragging: true,
+                    startX: e.screenX,
+                    startY: e.screenY,
+                    windowStartX: bounds.x,
+                    windowStartY: bounds.y
+                };
+                
+                // Change cursor to indicate dragging
+                document.body.style.cursor = 'move';
+                showStatus('🖱️ Drag to move', 1000);
+            });
+            
+            // Mouse move while dragging
+            document.addEventListener('mousemove', async (e) => {
+                if (!modifierDragState.isDragging) return;
+                if (!window.electronAPI) return;
+                
+                const deltaX = e.screenX - modifierDragState.startX;
+                const deltaY = e.screenY - modifierDragState.startY;
+                
+                const newX = modifierDragState.windowStartX + deltaX;
+                const newY = modifierDragState.windowStartY + deltaY;
+                
+                // Move window via IPC
+                await window.electronAPI.moveWindow(newX, newY);
+            });
+            
+            // Mouse up to stop drag
+            document.addEventListener('mouseup', () => {
+                if (modifierDragState.isDragging) {
+                    modifierDragState.isDragging = false;
+                    document.body.style.cursor = '';
+                }
+            });
+            
+            // Ctrl + scroll to adjust character scale
+            container.addEventListener('wheel', async (e) => {
+                if (!e.ctrlKey || !isModifierControlEnabled()) return;
+                if (!window.electronAPI) return;
+                
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Get current scale
+                const currentScale = settings?.avatar?.modelScale ?? 1.0;
+                
+                // Calculate new scale (scroll up = bigger, scroll down = smaller)
+                const delta = e.deltaY > 0 ? -0.05 : 0.05;
+                const newScale = Math.max(0.3, Math.min(3.0, currentScale + delta));
+                
+                // Update settings and apply
+                if (settings?.avatar) {
+                    settings.avatar.modelScale = newScale;
+                }
+                
+                // Send to main process to persist
+                await window.electronAPI.setModelScaleFromRenderer(newScale);
+                
+                // Apply immediately
+                resizeModel();
+                showStatus(`Size: ${Math.round(newScale * 100)}%`, 800);
+            }, { passive: false });
+            
+            // Release Ctrl while dragging cancels the drag
+            document.addEventListener('keyup', (e) => {
+                if (e.key === 'Control' && modifierDragState.isDragging) {
+                    modifierDragState.isDragging = false;
+                    document.body.style.cursor = '';
+                }
+            });
+        }
+
         // ============ WebSocket ============
         
         function connectWebSocket() {
@@ -1578,6 +1680,9 @@
             
             // Set up click interactions
             setupClickInteractions();
+            
+            // Set up modifier-key controls (Ctrl+drag, Ctrl+scroll)
+            setupModifierControls();
             
             await initLive2D();
             connectWebSocket();

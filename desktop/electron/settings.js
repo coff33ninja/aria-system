@@ -262,6 +262,19 @@ function renderAdvancedTab() {
     const container = document.getElementById('advanced');
     container.innerHTML = `
         <div class="section">
+            <h3>🖱️ Modifier Controls</h3>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>Enable Modifier Controls</span>
+                    <small>Ctrl+drag to move window, Ctrl+scroll to resize character</small>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="modifier-controls" ${settings.controls?.modifierDragEnabled !== false ? 'checked' : ''}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+        <div class="section">
             <h3>📷 Camera Tracking</h3>
             <div class="setting-row">
                 <div class="setting-label">
@@ -432,6 +445,9 @@ function collectSettings() {
         audio: {
             showWaveform: document.getElementById('show-waveform')?.checked !== false,
             showListeningRing: document.getElementById('show-listening-ring')?.checked !== false
+        },
+        controls: {
+            modifierDragEnabled: document.getElementById('modifier-controls')?.checked !== false
         }
     };
 }

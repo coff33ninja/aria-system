@@ -63,6 +63,9 @@ const DEFAULT_SETTINGS = {
     audio: {
         showWaveform: true,
         waveformColor: '#ff6b9d'
+    },
+    controls: {
+        modifierDragEnabled: true  // Ctrl+drag to move, Ctrl+scroll to scale
     }
 };
 
@@ -779,6 +782,23 @@ ipcMain.handle('move-to-monitor', (event, index) => {
 ipcMain.handle('resize-window', (event, width, height) => {
     resizeWindow(width, height);
     return { width, height };
+});
+
+// Window move IPC (for modifier-key drag)
+ipcMain.handle('move-window', (event, x, y) => {
+    if (mainWindow) {
+        mainWindow.setPosition(Math.round(x), Math.round(y));
+        settings.window.x = Math.round(x);
+        settings.window.y = Math.round(y);
+        saveSettings();
+    }
+    return { x, y };
+});
+
+// Model scale from renderer (for modifier-key scroll)
+ipcMain.handle('set-model-scale-from-renderer', (event, scale) => {
+    setModelScale(scale);
+    return scale;
 });
 
 // Settings file operations

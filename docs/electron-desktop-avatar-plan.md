@@ -186,6 +186,12 @@ Tray Menu:
 - [x] Right-click avatar: Shows hint to use tray menu
 - [x] Drag avatar: Reposition window
 
+#### 4.2.1 Modifier-Key Controls ✅ NEW
+- [x] **Ctrl + Drag**: Move avatar window anywhere on screen
+- [x] **Ctrl + Scroll**: Fine-tune character scale (0.3x - 3.0x range)
+- [x] Toggle in Settings → Advanced → Modifier Controls
+- [x] Visual feedback with status indicator
+
 #### 4.3 Hotkey Support ✅
 | Hotkey | Action | Status |
 |--------|--------|--------|

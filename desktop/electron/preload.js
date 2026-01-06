@@ -37,6 +37,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Window resize
     resizeWindow: (width, height) => ipcRenderer.invoke('resize-window', width, height),
     
+    // Window move (for modifier-key drag)
+    moveWindow: (x, y) => ipcRenderer.invoke('move-window', x, y),
+    
+    // Model scale from renderer (for modifier-key scroll)
+    setModelScaleFromRenderer: (scale) => ipcRenderer.invoke('set-model-scale-from-renderer', scale),
+    
     // Movement mode notification to main process
     notifyMovementModeChanged: (mode) => ipcRenderer.send('movement-mode-changed', mode),
     
