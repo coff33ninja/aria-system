@@ -249,7 +249,8 @@ function updateTrayMenu() {
                     mainWindow.show();
                     mainWindow.focus();
                 }
-                updateTrayMenu();
+                // Auto-update menu after visibility change
+                setTimeout(updateTrayMenu, 100);
             }
         },
         
@@ -267,6 +268,8 @@ function updateTrayMenu() {
                     settings.avatar.currentMaid = id;
                     saveSettings();
                     mainWindow.webContents.send('switch-maid', id);
+                    // Broadcast settings update
+                    broadcastSettingsUpdate();
                     updateTrayMenu();
                 }
             }))
@@ -290,20 +293,20 @@ function updateTrayMenu() {
                 {
                     label: 'Character Size',
                     submenu: [
-                        { label: '75%', type: 'radio', checked: settings.avatar.modelScale === 0.75, click: () => setModelScale(0.75) },
-                        { label: '100%', type: 'radio', checked: settings.avatar.modelScale === 1.0, click: () => setModelScale(1.0) },
-                        { label: '125%', type: 'radio', checked: settings.avatar.modelScale === 1.25, click: () => setModelScale(1.25) },
-                        { label: '150%', type: 'radio', checked: settings.avatar.modelScale === 1.5, click: () => setModelScale(1.5) },
-                        { label: '175%', type: 'radio', checked: settings.avatar.modelScale === 1.75, click: () => setModelScale(1.75) },
-                        { label: '200%', type: 'radio', checked: settings.avatar.modelScale === 2.0, click: () => setModelScale(2.0) }
+                        { label: '75%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 0.75) < 0.01, click: () => setModelScale(0.75) },
+                        { label: '100%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.0) < 0.01, click: () => setModelScale(1.0) },
+                        { label: '125%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.25) < 0.01, click: () => setModelScale(1.25) },
+                        { label: '150%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.5) < 0.01, click: () => setModelScale(1.5) },
+                        { label: '175%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.75) < 0.01, click: () => setModelScale(1.75) },
+                        { label: '200%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 2.0) < 0.01, click: () => setModelScale(2.0) }
                     ]
                 },
                 {
                     label: 'Focus',
                     submenu: [
-                        { label: 'Full Body', type: 'radio', checked: settings.avatar.focusMode === 'full', click: () => setFocusMode('full') },
-                        { label: 'Upper Body', type: 'radio', checked: settings.avatar.focusMode === 'upper', click: () => setFocusMode('upper') },
-                        { label: 'Face', type: 'radio', checked: settings.avatar.focusMode === 'face', click: () => setFocusMode('face') }
+                        { label: 'Full Body', type: 'radio', checked: (settings.avatar.focusMode || 'upper') === 'full', click: () => setFocusMode('full') },
+                        { label: 'Upper Body', type: 'radio', checked: (settings.avatar.focusMode || 'upper') === 'upper', click: () => setFocusMode('upper') },
+                        { label: 'Face', type: 'radio', checked: (settings.avatar.focusMode || 'upper') === 'face', click: () => setFocusMode('face') }
                     ]
                 },
                 { type: 'separator' },
@@ -329,37 +332,37 @@ function updateTrayMenu() {
                 { 
                     label: 'Static', 
                     type: 'radio', 
-                    checked: settings.avatar.movementMode === 'static',
+                    checked: (settings.avatar.movementMode || 'idle') === 'static',
                     click: () => setMovementMode('static')
                 },
                 { 
                     label: 'Idle Animation', 
                     type: 'radio', 
-                    checked: settings.avatar.movementMode === 'idle',
+                    checked: (settings.avatar.movementMode || 'idle') === 'idle',
                     click: () => setMovementMode('idle')
                 },
                 { 
                     label: 'Mouse Tracking', 
                     type: 'radio', 
-                    checked: settings.avatar.movementMode === 'mouse',
+                    checked: (settings.avatar.movementMode || 'idle') === 'mouse',
                     click: () => setMovementMode('mouse')
                 },
                 { 
                     label: 'Camera Tracking', 
                     type: 'radio', 
-                    checked: settings.avatar.movementMode === 'camera',
+                    checked: (settings.avatar.movementMode || 'idle') === 'camera',
                     click: () => setMovementMode('camera')
                 },
                 { 
                     label: 'Random Wander', 
                     type: 'radio', 
-                    checked: settings.avatar.movementMode === 'wander',
+                    checked: (settings.avatar.movementMode || 'idle') === 'wander',
                     click: () => setMovementMode('wander')
                 },
                 { 
                     label: 'Follow Active Window', 
                     type: 'radio', 
-                    checked: settings.avatar.movementMode === 'follow',
+                    checked: (settings.avatar.movementMode || 'idle') === 'follow',
                     click: () => setMovementMode('follow')
                 }
             ]
@@ -398,6 +401,7 @@ function updateTrayMenu() {
                         settings.window.alwaysOnTop = menuItem.checked;
                         mainWindow.setAlwaysOnTop(menuItem.checked);
                         saveSettings();
+                        broadcastSettingsUpdate();
                     }
                 },
                 {
@@ -407,6 +411,7 @@ function updateTrayMenu() {
                     click: (menuItem) => {
                         settings.window.startMinimized = menuItem.checked;
                         saveSettings();
+                        broadcastSettingsUpdate();
                     }
                 },
                 { type: 'separator' },
@@ -421,6 +426,7 @@ function updateTrayMenu() {
                                 settings.autoHide.enabled = false;
                                 saveSettings();
                                 mainWindow.webContents.send('auto-hide-changed', settings.autoHide);
+                                broadcastSettingsUpdate();
                             }
                         },
                         {
@@ -432,6 +438,7 @@ function updateTrayMenu() {
                                 settings.autoHide.inactivityMinutes = 5;
                                 saveSettings();
                                 mainWindow.webContents.send('auto-hide-changed', settings.autoHide);
+                                broadcastSettingsUpdate();
                             }
                         },
                         {
@@ -443,6 +450,7 @@ function updateTrayMenu() {
                                 settings.autoHide.inactivityMinutes = 15;
                                 saveSettings();
                                 mainWindow.webContents.send('auto-hide-changed', settings.autoHide);
+                                broadcastSettingsUpdate();
                             }
                         },
                         { type: 'separator' },
@@ -454,6 +462,7 @@ function updateTrayMenu() {
                                 settings.autoHide.hideInFullscreen = menuItem.checked;
                                 saveSettings();
                                 mainWindow.webContents.send('auto-hide-changed', settings.autoHide);
+                                broadcastSettingsUpdate();
                             }
                         }
                     ]
@@ -467,6 +476,7 @@ function updateTrayMenu() {
                         const pos = getWindowPosition();
                         mainWindow.setPosition(pos.x, pos.y);
                         saveSettings();
+                        broadcastSettingsUpdate();
                     }
                 },
                 {
@@ -475,6 +485,7 @@ function updateTrayMenu() {
                         settings = { ...DEFAULT_SETTINGS };
                         saveSettings();
                         mainWindow.webContents.send('settings-loaded', settings);
+                        broadcastSettingsUpdate();
                         updateTrayMenu();
                     }
                 }
@@ -536,6 +547,8 @@ function setModelScale(scale) {
     saveSettings();
     mainWindow.webContents.send('set-model-scale', scale);
     updateTrayMenu();
+    // Broadcast settings update to all windows including settings dialog
+    broadcastSettingsUpdate();
 }
 
 function setFocusMode(mode) {
@@ -737,12 +750,15 @@ function reregisterHotkeys() {
 // IPC handlers
 ipcMain.handle('get-window-bounds', () => mainWindow.getBounds());
 ipcMain.handle('get-settings', () => settings);
+
+// Enhanced save-settings with proper synchronization
 ipcMain.handle('save-settings', (event, newSettings) => {
     // Check if hotkeys changed
     const hotkeysChanged = JSON.stringify(settings.hotkeys) !== JSON.stringify(newSettings.hotkeys);
     
     settings = { ...settings, ...newSettings };
     saveSettings();
+    
     // Apply settings to main window
     if (mainWindow) {
         mainWindow.setAlwaysOnTop(settings.window.alwaysOnTop);
@@ -755,9 +771,60 @@ ipcMain.handle('save-settings', (event, newSettings) => {
         reregisterHotkeys();
     }
     
+    // Update tray menu to reflect changes
     updateTrayMenu();
+    
+    // Broadcast settings update to all windows
+    broadcastSettingsUpdate();
+    
     return settings;
 });
+
+// New IPC handler for real-time settings changes
+ipcMain.on('settings-changed', (event, changedSettings) => {
+    // Merge changed settings
+    settings = mergeDeep(settings, changedSettings);
+    saveSettings();
+    
+    // Apply immediate changes to main window
+    if (mainWindow && changedSettings.window) {
+        if (changedSettings.window.alwaysOnTop !== undefined) {
+            mainWindow.setAlwaysOnTop(changedSettings.window.alwaysOnTop);
+        }
+        if (changedSettings.window.opacity !== undefined) {
+            mainWindow.setOpacity(changedSettings.window.opacity);
+        }
+    }
+    
+    // Update tray menu
+    updateTrayMenu();
+    
+    // Broadcast to all windows except sender
+    broadcastSettingsUpdate(event.sender);
+});
+
+// Helper function for deep merging objects
+function mergeDeep(target, source) {
+    const result = { ...target };
+    for (const key in source) {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+            result[key] = mergeDeep(result[key] || {}, source[key]);
+        } else {
+            result[key] = source[key];
+        }
+    }
+    return result;
+}
+
+// Helper function to broadcast settings updates
+function broadcastSettingsUpdate(excludeSender = null) {
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(win => {
+        if (win.webContents !== excludeSender) {
+            win.webContents.send('settings-updated', settings);
+        }
+    });
+}
 
 ipcMain.handle('reset-settings', () => {
     settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));

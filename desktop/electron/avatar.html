@@ -190,27 +190,142 @@
             animation: notification-bounce 0.5s ease-out;
         }
         
-        @keyframes notification-bounce {
-            0% { transform: scale(0) rotate(-20deg); }
-            50% { transform: scale(1.3) rotate(10deg); }
-            100% { transform: scale(1) rotate(0deg); }
+        /* Accessibility improvements */
+        :focus {
+            outline: 2px solid #ff6b9d;
+            outline-offset: 2px;
+        }
+        
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            :root {
+                --bg-color: #000000;
+                --text-color: #ffffff;
+                --accent-color: #ffff00;
+                --border-color: #ffffff;
+            }
+            
+            #status, #mode-indicator {
+                background: var(--bg-color);
+                color: var(--text-color);
+                border: 1px solid var(--border-color);
+            }
+            
+            #maid-badge {
+                background: var(--accent-color);
+                color: var(--bg-color);
+                border: 2px solid var(--border-color);
+            }
+        }
+        
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+        
+        /* Screen reader only content */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        
+        /* Skip link for keyboard navigation */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 6px;
+            background: #ff6b9d;
+            color: white;
+            padding: 8px;
+            text-decoration: none;
+            border-radius: 4px;
+            z-index: 1000;
+            transition: top 0.3s;
+        }
+        
+        .skip-link:focus {
+            top: 6px;
         }
     </style>
 </head>
 <body>
-    <div id="avatar-container">
-        <canvas id="live2d-canvas"></canvas>
-        <div id="listening-ring"></div>
-        <div id="maid-badge">Aria</div>
-        <div id="speaking-indicator">
-            <div class="speak-dot"></div>
-            <div class="speak-dot"></div>
-            <div class="speak-dot"></div>
+    <!-- Skip link for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <div id="avatar-container" role="main" aria-label="Aria Desktop Avatar">
+        <main id="main-content">
+            <canvas id="live2d-canvas" aria-label="Live2D Avatar Display"></canvas>
+            <div id="listening-ring" aria-hidden="true"></div>
+            
+            <button id="maid-badge" 
+                    aria-label="Current maid: Aria. Press Enter or Space to switch maids"
+                    tabindex="0"
+                    role="button">
+                Aria
+            </button>
+            
+            <div id="speaking-indicator" 
+                 aria-live="polite" 
+                 aria-label="Speaking indicator"
+                 role="status">
+                <div class="speak-dot" aria-hidden="true"></div>
+                <div class="speak-dot" aria-hidden="true"></div>
+                <div class="speak-dot" aria-hidden="true"></div>
+                <span class="sr-only" id="speaking-status">Not speaking</span>
+            </div>
+            
+            <div id="waveform-container" 
+                 aria-live="polite" 
+                 aria-label="Audio waveform visualization"
+                 role="img">
+                <span class="sr-only">Audio waveform display</span>
+            </div>
+            
+            <div id="notification-indicator" 
+                 aria-live="assertive" 
+                 aria-label="Notification indicator"
+                 role="status">
+                🔔
+                <span class="sr-only" id="notification-status">No notifications</span>
+            </div>
+            
+            <div id="status" 
+                 aria-live="polite" 
+                 role="status"
+                 aria-label="Avatar status">
+                Connecting...
+            </div>
+            
+            <div id="mode-indicator" 
+                 aria-live="polite" 
+                 aria-label="Current movement mode"
+                 role="status">
+                idle
+            </div>
+        </main>
+        
+        <!-- Keyboard shortcuts help -->
+        <div id="keyboard-help" class="sr-only" role="region" aria-label="Keyboard shortcuts">
+            <h2>Keyboard Shortcuts</h2>
+            <ul>
+                <li>Tab: Navigate between elements</li>
+                <li>Enter/Space: Activate buttons</li>
+                <li>Escape: Close dialogs</li>
+                <li>Ctrl+Shift+A: Toggle visibility</li>
+                <li>Ctrl+Shift+M: Switch maids</li>
+            </ul>
         </div>
-        <div id="waveform-container"></div>
-        <div id="notification-indicator">🔔</div>
-        <div id="status">Connecting...</div>
-        <div id="mode-indicator">idle</div>
     </div>
 
     <!-- PIXI.js and Live2D -->
@@ -1015,7 +1130,7 @@
         document.addEventListener('click', recordActivity);
         document.addEventListener('keydown', recordActivity);
         
-        // ============ Click Interactions ============
+        // ============ Click Interactions & Keyboard Navigation ============
         
         let clickCount = 0;
         let clickTimer = null;
@@ -1051,6 +1166,110 @@
                 e.preventDefault();
                 showStatus('Right-click tray icon for menu', 2000);
             });
+        }
+        
+        // ============ Keyboard Navigation ============
+        
+        function setupKeyboardNavigation() {
+            // Maid badge keyboard interaction
+            maidBadge.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    showStatus('Use tray menu to switch maids', 2000);
+                    // Could trigger maid switch dialog here in future
+                }
+            });
+            
+            // Global keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                // Handle accessibility shortcuts
+                if (e.altKey && e.key === 'h') {
+                    // Alt+H: Show keyboard help
+                    e.preventDefault();
+                    showKeyboardHelp();
+                }
+                
+                if (e.key === 'Escape') {
+                    // Escape: Hide any open dialogs or reset focus
+                    e.preventDefault();
+                    hideKeyboardHelp();
+                    maidBadge.blur();
+                }
+                
+                // Avatar interaction shortcuts
+                if (e.ctrlKey && e.shiftKey) {
+                    switch (e.key) {
+                        case 'W':
+                            e.preventDefault();
+                            triggerGreeting();
+                            announceToScreenReader('Avatar waving');
+                            break;
+                        case 'H':
+                            e.preventDefault();
+                            triggerHappyReaction();
+                            announceToScreenReader('Avatar showing happy expression');
+                            break;
+                        case 'E':
+                            e.preventDefault();
+                            setExpression('default');
+                            announceToScreenReader('Avatar expression reset to default');
+                            break;
+                    }
+                }
+            });
+            
+            // Focus management
+            document.addEventListener('focusin', (e) => {
+                recordActivity();
+                updateAriaLiveRegions(e.target);
+            });
+        }
+        
+        function showKeyboardHelp() {
+            const helpElement = document.getElementById('keyboard-help');
+            helpElement.classList.remove('sr-only');
+            helpElement.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.9);
+                color: white;
+                padding: 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                max-width: 400px;
+            `;
+            helpElement.focus();
+            announceToScreenReader('Keyboard shortcuts help displayed');
+        }
+        
+        function hideKeyboardHelp() {
+            const helpElement = document.getElementById('keyboard-help');
+            helpElement.classList.add('sr-only');
+            helpElement.style.cssText = '';
+        }
+        
+        function announceToScreenReader(message) {
+            const announcement = document.createElement('div');
+            announcement.setAttribute('aria-live', 'assertive');
+            announcement.setAttribute('aria-atomic', 'true');
+            announcement.className = 'sr-only';
+            announcement.textContent = message;
+            document.body.appendChild(announcement);
+            
+            // Remove after announcement
+            setTimeout(() => {
+                document.body.removeChild(announcement);
+            }, 1000);
+        }
+        
+        function updateAriaLiveRegions(focusedElement) {
+            // Update screen reader announcements based on focused element
+            if (focusedElement === maidBadge) {
+                const maid = MAIDS[currentMaid];
+                announceToScreenReader(`Current maid: ${maid?.name || currentMaid}. Movement mode: ${movementMode}`);
+            }
         }
         
         function triggerGreeting() {
@@ -1678,6 +1897,9 @@
         async function init() {
             console.log('🎭 Aria Desktop Avatar');
             
+            // Set up accessibility features
+            setupKeyboardNavigation();
+            
             // Set up click interactions
             setupClickInteractions();
             
@@ -1690,12 +1912,62 @@
             // Start default movement mode
             updateMovementMode();
             
+            // Set up settings synchronization
+            if (window.electronAPI) {
+                window.electronAPI.onSettingsUpdated((newSettings) => {
+                    settings = newSettings;
+                    // Update UI elements that depend on settings
+                    updateUIFromSettings();
+                });
+            }
+            
             // Heartbeat
             setInterval(() => {
                 if (ws?.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'ping' }));
                 }
             }, 30000);
+        }
+        
+        function updateUIFromSettings() {
+            if (!settings) return;
+            
+            // Update movement mode
+            if (settings.avatar?.movementMode && settings.avatar.movementMode !== movementMode) {
+                movementMode = settings.avatar.movementMode;
+                modeIndicator.textContent = movementMode;
+                updateMovementMode();
+            }
+            
+            // Update current maid
+            if (settings.avatar?.currentMaid && settings.avatar.currentMaid !== currentMaid) {
+                setCurrentMaid(settings.avatar.currentMaid);
+                loadMaidModel(settings.avatar.currentMaid);
+            }
+            
+            // Update model display settings
+            if (live2dModel) {
+                resizeModel();
+            }
+            
+            // Update accessibility features
+            updateAccessibilitySettings();
+        }
+        
+        function updateAccessibilitySettings() {
+            // Update high contrast mode if supported
+            if (settings.accessibility?.highContrast) {
+                document.body.classList.add('high-contrast');
+            } else {
+                document.body.classList.remove('high-contrast');
+            }
+            
+            // Update reduced motion preference
+            if (settings.accessibility?.reducedMotion) {
+                document.body.classList.add('reduced-motion');
+            } else {
+                document.body.classList.remove('reduced-motion');
+            }
         }
         
         // Listen for auto-hide settings changes

@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     exportSettings: () => ipcRenderer.invoke('export-settings'),
     importSettings: () => ipcRenderer.invoke('import-settings'),
     
+    // Real-time settings changes
+    changeSettings: (changedSettings) => ipcRenderer.send('settings-changed', changedSettings),
+    
     // Cursor tracking
     getCursorPosition: () => ipcRenderer.invoke('get-cursor-position'),
     getScreenSize: () => ipcRenderer.invoke('get-screen-size'),
@@ -52,6 +55,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Event listeners from main process
     onSettingsLoaded: (callback) => {
         ipcRenderer.on('settings-loaded', (event, settings) => callback(settings));
+    },
+    onSettingsUpdated: (callback) => {
+        ipcRenderer.on('settings-updated', (event, settings) => callback(settings));
     },
     onSwitchMaid: (callback) => {
         ipcRenderer.on('switch-maid', (event, maidId) => callback(maidId));
