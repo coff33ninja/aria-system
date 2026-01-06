@@ -235,14 +235,135 @@ function setModelParameter(paramId, value) {
 - Provides optimal viewing for each focus mode
 - Maintains smooth user experience with intelligent positioning
 
+## Troubleshooting Remaining Issues
+
+### Character Still Loading in Upper Corner
+
+If the character is still appearing in the upper corner instead of being centered, try these debugging steps:
+
+#### 1. Use Debug Functions in Browser Console
+
+Open the Electron app with dev tools and try these console commands:
+
+```javascript
+// Check current model state
+debugModel()
+
+// Test positioning manually
+testPositioning()
+
+// Force center the character
+forceCenter()
+
+// Test specific scale values
+testScale(1.0)
+testScale(1.5)
+```
+
+#### 2. Check Settings Loading
+
+Verify that settings are being loaded properly:
+
+```javascript
+// Check if settings are loaded
+console.log('Settings:', settings)
+console.log('Model scale:', settings?.avatar?.modelScale)
+console.log('Focus mode:', settings?.avatar?.focusMode)
+```
+
+#### 3. Manual Positioning Fix
+
+If the character is stuck in the wrong position, try this manual fix:
+
+```javascript
+// Force proper positioning
+if (live2dModel && pixiApp) {
+    live2dModel.anchor.set(0.5, 0.5);
+    live2dModel.x = pixiApp.screen.width / 2;
+    live2dModel.y = pixiApp.screen.height * 0.65;
+    pixiApp.renderer.render(pixiApp.stage);
+    console.log('Character manually centered');
+}
+```
+
+#### 4. Restart and Reload
+
+Sometimes a simple restart helps:
+1. Close the Electron app completely
+2. Restart the app
+3. Wait for the model to fully load
+4. Check if positioning is correct
+
+### Tray Menu Character Size Presets Not Working
+
+If the tray menu character size options aren't working:
+
+#### 1. Check Console for Errors
+
+Look for error messages when clicking tray menu items:
+- Open dev tools before using tray menu
+- Click a character size preset (e.g., "120%")
+- Check console for any error messages
+
+#### 2. Verify Settings Propagation
+
+Test if settings are being sent from main process:
+
+```javascript
+// Listen for settings updates
+window.electronAPI.onSetModelScale((scale) => {
+    console.log('Received scale from tray:', scale);
+});
+
+window.electronAPI.onSettingsUpdated((settings) => {
+    console.log('Settings updated from tray:', settings);
+});
+```
+
+#### 3. Manual Scale Test
+
+Test scaling directly from console:
+
+```javascript
+// Test if scaling works at all
+testScale(0.5)  // 50%
+testScale(1.0)  // 100%
+testScale(1.5)  // 150%
+```
+
+### Settings Not Persisting
+
+If character size settings don't persist between app restarts:
+
+#### 1. Check Settings File
+
+The settings should be saved to a JSON file. Check if it exists and contains your scale settings.
+
+#### 2. Verify Save Function
+
+Test if settings are being saved:
+
+```javascript
+// Check current settings
+console.log('Current settings:', settings);
+
+// Try manual save (if available)
+if (window.electronAPI.saveSettings) {
+    window.electronAPI.saveSettings(settings);
+}
+```
+
 ## Testing and Validation
 
 ### Debug Functions Added
 
-Two new debug functions are available in the browser console:
+Several new debug functions are available in the browser console:
 
 1. **`testScaling()`** - Tests the scaling functionality and logs detailed information
-2. **`debugModel()`** - Displays current model state and settings
+2. **`debugModel()`** - Displays current model state and settings  
+3. **`testPositioning()`** - Tests manual positioning and logs position data
+4. **`testScale(scale)`** - Tests a specific scale value
+5. **`forceCenter()`** - Forces the character to center position
 
 ### Testing Steps
 
@@ -252,6 +373,8 @@ Two new debug functions are available in the browser console:
 4. Use tray menu to test character size presets
 5. Try different focus modes (full, upper, face)
 6. Test model offset adjustments
+7. **Use debug functions to isolate positioning issues**
+8. **Test tray menu presets with console monitoring**
 
 ### Validation Checklist
 
@@ -259,9 +382,12 @@ Two new debug functions are available in the browser console:
 - [ ] Scaling responds to user input (Ctrl+scroll, tray menu)
 - [ ] Focus modes work correctly (full body, upper body, face)
 - [ ] Model positioning is correct for different window sizes
-- [ ] **Window auto-resizes to match character scale and focus mode**
-- [ ] **Auto-resize can be toggled on/off via tray menu**
-- [ ] **Window maintains center position during auto-resize**
+- [ ] **Character loads in center, not upper corner**
+- [ ] **Tray menu character size presets work properly**
+- [ ] **Settings persist between app restarts**
+- [ ] Window auto-resizes to match character scale and focus mode
+- [ ] Auto-resize can be toggled on/off via tray menu
+- [ ] Window maintains center position during auto-resize
 - [ ] Error messages are helpful for debugging
 - [ ] Fallback recovery works when models fail to load
 
@@ -330,13 +456,21 @@ Two new debug functions are available in the browser console:
 
 ## Changelog
 
-### 2026-01-06
+### 2026-01-06 - Latest Update
+- **Enhanced Model Loading**: Added multiple positioning attempts with timing delays
+- **Improved Settings Propagation**: Added real-time settings updates from tray menu
+- **Force Render Updates**: Added multiple render passes to ensure positioning changes stick
+- **New Debug Functions**: Added `testPositioning()`, `testScale()`, and `forceCenter()`
+- **Better Error Recovery**: Enhanced model loading with retry mechanisms
+- **Positioning Fixes**: Improved anchor setting and position calculation timing
+
+### 2026-01-06 - Initial Fixes
 - Fixed zoom vs scale terminology confusion
 - Improved error handling in model loading
 - Enhanced resizeModel() function with better logging
 - Added parameter validation with warnings
 - Cleaned up legacy zoom settings
 - Added debug functions for testing
-- **Added intelligent window auto-resize system**
-- **Implemented focus mode optimized window dimensions**
-- **Added user control toggle for auto-resize feature**
+- Added intelligent window auto-resize system
+- Implemented focus mode optimized window dimensions
+- Added user control toggle for auto-resize feature

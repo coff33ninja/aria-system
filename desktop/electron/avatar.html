@@ -457,16 +457,30 @@
         if (window.electronAPI) {
             // Settings loaded from main process
             window.electronAPI.onSettingsLoaded((loadedSettings) => {
+                console.log('📥 Settings loaded:', loadedSettings);
                 settings = loadedSettings;
-                currentZoom = settings.window.zoom;
-                movementMode = settings.avatar.movementMode;
-                currentMaid = settings.avatar.currentMaid;
+                movementMode = settings.avatar?.movementMode || 'idle';
+                currentMaid = settings.avatar?.currentMaid || 'aria';
                 useMediaPipe = settings.avatar?.useMediaPipe || false;
+                
+                console.log(`🎭 Current maid: ${currentMaid}, Movement: ${movementMode}, Scale: ${settings.avatar?.modelScale}`);
                 
                 modeIndicator.textContent = movementMode;
                 updateMovementMode();
                 
                 if (live2dModel) {
+                    console.log('🔄 Applying settings to existing model...');
+                    resizeModel();
+                }
+            });
+            
+            // Settings updated from main process (real-time changes)
+            window.electronAPI.onSettingsUpdated((updatedSettings) => {
+                console.log('📥 Settings updated:', updatedSettings);
+                settings = updatedSettings;
+                
+                if (live2dModel) {
+                    console.log('🔄 Applying updated settings to model...');
                     resizeModel();
                 }
             });
@@ -1444,11 +1458,11 @@
                 const currentScale = settings?.avatar?.modelScale ?? 1.0;
                 
                 // Calculate new scale (scroll up = bigger, scroll down = smaller)
-                // Use 2% increments for mouse wheel (finer than keyboard)
-                const delta = e.deltaY > 0 ? -0.02 : 0.02;
+                // Use smaller increments for smoother control (0.5% instead of 2%)
+                const delta = e.deltaY > 0 ? -0.005 : 0.005;
                 const newScale = Math.max(0.3, Math.min(3.0, currentScale + delta));
                 
-                console.log(`🖱️ Mouse wheel scale: ${currentScale.toFixed(2)} → ${newScale.toFixed(2)}`);
+                console.log(`🖱️ Mouse wheel scale: ${currentScale.toFixed(3)} → ${newScale.toFixed(3)}`);
                 
                 // Update settings and apply
                 if (settings?.avatar) {
@@ -1645,18 +1659,37 @@
                 
                 console.log(`✅ Model loaded successfully - Dimensions: ${live2dModel.width}x${live2dModel.height}`);
                 
+                // Configure model IMMEDIATELY after loading
+                live2dModel.anchor.set(0.5, 0.5);
+                live2dModel.interactive = true;
+                
                 // Add to stage FIRST
                 pixiApp.stage.addChild(live2dModel);
                 
+                // Wait for the model to be fully added to the stage
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                
                 // Enable interaction
-                live2dModel.interactive = true;
                 live2dModel.on('hit', (hitAreas) => {
                     console.log('Hit:', hitAreas);
                     triggerBlink();
                 });
                 
-                // THEN resize/scale the model
+                // Apply initial positioning with multiple attempts to ensure it sticks
+                console.log('🔧 Applying initial positioning (attempt 1)...');
                 resizeModel();
+                
+                // Force positioning after a short delay
+                setTimeout(() => {
+                    console.log('🔧 Applying positioning (attempt 2)...');
+                    resizeModel();
+                }, 50);
+                
+                // Final positioning attempt after longer delay
+                setTimeout(() => {
+                    console.log('🔧 Applying final positioning (attempt 3)...');
+                    resizeModel();
+                }, 200);
                 
                 console.log(`✅ Loaded ${maid.name} - Model size: ${live2dModel.width}x${live2dModel.height}`);
                 showStatus(`${maid.name} ready`);
@@ -1665,6 +1698,16 @@
                 updateMovementMode();
                 
             } catch (error) {
+                console.error(`❌ Failed to load ${maidId}:`, error);
+                showStatus(`Failed to load ${maid.name}: ${error.message}`);
+                
+                // Try to recover by showing a placeholder or fallback
+                if (maidId !== 'aria') {
+                    console.log('🔄 Attempting fallback to Aria model...');
+                    setTimeout(() => loadMaidModel('aria'), 2000);
+                }
+            }
+        }
                 console.error(`❌ Failed to load ${maidId}:`, error);
                 showStatus(`Failed to load ${maid.name}: ${error.message}`);
                 
@@ -1708,6 +1751,104 @@
             console.log('pixiApp:', pixiApp);
             console.log('settings:', settings);
         };
+        
+        // Test positioning function
+        window.testPositioning = () => {
+            if (!live2dModel) {
+                console.log('❌ No model loaded');
+                return;
+            }
+            
+            console.log('🧪 Testing positioning...');
+            console.log(`Current position: (${live2dModel.x}, ${live2dModel.y})`);
+            console.log(`Current anchor: (${live2dModel.anchor.x}, ${live2dModel.anchor.y})`);
+            console.log(`Screen size: ${pixiApp.screen.width}x${pixiApp.screen.height}`);
+            
+            // Test manual positioning
+            console.log('🔧 Setting position to center manually...');
+            live2dModel.anchor.set(0.5, 0.5);
+            live2dModel.x = pixiApp.screen.width / 2;
+            live2dModel.y = pixiApp.screen.height * 0.65;
+            
+            console.log(`New position: (${live2dModel.x}, ${live2dModel.y})`);
+            
+            // Force render
+            pixiApp.renderer.render(pixiApp.stage);
+        };
+        
+        // Test scale function
+        window.testScale = (scale) => {
+            if (!live2dModel) {
+                console.log('❌ No model loaded');
+                return;
+            }
+            
+            console.log(`🧪 Testing scale: ${scale}`);
+            
+            // Update settings
+            if (settings?.avatar) {
+                settings.avatar.modelScale = scale;
+            }
+            
+            // Apply via resizeModel
+            resizeModel();
+            
+            console.log(`Scale applied: ${scale}`);
+        };
+        
+        // Force center function
+        window.forceCenter = () => {
+            if (!live2dModel || !pixiApp) {
+                console.log('❌ No model or app loaded');
+                return;
+            }
+            
+            console.log('🎯 Force centering model...');
+            
+            // Reset anchor and position
+            live2dModel.anchor.set(0.5, 0.5);
+            live2dModel.x = pixiApp.screen.width / 2;
+            live2dModel.y = pixiApp.screen.height / 2;
+            
+            // Force render multiple times
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    pixiApp.renderer.render(pixiApp.stage);
+                    console.log(`🔄 Forced render ${i + 1}`);
+                }, i * 50);
+            }
+            
+            console.log(`✅ Model centered at (${live2dModel.x}, ${live2dModel.y})`);
+        };
+            
+            console.log('🧪 Testing positioning...');
+            console.log(`Current position: (${live2dModel.x}, ${live2dModel.y})`);
+            console.log(`Current anchor: (${live2dModel.anchor.x}, ${live2dModel.anchor.y})`);
+            console.log(`Screen size: ${pixiApp.screen.width}x${pixiApp.screen.height}`);
+            
+            // Force center position
+            live2dModel.anchor.set(0.5, 0.5);
+            live2dModel.x = pixiApp.screen.width / 2;
+            live2dModel.y = pixiApp.screen.height / 2;
+            
+            console.log(`✅ Forced to center: (${live2dModel.x}, ${live2dModel.y})`);
+            
+            // Force render
+            pixiApp.renderer.render(pixiApp.stage);
+        };
+        
+        // Test scale function
+        window.testScale = (scale = 1.5) => {
+            if (!live2dModel) {
+                console.log('❌ No model loaded');
+                return;
+            }
+            
+            console.log(`🧪 Testing scale: ${scale}`);
+            if (!settings.avatar) settings.avatar = {};
+            settings.avatar.modelScale = scale;
+            resizeModel();
+        };
 
         function resizeModel() {
             if (!live2dModel || !pixiApp) {
@@ -1720,9 +1861,19 @@
             const modelOffsetY = settings?.avatar?.modelOffsetY ?? 0; // -1 to 1, negative = up
             const focusMode = settings?.avatar?.focusMode ?? 'upper'; // full, upper, face
             
-            console.log(`🔧 Resizing model - Scale: ${modelScale}, Focus: ${focusMode}, Offset: ${modelOffsetY}`);
-            console.log(`📐 Model dimensions: ${live2dModel.width}x${live2dModel.height}`);
-            console.log(`📐 Screen dimensions: ${pixiApp.screen.width}x${pixiApp.screen.height}`);
+            console.log('🔧 ResizeModel Debug Info:');
+            console.log(`  - Settings object:`, settings);
+            console.log(`  - Model Scale: ${modelScale}`);
+            console.log(`  - Focus Mode: ${focusMode}`);
+            console.log(`  - Model Offset Y: ${modelOffsetY}`);
+            console.log(`  - Model dimensions: ${live2dModel.width}x${live2dModel.height}`);
+            console.log(`  - Screen dimensions: ${pixiApp.screen.width}x${pixiApp.screen.height}`);
+            console.log(`  - Current model position BEFORE: (${live2dModel.x}, ${live2dModel.y})`);
+            console.log(`  - Current model scale BEFORE: (${live2dModel.scale.x}, ${live2dModel.scale.y})`);
+            
+            // Set anchor FIRST before any positioning calculations
+            live2dModel.anchor.set(0.5, 0.5);
+            console.log('✅ Anchor set to (0.5, 0.5)');
             
             // Calculate base scale based on focus mode
             let baseScale;
@@ -1758,36 +1909,56 @@
             
             // Apply the scale
             live2dModel.scale.set(finalScale);
+            console.log(`✅ Scale applied: (${live2dModel.scale.x}, ${live2dModel.scale.y})`);
             
-            // Center horizontally
+            // Center horizontally (anchor is 0.5, so this centers it)
             live2dModel.x = pixiApp.screen.width / 2;
+            console.log(`✅ X position set to center: ${live2dModel.x}`);
             
             // Calculate Y position based on focus mode
             let yPosition;
             switch (focusMode) {
                 case 'face':
-                    // Show face - move model down more
-                    yPosition = pixiApp.screen.height / 2 + live2dModel.height * finalScale * 0.35;
+                    // Show face - position higher (less Y offset)
+                    yPosition = pixiApp.screen.height * 0.6;
                     break;
                 case 'upper':
-                    // Show upper body - moderate offset
-                    yPosition = pixiApp.screen.height / 2 + live2dModel.height * finalScale * 0.25;
+                    // Show upper body - moderate position
+                    yPosition = pixiApp.screen.height * 0.65;
                     break;
                 case 'full':
                 default:
-                    // Show full body - minimal offset
-                    yPosition = pixiApp.screen.height / 2 + live2dModel.height * finalScale * 0.15;
+                    // Show full body - position lower to show more of body
+                    yPosition = pixiApp.screen.height * 0.7;
                     break;
             }
             
-            // Apply manual offset adjustment
-            yPosition += modelOffsetY * (pixiApp.screen.height * 0.3);
+            console.log(`📍 Base Y position for ${focusMode} mode: ${yPosition}`);
+            
+            // Apply manual offset adjustment (convert -1 to 1 range to pixel offset)
+            const offsetPixels = modelOffsetY * (pixiApp.screen.height * 0.2);
+            yPosition += offsetPixels;
+            
+            console.log(`📍 Y offset applied: ${offsetPixels}, final Y: ${yPosition}`);
             
             live2dModel.y = yPosition;
-            live2dModel.anchor.set(0.5, 0.5);
             
-            console.log(`📍 Final position: (${live2dModel.x.toFixed(1)}, ${live2dModel.y.toFixed(1)})`);
+            console.log(`✅ Final position set: (${live2dModel.x.toFixed(1)}, ${live2dModel.y.toFixed(1)})`);
             console.log(`🎯 Model bounds after scaling: ${(live2dModel.width * finalScale).toFixed(1)}x${(live2dModel.height * finalScale).toFixed(1)}`);
+            
+            // Force multiple render updates to ensure positioning sticks
+            if (pixiApp.renderer) {
+                pixiApp.renderer.render(pixiApp.stage);
+                console.log('🔄 Forced render update');
+                
+                // Force another render on next frame
+                requestAnimationFrame(() => {
+                    pixiApp.renderer.render(pixiApp.stage);
+                    console.log('🔄 Forced second render update');
+                });
+            }
+        }
+            }
         }
 
         function setModelParameter(paramId, value) {
