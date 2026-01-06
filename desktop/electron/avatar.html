@@ -482,11 +482,14 @@
                 loadMaidModel(maidId);
             });
             
-            // Zoom change from tray
+            // Legacy zoom handler - redirect to model scale
             window.electronAPI.onSetZoom((zoom) => {
-                currentZoom = zoom;
+                console.warn('⚠️ Legacy zoom handler called, redirecting to model scale');
+                if (settings?.avatar) {
+                    settings.avatar.modelScale = zoom;
+                }
                 resizeModel();
-                showStatus(`Zoom: ${Math.round(zoom * 100)}%`);
+                showStatus(`Size: ${Math.round(zoom * 100)}%`);
             });
             
             // Movement mode change from tray
@@ -1628,11 +1631,19 @@
                     live2dModel = null;
                 }
                 
-                // Load new model
+                console.log(`🔄 Loading model from: ${maid.modelPath}`);
+                
+                // Load new model with error handling
                 live2dModel = await PIXI.live2d.Live2DModel.from(maid.modelPath, {
                     autoInteract: false, // We handle interaction
                     autoUpdate: true
                 });
+                
+                if (!live2dModel) {
+                    throw new Error('Model loaded but is null/undefined');
+                }
+                
+                console.log(`✅ Model loaded successfully - Dimensions: ${live2dModel.width}x${live2dModel.height}`);
                 
                 // Add to stage FIRST
                 pixiApp.stage.addChild(live2dModel);
@@ -1654,8 +1665,14 @@
                 updateMovementMode();
                 
             } catch (error) {
-                console.error(`Failed to load ${maidId}:`, error);
-                showStatus(`Failed to load ${maid.name}`);
+                console.error(`❌ Failed to load ${maidId}:`, error);
+                showStatus(`Failed to load ${maid.name}: ${error.message}`);
+                
+                // Try to recover by showing a placeholder or fallback
+                if (maidId !== 'aria') {
+                    console.log('🔄 Attempting fallback to Aria model...');
+                    setTimeout(() => loadMaidModel('aria'), 2000);
+                }
             }
         }
 
@@ -1698,7 +1715,7 @@
                 return;
             }
             
-            // Get display settings
+            // Get display settings with proper fallbacks
             const modelScale = settings?.avatar?.modelScale ?? 1.0;
             const modelOffsetY = settings?.avatar?.modelOffsetY ?? 0; // -1 to 1, negative = up
             const focusMode = settings?.avatar?.focusMode ?? 'upper'; // full, upper, face
@@ -1707,7 +1724,7 @@
             console.log(`📐 Model dimensions: ${live2dModel.width}x${live2dModel.height}`);
             console.log(`📐 Screen dimensions: ${pixiApp.screen.width}x${pixiApp.screen.height}`);
             
-            // Calculate base scale - similar to original but allow more flexibility
+            // Calculate base scale based on focus mode
             let baseScale;
             switch (focusMode) {
                 case 'face':
@@ -1726,7 +1743,7 @@
                     break;
                 case 'full':
                 default:
-                    // For full body, use original conservative scaling
+                    // For full body, use conservative scaling
                     baseScale = Math.min(
                         pixiApp.screen.width / live2dModel.width * 0.9,
                         pixiApp.screen.height / live2dModel.height * 0.95
@@ -1742,10 +1759,10 @@
             // Apply the scale
             live2dModel.scale.set(finalScale);
             
-            // Use original simple positioning logic that worked
+            // Center horizontally
             live2dModel.x = pixiApp.screen.width / 2;
             
-            // Calculate Y position based on focus mode (similar to original)
+            // Calculate Y position based on focus mode
             let yPosition;
             switch (focusMode) {
                 case 'face':
@@ -1753,7 +1770,7 @@
                     yPosition = pixiApp.screen.height / 2 + live2dModel.height * finalScale * 0.35;
                     break;
                 case 'upper':
-                    // Show upper body - moderate offset (close to original)
+                    // Show upper body - moderate offset
                     yPosition = pixiApp.screen.height / 2 + live2dModel.height * finalScale * 0.25;
                     break;
                 case 'full':
@@ -1780,8 +1797,12 @@
                 const index = coreModel.getParameterIndex(paramId);
                 if (index >= 0) {
                     coreModel.setParameterValueByIndex(index, value);
+                } else {
+                    console.warn(`⚠️ Parameter '${paramId}' not found in model`);
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error(`❌ Error setting parameter '${paramId}':`, e);
+            }
         }
 
         function setExpression(name) {

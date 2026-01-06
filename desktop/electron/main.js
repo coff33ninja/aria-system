@@ -34,7 +34,6 @@ const DEFAULT_SETTINGS = {
         height: 500,
         x: null, // null = auto position
         y: null,
-        zoom: 1.0,
         opacity: 1.0,
         alwaysOnTop: true,
         startMinimized: false

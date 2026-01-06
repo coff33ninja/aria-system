@@ -360,6 +360,25 @@ chmod +x scripts/*.sh
 
 **Technical Notes**: This appears to be a voice pipeline issue where Sophia's longer responses are being interrupted by the voice detection system, causing her to pause and wait for user acknowledgment before continuing.
 
+### ✅ Recently Fixed Issues
+
+#### Live2D Zoom and Scaling (Fixed 2026-01-06)
+**Issue**: Live2D avatar scaling and zoom functionality was broken in Electron desktop mode.
+
+**Symptoms Fixed**:
+- ✅ Ctrl+scroll zoom not working
+- ✅ Tray menu character size controls not responding
+- ✅ Inconsistent model scaling with user settings
+- ✅ Poor error handling when models fail to load
+
+**Solution**: Complete refactor of zoom/scale system with improved error handling and validation. See [Live2D Zoom Fixes Documentation](docs/live2d-zoom-fixes.md) for technical details.
+
+**New Features Added**:
+- Enhanced error recovery with fallback to Aria model
+- Debug functions (`testScaling()`, `debugModel()`) for troubleshooting
+- Better parameter validation with helpful warnings
+- Improved logging for model loading and scaling operations
+
 ---
 
 ## ⚡ Performance Optimizations
