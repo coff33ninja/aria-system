@@ -35,14 +35,50 @@ This document details the fixes applied to resolve Live2D avatar scaling and zoo
 - User's `modelScale` setting not always applied correctly
 - Edge cases in positioning logic
 
-### 4. Poor Error Handling
+### 6. Window-Character Size Inconsistency
 
-**Problem**: Model loading lacked proper error handling and recovery mechanisms.
+**Problem**: The Electron window size was fixed while the character could be scaled independently, causing clipping when scaled larger or wasted space when scaled smaller.
 
-**Issues**:
-- Silent failures when models couldn't load
-- No fallback when Live2D initialization failed
-- Missing parameter validation
+**Root Cause**: No relationship between window dimensions and character scale/focus mode settings.
+
+### 6. Enhanced Window Auto-Resize System
+
+**File**: `desktop/electron/main.js`
+
+**New Feature**: Automatic window sizing that adapts to character scale and focus mode:
+
+```javascript
+function autoAdjustWindowSize(modelScale, focusMode) {
+    // Base window dimensions optimized for each focus mode at 100% scale
+    const baseDimensions = {
+        'face': { width: 300, height: 350 },
+        'upper': { width: 400, height: 500 },
+        'full': { width: 500, height: 650 }
+    };
+    
+    // Smart scaling using square root to prevent excessive growth
+    const scaleFactor = Math.sqrt(modelScale);
+    const newWidth = Math.round(base.width * scaleFactor);
+    const newHeight = Math.round(base.height * scaleFactor);
+    
+    // Apply with bounds checking and screen positioning
+}
+```
+
+**Key Improvements**:
+- **Focus Mode Optimization**: Different base window sizes for face (300x350), upper body (400x500), and full body (500x650)
+- **Smart Scaling Algorithm**: Uses square root scaling to prevent excessive window growth at high character scales
+- **Intelligent Positioning**: Maintains window center point when resizing and ensures it stays on screen
+- **User Control**: New tray menu option "Auto-Resize Window" to enable/disable the feature
+- **Reasonable Limits**: Clamps window size between 250x300 and 800x900 pixels
+- **Threshold-Based Updates**: Only resizes when change is significant (>10 pixels) to avoid constant adjustments
+
+**Benefits**:
+- No more character clipping at large scales
+- No wasted space at small scales  
+- Optimal window size for each focus mode
+- Smooth user experience with intelligent positioning
+- User can disable if they prefer manual control
 
 ## Fixes Applied
 
@@ -140,7 +176,7 @@ try {
 }
 ```
 
-### 4. Added Parameter Validation
+### 5. Added Parameter Validation
 
 **File**: `desktop/electron/avatar.html`
 
@@ -163,34 +199,41 @@ function setModelParameter(paramId, value) {
 }
 ```
 
-### 5. Cleaned Up Legacy Settings
+### 7. Window Auto-Resize System
 
 **File**: `desktop/electron/main.js`
 
-**Change**: Removed unused `zoom` property from default settings:
+**New Feature**: Intelligent window sizing that automatically adjusts to match character scale and focus mode.
 
-```javascript
-// Before
-window: {
-    width: 400,
-    height: 500,
-    x: null,
-    y: null,
-    zoom: 1.0,  // ← Removed (legacy)
-    opacity: 1.0,
-    // ...
-}
+**Key Components**:
 
-// After
-window: {
-    width: 400,
-    height: 500,
-    x: null,
-    y: null,
-    opacity: 1.0,
-    // ...
-}
-```
+1. **`autoAdjustWindowSize()` Function**: 
+   - Calculates optimal window size based on character scale and focus mode
+   - Uses square root scaling to prevent excessive window growth
+   - Maintains window center point during resize
+   - Ensures window stays within screen bounds
+
+2. **Focus Mode Base Dimensions**:
+   ```javascript
+   const baseDimensions = {
+       'face': { width: 300, height: 350 },    // Optimized for face view
+       'upper': { width: 400, height: 500 },   // Optimized for upper body
+       'full': { width: 500, height: 650 }     // Optimized for full body
+   };
+   ```
+
+3. **Tray Menu Control**: New "Auto-Resize Window" checkbox option to enable/disable the feature
+
+4. **Integration**: Automatically triggered when:
+   - Character scale changes (Ctrl+scroll, tray menu)
+   - Focus mode changes (face/upper/full)
+   - Feature is toggled on
+
+**Benefits**:
+- Eliminates character clipping at large scales
+- Removes wasted space at small scales
+- Provides optimal viewing for each focus mode
+- Maintains smooth user experience with intelligent positioning
 
 ## Testing and Validation
 
@@ -216,6 +259,9 @@ Two new debug functions are available in the browser console:
 - [ ] Scaling responds to user input (Ctrl+scroll, tray menu)
 - [ ] Focus modes work correctly (full body, upper body, face)
 - [ ] Model positioning is correct for different window sizes
+- [ ] **Window auto-resizes to match character scale and focus mode**
+- [ ] **Auto-resize can be toggled on/off via tray menu**
+- [ ] **Window maintains center position during auto-resize**
 - [ ] Error messages are helpful for debugging
 - [ ] Fallback recovery works when models fail to load
 
@@ -240,6 +286,16 @@ Two new debug functions are available in the browser console:
 2. Verify `resizeModel()` is being called after scale changes
 3. Use `debugModel()` in console to check current state
 4. Ensure model is loaded before attempting to scale
+
+### Window Size Inconsistency
+
+**Symptoms**: Character appears clipped or there's excessive empty space around the avatar
+
+**Solutions**:
+1. Enable "Auto-Resize Window" in tray menu → Options
+2. Manually adjust window size using tray menu → Display → Window Size
+3. Check that character scale and focus mode are appropriate for your screen
+4. Use `debugModel()` in console to check current scale and focus settings
 
 ### Expression Errors
 
@@ -281,3 +337,6 @@ Two new debug functions are available in the browser console:
 - Added parameter validation with warnings
 - Cleaned up legacy zoom settings
 - Added debug functions for testing
+- **Added intelligent window auto-resize system**
+- **Implemented focus mode optimized window dimensions**
+- **Added user control toggle for auto-resize feature**

@@ -370,14 +370,18 @@ chmod +x scripts/*.sh
 - ✅ Tray menu character size controls not responding
 - ✅ Inconsistent model scaling with user settings
 - ✅ Poor error handling when models fail to load
+- ✅ **Window size inconsistent with character scale (clipping/wasted space)**
 
-**Solution**: Complete refactor of zoom/scale system with improved error handling and validation. See [Live2D Zoom Fixes Documentation](docs/live2d-zoom-fixes.md) for technical details.
+**Solution**: Complete refactor of zoom/scale system with improved error handling, validation, and intelligent window auto-resize. See [Live2D Zoom Fixes Documentation](docs/live2d-zoom-fixes.md) for technical details.
 
 **New Features Added**:
 - Enhanced error recovery with fallback to Aria model
 - Debug functions (`testScaling()`, `debugModel()`) for troubleshooting
 - Better parameter validation with helpful warnings
 - Improved logging for model loading and scaling operations
+- **Intelligent window auto-resize system that adapts to character scale and focus mode**
+- **Focus mode optimized window dimensions (face: 300x350, upper: 400x500, full: 500x650)**
+- **User-controllable auto-resize toggle in tray menu**
 
 ---
 

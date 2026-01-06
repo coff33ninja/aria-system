@@ -64,7 +64,8 @@ const DEFAULT_SETTINGS = {
         waveformColor: '#ff6b9d'
     },
     controls: {
-        modifierDragEnabled: true  // Ctrl+drag to move, Ctrl+scroll to scale
+        modifierDragEnabled: true,  // Ctrl+drag to move, Ctrl+scroll to scale
+        autoResizeWindow: true      // Auto-adjust window size to match character scale
     }
 };
 
@@ -424,6 +425,22 @@ function updateTrayMenu() {
                         broadcastSettingsUpdate();
                     }
                 },
+                {
+                    label: 'Auto-Resize Window',
+                    type: 'checkbox',
+                    checked: settings.controls?.autoResizeWindow !== false,
+                    click: (menuItem) => {
+                        if (!settings.controls) settings.controls = {};
+                        settings.controls.autoResizeWindow = menuItem.checked;
+                        saveSettings();
+                        broadcastSettingsUpdate();
+                        
+                        if (menuItem.checked) {
+                            // Trigger immediate resize if enabled
+                            autoAdjustWindowSize(settings.avatar.modelScale || 1.0, settings.avatar.focusMode || 'upper');
+                        }
+                    }
+                },
                 { type: 'separator' },
                 {
                     label: 'Auto-Hide',
@@ -555,15 +572,94 @@ function resizeWindow(width, height) {
 function setModelScale(scale) {
     settings.avatar.modelScale = scale;
     saveSettings();
+    
+    // Auto-adjust window size based on character scale and focus mode
+    autoAdjustWindowSize(scale, settings.avatar.focusMode);
+    
     mainWindow.webContents.send('set-model-scale', scale);
     updateTrayMenu();
     // Broadcast settings update to all windows including settings dialog
     broadcastSettingsUpdate();
 }
 
+function autoAdjustWindowSize(modelScale, focusMode) {
+    // Check if auto-resize is enabled
+    if (!settings.controls?.autoResizeWindow) {
+        return;
+    }
+    
+    // Base window dimensions that work well for each focus mode at 100% scale
+    const baseDimensions = {
+        'face': { width: 300, height: 350 },
+        'upper': { width: 400, height: 500 },
+        'full': { width: 500, height:650 }
+    };
+    
+    const base = baseDimensions[focusMode] || baseDimensions['upper'];
+    
+    // Calculate new dimensions based on scale
+    // Use square root scaling for window size to avoid excessive window growth
+    const scaleFactor = Math.sqrt(modelScale);
+    const newWidth = Math.round(base.width * scaleFactor);
+    const newHeight = Math.round(base.height * scaleFactor);
+    
+    // Clamp to reasonable limits
+    const minWidth = 250;
+    const maxWidth = 800;
+    const minHeight = 300;
+    const maxHeight = 900;
+    
+    const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+    const clampedHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
+    
+    // Only resize if the change is significant (avoid constant tiny adjustments)
+    const currentBounds = mainWindow.getBounds();
+    const widthDiff = Math.abs(currentBounds.width - clampedWidth);
+    const heightDiff = Math.abs(currentBounds.height - clampedHeight);
+    
+    if (widthDiff > 10 || heightDiff > 10) {
+        console.log(`📐 Auto-adjusting window: ${currentBounds.width}x${currentBounds.height} → ${clampedWidth}x${clampedHeight} (scale: ${modelScale}, focus: ${focusMode})`);
+        
+        // Get current position to maintain center point
+        const centerX = currentBounds.x + currentBounds.width / 2;
+        const centerY = currentBounds.y + currentBounds.height / 2;
+        
+        // Calculate new position to keep window centered
+        const newX = Math.round(centerX - clampedWidth / 2);
+        const newY = Math.round(centerY - clampedHeight / 2);
+        
+        // Ensure window stays on screen
+        const display = screen.getDisplayNearestPoint({ x: centerX, y: centerY });
+        const safeX = Math.max(display.bounds.x, Math.min(newX, display.bounds.x + display.bounds.width - clampedWidth));
+        const safeY = Math.max(display.bounds.y, Math.min(newY, display.bounds.y + display.bounds.height - clampedHeight));
+        
+        // Apply new size and position
+        mainWindow.setBounds({
+            x: safeX,
+            y: safeY,
+            width: clampedWidth,
+            height: clampedHeight
+        });
+        
+        // Update settings
+        settings.window.width = clampedWidth;
+        settings.window.height = clampedHeight;
+        settings.window.x = safeX;
+        settings.window.y = safeY;
+        saveSettings();
+        
+        // Notify renderer of window change
+        mainWindow.webContents.send('window-resized');
+    }
+}
+
 function setFocusMode(mode) {
     settings.avatar.focusMode = mode;
     saveSettings();
+    
+    // Auto-adjust window size for new focus mode
+    autoAdjustWindowSize(settings.avatar.modelScale || 1.0, mode);
+    
     mainWindow.webContents.send('set-focus-mode', mode);
     updateTrayMenu();
 }
