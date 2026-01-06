@@ -191,11 +191,12 @@ Tray Menu:
 |--------|--------|--------|
 | `Ctrl+Shift+A` | Toggle avatar visibility | ✅ |
 | `Ctrl+Shift+M` | Cycle through maids | ✅ |
-| `Ctrl+Shift++` | Zoom in | ✅ |
-| `Ctrl+Shift+-` | Zoom out | ✅ |
+| `Ctrl+Shift++` | Scale up character | ✅ |
+| `Ctrl+Shift+-` | Scale down character | ✅ |
 
 - [x] Global hotkeys (work even when app not focused)
-- [ ] Configurable in settings UI
+- [x] Configurable in settings UI
+- [x] Custom hotkey recording and re-registration
 
 ---
 
@@ -242,7 +243,7 @@ Tray Menu:
 - [x] Monitor selection with move button
 - [x] Movement mode selection
 - [x] Auto-hide configuration
-- [x] Hotkey recording (UI only, not yet wired to main process)
+- [x] Hotkey recording with live re-registration to main process
 - [x] Camera tracking toggle
 - [x] Settings import/export buttons
 

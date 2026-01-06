@@ -490,11 +490,11 @@ function updateTrayMenu() {
     tray.setContextMenu(contextMenu);
 }
 
+// Legacy zoom function - kept for backwards compatibility
+// New code should use setModelScale() instead
 function setZoom(zoom) {
-    settings.window.zoom = zoom;
-    saveSettings();
-    mainWindow.webContents.send('set-zoom', zoom);
-    updateTrayMenu();
+    // Map zoom to model scale for backwards compatibility
+    setModelScale(zoom);
 }
 
 function setMovementMode(mode) {
@@ -616,21 +616,23 @@ function registerHotkeys() {
         updateTrayMenu();
     });
     
-    // Zoom in
+    // Scale up (character size)
     globalShortcut.register('Ctrl+Shift+Plus', () => {
-        const zooms = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-        const idx = zooms.indexOf(settings.window.zoom);
-        if (idx < zooms.length - 1) {
-            setZoom(zooms[idx + 1]);
+        const scales = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+        const currentScale = settings.avatar.modelScale || 1.0;
+        const idx = scales.findIndex(s => Math.abs(s - currentScale) < 0.1);
+        if (idx < scales.length - 1) {
+            setModelScale(scales[idx + 1]);
         }
     });
     
-    // Zoom out
+    // Scale down (character size)
     globalShortcut.register('Ctrl+Shift+-', () => {
-        const zooms = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-        const idx = zooms.indexOf(settings.window.zoom);
+        const scales = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+        const currentScale = settings.avatar.modelScale || 1.0;
+        const idx = scales.findIndex(s => Math.abs(s - currentScale) < 0.1);
         if (idx > 0) {
-            setZoom(zooms[idx - 1]);
+            setModelScale(scales[idx - 1]);
         }
     });
     
@@ -648,10 +650,84 @@ function registerHotkeys() {
     });
 }
 
+// Re-register hotkeys with custom bindings from settings
+function reregisterHotkeys() {
+    globalShortcut.unregisterAll();
+    
+    const hotkeys = settings.hotkeys || {};
+    
+    // Toggle visibility
+    const toggleKey = hotkeys.toggleVisibility || 'Ctrl+Shift+A';
+    try {
+        globalShortcut.register(toggleKey, () => {
+            if (mainWindow.isVisible()) {
+                mainWindow.hide();
+            } else {
+                mainWindow.show();
+                mainWindow.focus();
+            }
+            updateTrayMenu();
+        });
+    } catch (e) {
+        console.error(`Failed to register toggle hotkey (${toggleKey}):`, e.message);
+    }
+    
+    // Scale up
+    const scaleUpKey = hotkeys.zoomIn || 'Ctrl+Shift+Plus';
+    try {
+        globalShortcut.register(scaleUpKey, () => {
+            const scales = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+            const currentScale = settings.avatar.modelScale || 1.0;
+            const idx = scales.findIndex(s => Math.abs(s - currentScale) < 0.1);
+            if (idx < scales.length - 1) {
+                setModelScale(scales[idx + 1]);
+            }
+        });
+    } catch (e) {
+        console.error(`Failed to register scale up hotkey (${scaleUpKey}):`, e.message);
+    }
+    
+    // Scale down
+    const scaleDownKey = hotkeys.zoomOut || 'Ctrl+Shift+-';
+    try {
+        globalShortcut.register(scaleDownKey, () => {
+            const scales = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+            const currentScale = settings.avatar.modelScale || 1.0;
+            const idx = scales.findIndex(s => Math.abs(s - currentScale) < 0.1);
+            if (idx > 0) {
+                setModelScale(scales[idx - 1]);
+            }
+        });
+    } catch (e) {
+        console.error(`Failed to register scale down hotkey (${scaleDownKey}):`, e.message);
+    }
+    
+    // Cycle maids
+    const cycleMaidKey = hotkeys.cycleMaid || 'Ctrl+Shift+M';
+    try {
+        globalShortcut.register(cycleMaidKey, () => {
+            const maidIds = Object.keys(MAIDS).filter(id => MAIDS[id].hasModel);
+            const idx = maidIds.indexOf(settings.avatar.currentMaid);
+            const nextIdx = (idx + 1) % maidIds.length;
+            const nextMaid = maidIds[nextIdx];
+            
+            settings.avatar.currentMaid = nextMaid;
+            saveSettings();
+            mainWindow.webContents.send('switch-maid', nextMaid);
+            updateTrayMenu();
+        });
+    } catch (e) {
+        console.error(`Failed to register cycle maid hotkey (${cycleMaidKey}):`, e.message);
+    }
+}
+
 // IPC handlers
 ipcMain.handle('get-window-bounds', () => mainWindow.getBounds());
 ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('save-settings', (event, newSettings) => {
+    // Check if hotkeys changed
+    const hotkeysChanged = JSON.stringify(settings.hotkeys) !== JSON.stringify(newSettings.hotkeys);
+    
     settings = { ...settings, ...newSettings };
     saveSettings();
     // Apply settings to main window
@@ -660,6 +736,12 @@ ipcMain.handle('save-settings', (event, newSettings) => {
         mainWindow.setOpacity(settings.window.opacity);
         mainWindow.webContents.send('settings-loaded', settings);
     }
+    
+    // Re-register hotkeys if they changed
+    if (hotkeysChanged && settings.hotkeys) {
+        reregisterHotkeys();
+    }
+    
     updateTrayMenu();
     return settings;
 });
