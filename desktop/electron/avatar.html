@@ -121,17 +121,94 @@
             opacity: 0.7;
             -webkit-app-region: no-drag;
         }
+        
+        /* Waveform visualization */
+        #waveform-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            height: 30px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        
+        #waveform-container.active {
+            opacity: 1;
+        }
+        
+        .waveform-bar {
+            width: 4px;
+            background: linear-gradient(to top, #ff6b9d, #ff8fb3);
+            border-radius: 2px;
+            transition: height 0.05s ease-out;
+        }
+        
+        /* Listening ring */
+        #listening-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 120%;
+            height: 120%;
+            border: 3px solid transparent;
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        #listening-ring.active {
+            opacity: 1;
+            border-color: rgba(255, 107, 157, 0.5);
+            animation: listening-pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes listening-pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(0.95); opacity: 0.3; }
+            50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.7; }
+        }
+        
+        /* Notification reaction indicator */
+        #notification-indicator {
+            position: absolute;
+            top: 40px;
+            right: 10px;
+            font-size: 20px;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+        }
+        
+        #notification-indicator.active {
+            opacity: 1;
+            animation: notification-bounce 0.5s ease-out;
+        }
+        
+        @keyframes notification-bounce {
+            0% { transform: scale(0) rotate(-20deg); }
+            50% { transform: scale(1.3) rotate(10deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
     </style>
 </head>
 <body>
     <div id="avatar-container">
         <canvas id="live2d-canvas"></canvas>
+        <div id="listening-ring"></div>
         <div id="maid-badge">Aria</div>
         <div id="speaking-indicator">
             <div class="speak-dot"></div>
             <div class="speak-dot"></div>
             <div class="speak-dot"></div>
         </div>
+        <div id="waveform-container"></div>
+        <div id="notification-indicator">🔔</div>
         <div id="status">Connecting...</div>
         <div id="mode-indicator">idle</div>
     </div>
@@ -141,6 +218,39 @@
     <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+    
+    <!-- MediaPipe Face Mesh (loaded conditionally) -->
+    <script>
+        // MediaPipe will be loaded dynamically if enabled
+        let mediaPipeLoaded = false;
+        let faceMesh = null;
+        
+        async function loadMediaPipe() {
+            if (mediaPipeLoaded) return true;
+            
+            try {
+                // Load MediaPipe scripts dynamically
+                await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
+                await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js');
+                mediaPipeLoaded = true;
+                console.log('✅ MediaPipe loaded');
+                return true;
+            } catch (e) {
+                console.error('Failed to load MediaPipe:', e);
+                return false;
+            }
+        }
+        
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+    </script>
 
     <script>
         // Configuration
@@ -192,6 +302,16 @@
         let breathTime = 0;
         let blinkTimer = 0;
         let nextBlinkTime = 2000 + Math.random() * 4000;
+        
+        // Waveform state
+        let audioContext = null;
+        let analyser = null;
+        let waveformBars = [];
+        let waveformAnimationFrame = null;
+        
+        // MediaPipe state
+        let useMediaPipe = false;
+        let mediaPipeCamera = null;
 
         // DOM
         const canvas = document.getElementById('live2d-canvas');
@@ -199,6 +319,23 @@
         const maidBadge = document.getElementById('maid-badge');
         const speakingIndicator = document.getElementById('speaking-indicator');
         const modeIndicator = document.getElementById('mode-indicator');
+        const waveformContainer = document.getElementById('waveform-container');
+        const listeningRing = document.getElementById('listening-ring');
+        const notificationIndicator = document.getElementById('notification-indicator');
+        
+        // Initialize waveform bars
+        function initWaveformBars() {
+            waveformContainer.innerHTML = '';
+            waveformBars = [];
+            for (let i = 0; i < 12; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'waveform-bar';
+                bar.style.height = '4px';
+                waveformContainer.appendChild(bar);
+                waveformBars.push(bar);
+            }
+        }
+        initWaveformBars();
 
         // ============ Electron API Integration ============
         
@@ -209,6 +346,7 @@
                 currentZoom = settings.window.zoom;
                 movementMode = settings.avatar.movementMode;
                 currentMaid = settings.avatar.currentMaid;
+                useMediaPipe = settings.avatar?.useMediaPipe || false;
                 
                 modeIndicator.textContent = movementMode;
                 updateMovementMode();
@@ -216,6 +354,11 @@
                 if (live2dModel) {
                     resizeModel();
                 }
+            });
+            
+            // Notification reaction from main process
+            window.electronAPI.onNotificationReaction((data) => {
+                triggerNotificationReaction(data.type);
             });
             
             // Maid switch from tray
@@ -305,6 +448,15 @@
                     
                 case 'wander':
                     startRandomWander();
+                    break;
+                    
+                case 'follow':
+                    // Follow active window - handled by main process
+                    // Avatar uses idle animation while following
+                    startIdleAnimation();
+                    if (window.electronAPI) {
+                        window.electronAPI.notifyMovementModeChanged('follow');
+                    }
                     break;
             }
         }
@@ -465,6 +617,17 @@
         async function startCameraTracking() {
             showStatus('Starting camera...', 3000);
             
+            // Check if MediaPipe should be used
+            if (useMediaPipe) {
+                const loaded = await loadMediaPipe();
+                if (loaded) {
+                    await startMediaPipeCameraTracking();
+                    return;
+                }
+                // Fall back to basic tracking if MediaPipe fails
+                showStatus('MediaPipe unavailable, using basic tracking', 2000);
+            }
+            
             try {
                 // Request camera permission
                 cameraStream = await navigator.mediaDevices.getUserMedia({ 
@@ -509,10 +672,121 @@
             }
         }
         
+        // ============ MediaPipe Camera Tracking ============
+        
+        async function startMediaPipeCameraTracking() {
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480, facingMode: 'user' } 
+                });
+                
+                if (!cameraVideo) {
+                    cameraVideo = document.createElement('video');
+                    cameraVideo.style.display = 'none';
+                    cameraVideo.autoplay = true;
+                    cameraVideo.playsInline = true;
+                    document.body.appendChild(cameraVideo);
+                }
+                
+                cameraVideo.srcObject = cameraStream;
+                await cameraVideo.play();
+                
+                // Initialize MediaPipe FaceMesh
+                faceMesh = new FaceMesh({
+                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+                });
+                
+                faceMesh.setOptions({
+                    maxNumFaces: 1,
+                    refineLandmarks: true,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+                
+                faceMesh.onResults(onMediaPipeResults);
+                
+                // Start camera processing
+                mediaPipeCamera = new Camera(cameraVideo, {
+                    onFrame: async () => {
+                        if (movementMode === 'camera' && faceMesh) {
+                            await faceMesh.send({ image: cameraVideo });
+                        }
+                    },
+                    width: 640,
+                    height: 480
+                });
+                
+                await mediaPipeCamera.start();
+                
+                showStatus('MediaPipe camera active', 2000);
+                modeIndicator.textContent = 'camera 📷 (MP)';
+                
+            } catch (error) {
+                console.error('MediaPipe camera failed:', error);
+                showStatus('MediaPipe failed - using basic tracking', 2000);
+                useMediaPipe = false;
+                startCameraTracking(); // Retry with basic tracking
+            }
+        }
+        
+        function onMediaPipeResults(results) {
+            if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
+            
+            const landmarks = results.multiFaceLandmarks[0];
+            
+            // Get nose tip (landmark 1) for head position
+            const noseTip = landmarks[1];
+            
+            // Get eye landmarks for gaze
+            const leftEye = landmarks[468]; // Left eye center
+            const rightEye = landmarks[473]; // Right eye center
+            
+            // Calculate head rotation from nose position (0.5 is center)
+            const headX = (0.5 - noseTip.x) * 60; // -30 to 30 degrees
+            const headY = (noseTip.y - 0.5) * 40; // -20 to 20 degrees
+            
+            // Calculate head tilt from eye positions
+            const eyeDeltaY = rightEye.y - leftEye.y;
+            const headZ = eyeDeltaY * 30; // Head tilt
+            
+            // Smooth interpolation
+            targetAngleX = headX;
+            targetAngleY = headY;
+            
+            currentAngleX = currentAngleX * 0.7 + targetAngleX * 0.3;
+            currentAngleY = currentAngleY * 0.7 + targetAngleY * 0.3;
+            
+            if (live2dModel) {
+                setModelParameter('ParamAngleX', currentAngleX);
+                setModelParameter('ParamAngleY', currentAngleY);
+                setModelParameter('ParamAngleZ', headZ);
+                setModelParameter('ParamEyeBallX', (0.5 - noseTip.x) * 1.5);
+                setModelParameter('ParamEyeBallY', (noseTip.y - 0.5) * 1.0);
+                setModelParameter('ParamBodyAngleX', currentAngleX * 0.3);
+                
+                // Mouth tracking from landmarks
+                const upperLip = landmarks[13];
+                const lowerLip = landmarks[14];
+                const mouthOpen = Math.abs(upperLip.y - lowerLip.y) * 3;
+                setModelParameter('ParamMouthOpenY', Math.min(1, mouthOpen));
+            }
+        }
+        
         function stopCameraTracking() {
             if (faceDetectionInterval) {
                 clearInterval(faceDetectionInterval);
                 faceDetectionInterval = null;
+            }
+            
+            // Stop MediaPipe camera
+            if (mediaPipeCamera) {
+                mediaPipeCamera.stop();
+                mediaPipeCamera = null;
+            }
+            
+            if (faceMesh) {
+                faceMesh.close();
+                faceMesh = null;
             }
             
             if (cameraStream) {
@@ -914,7 +1188,35 @@
                 case 'expression':
                     setExpression(data.expression);
                     break;
+                    
+                case 'listening':
+                    setListeningState(data.active);
+                    break;
+                    
+                case 'speaking':
+                    if (data.active) {
+                        speakingIndicator.classList.add('active');
+                        waveformContainer.classList.add('active');
+                    } else {
+                        speakingIndicator.classList.remove('active');
+                        waveformContainer.classList.remove('active');
+                    }
+                    break;
+                    
+                case 'audio_level':
+                    // Real-time audio level from backend
+                    updateWaveformFromLevel(data.level);
+                    break;
             }
+        }
+        
+        function updateWaveformFromLevel(level) {
+            // level is 0-1
+            waveformBars.forEach((bar, i) => {
+                const variation = Math.sin(Date.now() / 100 + i) * 0.3;
+                const height = 4 + (level + variation) * 26;
+                bar.style.height = `${Math.max(4, height)}px`;
+            });
         }
 
         function setCurrentMaid(maidId) {
@@ -1032,6 +1334,7 @@
             if (!live2dModel) return;
             
             speakingIndicator.classList.add('active');
+            waveformContainer.classList.add('active');
             
             const duration = Math.min(textLength * 50, 3000);
             const startTime = Date.now();
@@ -1041,15 +1344,170 @@
                 if (elapsed > duration) {
                     setModelParameter('ParamMouthOpenY', 0);
                     speakingIndicator.classList.remove('active');
+                    waveformContainer.classList.remove('active');
+                    // Reset waveform bars
+                    waveformBars.forEach(bar => bar.style.height = '4px');
                     return;
                 }
                 
                 const value = Math.sin(elapsed / 100) * 0.5 + 0.3;
                 setModelParameter('ParamMouthOpenY', Math.max(0, value));
+                
+                // Animate waveform bars
+                waveformBars.forEach((bar, i) => {
+                    const phase = (elapsed / 80) + (i * 0.5);
+                    const height = 4 + Math.abs(Math.sin(phase)) * 20 + Math.random() * 6;
+                    bar.style.height = `${height}px`;
+                });
+                
                 requestAnimationFrame(animate);
             }
             
             animate();
+        }
+        
+        // ============ Waveform Visualization (Audio Input) ============
+        
+        async function startWaveformVisualization() {
+            if (audioContext) return;
+            
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const source = audioContext.createMediaStreamSource(stream);
+                
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 32;
+                source.connect(analyser);
+                
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                
+                function updateWaveform() {
+                    if (!analyser) return;
+                    
+                    analyser.getByteFrequencyData(dataArray);
+                    
+                    // Check if there's significant audio
+                    const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+                    
+                    if (average > 10) {
+                        waveformContainer.classList.add('active');
+                        listeningRing.classList.add('active');
+                        
+                        // Map frequency data to waveform bars
+                        waveformBars.forEach((bar, i) => {
+                            const value = dataArray[i % dataArray.length];
+                            const height = 4 + (value / 255) * 26;
+                            bar.style.height = `${height}px`;
+                        });
+                    } else {
+                        waveformContainer.classList.remove('active');
+                        listeningRing.classList.remove('active');
+                    }
+                    
+                    waveformAnimationFrame = requestAnimationFrame(updateWaveform);
+                }
+                
+                updateWaveform();
+                console.log('✅ Waveform visualization started');
+                
+            } catch (error) {
+                console.error('Failed to start waveform visualization:', error);
+            }
+        }
+        
+        function stopWaveformVisualization() {
+            if (waveformAnimationFrame) {
+                cancelAnimationFrame(waveformAnimationFrame);
+                waveformAnimationFrame = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+                analyser = null;
+            }
+            waveformContainer.classList.remove('active');
+            listeningRing.classList.remove('active');
+        }
+        
+        // ============ Notification Reactions ============
+        
+        function triggerNotificationReaction(type) {
+            if (!live2dModel) return;
+            
+            // Show notification indicator
+            const emojis = {
+                'message': '💬',
+                'email': '📧',
+                'calendar': '📅',
+                'alert': '⚠️',
+                'generic': '🔔'
+            };
+            
+            notificationIndicator.textContent = emojis[type] || '🔔';
+            notificationIndicator.classList.add('active');
+            
+            // Avatar looks toward notification (top-right)
+            const startAngleX = currentAngleX;
+            const startAngleY = currentAngleY;
+            const targetX = 20;
+            const targetY = -10;
+            
+            // Quick look animation
+            const startTime = performance.now();
+            const lookDuration = 300;
+            const holdDuration = 800;
+            const returnDuration = 400;
+            
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                
+                if (elapsed < lookDuration) {
+                    // Look toward notification
+                    const progress = elapsed / lookDuration;
+                    const ease = 1 - Math.pow(1 - progress, 3);
+                    setModelParameter('ParamAngleX', startAngleX + (targetX - startAngleX) * ease);
+                    setModelParameter('ParamAngleY', startAngleY + (targetY - startAngleY) * ease);
+                    setModelParameter('ParamEyeLOpen', 1.2); // Surprised eyes
+                    setModelParameter('ParamEyeROpen', 1.2);
+                } else if (elapsed < lookDuration + holdDuration) {
+                    // Hold position, blink
+                    if (elapsed > lookDuration + 200 && elapsed < lookDuration + 350) {
+                        setModelParameter('ParamEyeLOpen', 0.2);
+                        setModelParameter('ParamEyeROpen', 0.2);
+                    } else {
+                        setModelParameter('ParamEyeLOpen', 1);
+                        setModelParameter('ParamEyeROpen', 1);
+                    }
+                } else if (elapsed < lookDuration + holdDuration + returnDuration) {
+                    // Return to original position
+                    const progress = (elapsed - lookDuration - holdDuration) / returnDuration;
+                    const ease = progress * progress;
+                    setModelParameter('ParamAngleX', targetX + (startAngleX - targetX) * ease);
+                    setModelParameter('ParamAngleY', targetY + (startAngleY - targetY) * ease);
+                } else {
+                    // Done
+                    notificationIndicator.classList.remove('active');
+                    return;
+                }
+                
+                requestAnimationFrame(animate);
+            }
+            
+            requestAnimationFrame(animate);
+            showStatus(`Notification: ${type}`, 1500);
+        }
+        
+        // ============ Listening State ============
+        
+        function setListeningState(isListening) {
+            if (isListening) {
+                listeningRing.classList.add('active');
+                startWaveformVisualization();
+            } else {
+                listeningRing.classList.remove('active');
+                stopWaveformVisualization();
+            }
         }
 
         // Window resize

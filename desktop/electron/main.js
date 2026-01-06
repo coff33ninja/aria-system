@@ -20,6 +20,10 @@ let settingsWindow = null;
 let tray = null;
 let settings = null;
 
+// Active window tracking
+let activeWindowInterval = null;
+let lastActiveWindowBounds = null;
+
 // Settings file path
 const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
 
@@ -37,14 +41,24 @@ const DEFAULT_SETTINGS = {
     },
     avatar: {
         currentMaid: 'aria',
-        movementMode: 'idle', // static, idle, mouse, camera
+        movementMode: 'idle', // static, idle, mouse, camera, wander, follow
         trackingSpeed: 0.5,
-        idleIntensity: 0.5
+        idleIntensity: 0.5,
+        useMediaPipe: false
     },
     autoHide: {
         enabled: false,
         inactivityMinutes: 5,
         hideInFullscreen: false
+    },
+    notifications: {
+        enabled: false,
+        reactToAll: true,
+        appWhitelist: []
+    },
+    audio: {
+        showWaveform: true,
+        waveformColor: '#ff6b9d'
     }
 };
 
@@ -289,6 +303,12 @@ function updateTrayMenu() {
                     type: 'radio', 
                     checked: settings.avatar.movementMode === 'wander',
                     click: () => setMovementMode('wander')
+                },
+                { 
+                    label: 'Follow Active Window', 
+                    type: 'radio', 
+                    checked: settings.avatar.movementMode === 'follow',
+                    click: () => setMovementMode('follow')
                 }
             ]
         },
@@ -645,6 +665,134 @@ ipcMain.handle('import-settings', async () => {
     return null;
 });
 
+// ============ Follow Active Window ============
+
+function startFollowActiveWindow() {
+    if (activeWindowInterval) {
+        clearInterval(activeWindowInterval);
+    }
+    
+    // Use PowerShell to get active window info on Windows
+    const { exec } = require('child_process');
+    
+    activeWindowInterval = setInterval(() => {
+        if (settings.avatar.movementMode !== 'follow') {
+            stopFollowActiveWindow();
+            return;
+        }
+        
+        // PowerShell command to get active window bounds
+        const psCommand = `
+            Add-Type @"
+            using System;
+            using System.Runtime.InteropServices;
+            public class Win32 {
+                [DllImport("user32.dll")]
+                public static extern IntPtr GetForegroundWindow();
+                [DllImport("user32.dll")]
+                public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+                [StructLayout(LayoutKind.Sequential)]
+                public struct RECT { public int Left, Top, Right, Bottom; }
+            }
+"@
+            $hwnd = [Win32]::GetForegroundWindow()
+            $rect = New-Object Win32+RECT
+            [Win32]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
+            "$($rect.Left),$($rect.Top),$($rect.Right),$($rect.Bottom)"
+        `;
+        
+        exec(`powershell -Command "${psCommand.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, (error, stdout) => {
+            if (error || !stdout.trim()) return;
+            
+            const parts = stdout.trim().split(',').map(Number);
+            if (parts.length !== 4 || parts.some(isNaN)) return;
+            
+            const [left, top, right, bottom] = parts;
+            const windowBounds = { x: left, y: top, width: right - left, height: bottom - top };
+            
+            // Skip if it's our own window or too small (likely taskbar)
+            const myBounds = mainWindow.getBounds();
+            if (Math.abs(windowBounds.x - myBounds.x) < 10 && Math.abs(windowBounds.y - myBounds.y) < 10) return;
+            if (windowBounds.width < 200 || windowBounds.height < 100) return;
+            
+            // Position avatar at bottom-right of active window
+            const newX = windowBounds.x + windowBounds.width - settings.window.width - 10;
+            const newY = windowBounds.y + windowBounds.height - settings.window.height - 10;
+            
+            // Only move if position changed significantly
+            if (!lastActiveWindowBounds || 
+                Math.abs(newX - lastActiveWindowBounds.x) > 20 || 
+                Math.abs(newY - lastActiveWindowBounds.y) > 20) {
+                
+                // Keep within screen bounds
+                const display = screen.getDisplayNearestPoint({ x: newX, y: newY });
+                const safeX = Math.max(display.bounds.x, Math.min(newX, display.bounds.x + display.bounds.width - settings.window.width));
+                const safeY = Math.max(display.bounds.y, Math.min(newY, display.bounds.y + display.bounds.height - settings.window.height));
+                
+                mainWindow.setPosition(Math.round(safeX), Math.round(safeY));
+                lastActiveWindowBounds = { x: safeX, y: safeY };
+            }
+        });
+    }, 500); // Check every 500ms
+}
+
+function stopFollowActiveWindow() {
+    if (activeWindowInterval) {
+        clearInterval(activeWindowInterval);
+        activeWindowInterval = null;
+    }
+    lastActiveWindowBounds = null;
+}
+
+// ============ Notification Reactions ============
+
+let notificationWatcher = null;
+
+function startNotificationWatcher() {
+    if (!settings.notifications?.enabled) return;
+    
+    // Use PowerShell to watch for toast notifications on Windows
+    const { exec } = require('child_process');
+    
+    // Poll for new notifications (Windows doesn't have a direct API for this in Electron)
+    // This is a simplified approach - checks notification center state
+    notificationWatcher = setInterval(() => {
+        if (!settings.notifications?.enabled) {
+            stopNotificationWatcher();
+            return;
+        }
+        
+        // Check if notification center has new items via registry/PowerShell
+        // For now, we'll trigger reactions via IPC from the renderer when audio events occur
+    }, 5000);
+}
+
+function stopNotificationWatcher() {
+    if (notificationWatcher) {
+        clearInterval(notificationWatcher);
+        notificationWatcher = null;
+    }
+}
+
+// IPC for notification reactions
+ipcMain.on('system-notification', (event, data) => {
+    if (settings.notifications?.enabled && mainWindow) {
+        mainWindow.webContents.send('notification-reaction', {
+            type: data.type || 'generic',
+            app: data.app || 'unknown'
+        });
+    }
+});
+
+// IPC for movement mode changes that need main process handling
+ipcMain.on('movement-mode-changed', (event, mode) => {
+    if (mode === 'follow') {
+        startFollowActiveWindow();
+    } else {
+        stopFollowActiveWindow();
+    }
+});
+
 // App lifecycle
 app.whenReady().then(() => {
     loadSettings();
@@ -655,6 +803,16 @@ app.whenReady().then(() => {
     // Start minimized if configured
     if (settings.window.startMinimized) {
         mainWindow.hide();
+    }
+    
+    // Start follow mode if configured
+    if (settings.avatar.movementMode === 'follow') {
+        startFollowActiveWindow();
+    }
+    
+    // Start notification watcher if enabled
+    if (settings.notifications?.enabled) {
+        startNotificationWatcher();
     }
 });
 

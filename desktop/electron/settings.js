@@ -124,7 +124,7 @@ function renderMonitorList() {
 
 function renderMovementTab() {
     const container = document.getElementById('movement');
-    const modes = ['static', 'idle', 'mouse', 'camera', 'wander'];
+    const modes = ['static', 'idle', 'mouse', 'camera', 'wander', 'follow'];
     container.innerHTML = `
         <div class="section">
             <h3>🎬 Movement Mode</h3>
@@ -134,7 +134,7 @@ function renderMovementTab() {
                     <small>How the avatar moves when idle</small>
                 </div>
                 <select id="movement-mode">
-                    ${modes.map(m => `<option value="${m}" ${settings.avatar.movementMode === m ? 'selected' : ''}>${m.charAt(0).toUpperCase() + m.slice(1)}</option>`).join('')}
+                    ${modes.map(m => `<option value="${m}" ${settings.avatar.movementMode === m ? 'selected' : ''}>${m === 'follow' ? 'Follow Active Window' : m.charAt(0).toUpperCase() + m.slice(1)}</option>`).join('')}
                 </select>
             </div>
             <div class="setting-row">
@@ -231,10 +231,10 @@ function renderAdvancedTab() {
             <div class="setting-row">
                 <div class="setting-label">
                     <span>Use Advanced Detection</span>
-                    <small>MediaPipe for better face tracking (requires download)</small>
+                    <small>MediaPipe for better face tracking (loads ~2MB)</small>
                 </div>
                 <label class="toggle">
-                    <input type="checkbox" id="use-mediapipe" ${settings.avatar.useMediaPipe ? 'checked' : ''}>
+                    <input type="checkbox" id="use-mediapipe" ${settings.avatar?.useMediaPipe ? 'checked' : ''}>
                     <span class="toggle-slider"></span>
                 </label>
             </div>
@@ -248,6 +248,29 @@ function renderAdvancedTab() {
                 </div>
                 <label class="toggle">
                     <input type="checkbox" id="notification-react" ${settings.notifications?.enabled ? 'checked' : ''}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+        <div class="section">
+            <h3>🎵 Audio Visualization</h3>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>Show Waveform</span>
+                    <small>Display audio waveform when speaking</small>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="show-waveform" ${settings.audio?.showWaveform !== false ? 'checked' : ''}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>Show Listening Ring</span>
+                    <small>Pulsing ring when listening for input</small>
+                </div>
+                <label class="toggle">
+                    <input type="checkbox" id="show-listening-ring" ${settings.audio?.showListeningRing !== false ? 'checked' : ''}>
                     <span class="toggle-slider"></span>
                 </label>
             </div>
@@ -368,6 +391,10 @@ function collectSettings() {
         },
         notifications: {
             enabled: document.getElementById('notification-react')?.checked || false
+        },
+        audio: {
+            showWaveform: document.getElementById('show-waveform')?.checked !== false,
+            showListeningRing: document.getElementById('show-listening-ring')?.checked !== false
         }
     };
 }

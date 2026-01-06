@@ -34,6 +34,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getMonitors: () => ipcRenderer.invoke('get-monitors'),
     moveToMonitor: (index) => ipcRenderer.invoke('move-to-monitor', index),
     
+    // Movement mode notification to main process
+    notifyMovementModeChanged: (mode) => ipcRenderer.send('movement-mode-changed', mode),
+    
+    // System notifications
+    sendSystemNotification: (data) => ipcRenderer.send('system-notification', data),
+    
     // Event listeners from main process
     onSettingsLoaded: (callback) => {
         ipcRenderer.on('settings-loaded', (event, settings) => callback(settings));
@@ -55,5 +61,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     onTriggerAction: (callback) => {
         ipcRenderer.on('trigger-action', (event, action) => callback(action));
+    },
+    onNotificationReaction: (callback) => {
+        ipcRenderer.on('notification-reaction', (event, data) => callback(data));
     }
 });
