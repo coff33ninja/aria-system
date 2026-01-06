@@ -408,6 +408,31 @@
                         break;
                 }
             });
+            
+            // Display control events
+            window.electronAPI.onSetModelScale((scale) => {
+                settings.avatar.modelScale = scale;
+                resizeModel();
+                showStatus(`Size: ${Math.round(scale * 100)}%`);
+            });
+            
+            window.electronAPI.onSetFocusMode((mode) => {
+                settings.avatar.focusMode = mode;
+                resizeModel();
+                showStatus(`Focus: ${mode}`);
+            });
+            
+            window.electronAPI.onSetModelOffset((offset) => {
+                settings.avatar.modelOffsetY = offset;
+                resizeModel();
+            });
+            
+            window.electronAPI.onWindowResized(() => {
+                if (pixiApp) {
+                    pixiApp.renderer.resize(window.innerWidth, window.innerHeight);
+                    resizeModel();
+                }
+            });
         }
 
         // ============ Movement Modes ============
@@ -1300,15 +1325,44 @@
         function resizeModel() {
             if (!live2dModel || !pixiApp) return;
             
+            // Get display settings
+            const modelScale = settings?.avatar?.modelScale ?? 1.0;
+            const modelOffsetY = settings?.avatar?.modelOffsetY ?? 0; // -1 to 1, negative = up
+            const focusMode = settings?.avatar?.focusMode ?? 'full'; // full, upper, face
+            
+            // Calculate base scale to fit model in window
             const baseScale = Math.min(
-                pixiApp.screen.width / live2dModel.width * 0.9,
-                pixiApp.screen.height / live2dModel.height * 0.95
+                pixiApp.screen.width / live2dModel.width * 0.85,
+                pixiApp.screen.height / live2dModel.height * 0.85
             );
             
-            const scale = baseScale * currentZoom;
+            // Apply model scale (separate from window zoom)
+            const scale = baseScale * modelScale;
             live2dModel.scale.set(scale);
+            
+            // Calculate Y position based on focus mode
+            let yOffset = 0;
+            switch (focusMode) {
+                case 'face':
+                    // Show mainly face/head - move model down significantly
+                    yOffset = live2dModel.height * scale * 0.4;
+                    break;
+                case 'upper':
+                    // Show upper body - move model down moderately
+                    yOffset = live2dModel.height * scale * 0.2;
+                    break;
+                case 'full':
+                default:
+                    // Show full body - slight offset
+                    yOffset = live2dModel.height * scale * 0.05;
+                    break;
+            }
+            
+            // Apply manual offset adjustment (-1 to 1 range maps to half screen height)
+            yOffset += modelOffsetY * (pixiApp.screen.height * 0.5);
+            
             live2dModel.x = pixiApp.screen.width / 2;
-            live2dModel.y = pixiApp.screen.height / 2 + live2dModel.height * scale * 0.25;
+            live2dModel.y = pixiApp.screen.height / 2 + yOffset;
             live2dModel.anchor.set(0.5, 0.5);
         }
 

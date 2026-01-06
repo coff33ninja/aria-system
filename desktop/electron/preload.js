@@ -34,6 +34,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getMonitors: () => ipcRenderer.invoke('get-monitors'),
     moveToMonitor: (index) => ipcRenderer.invoke('move-to-monitor', index),
     
+    // Window resize
+    resizeWindow: (width, height) => ipcRenderer.invoke('resize-window', width, height),
+    
     // Movement mode notification to main process
     notifyMovementModeChanged: (mode) => ipcRenderer.send('movement-mode-changed', mode),
     
@@ -52,6 +55,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     onSetMovementMode: (callback) => {
         ipcRenderer.on('set-movement-mode', (event, mode) => callback(mode));
+    },
+    onSetModelScale: (callback) => {
+        ipcRenderer.on('set-model-scale', (event, scale) => callback(scale));
+    },
+    onSetFocusMode: (callback) => {
+        ipcRenderer.on('set-focus-mode', (event, mode) => callback(mode));
+    },
+    onSetModelOffset: (callback) => {
+        ipcRenderer.on('set-model-offset', (event, offset) => callback(offset));
+    },
+    onWindowResized: (callback) => {
+        ipcRenderer.on('window-resized', () => callback());
     },
     onAutoHideChanged: (callback) => {
         ipcRenderer.on('auto-hide-changed', (event, autoHide) => callback(autoHide));

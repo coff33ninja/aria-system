@@ -44,7 +44,11 @@ const DEFAULT_SETTINGS = {
         movementMode: 'idle', // static, idle, mouse, camera, wander, follow
         trackingSpeed: 0.5,
         idleIntensity: 0.5,
-        useMediaPipe: false
+        useMediaPipe: false,
+        // Display settings
+        modelScale: 1.0,      // Character size (0.5 - 2.0)
+        modelOffsetY: 0,      // Vertical position (-1 to 1, negative = up)
+        focusMode: 'upper'    // full, upper, face
     },
     autoHide: {
         enabled: false,
@@ -259,14 +263,49 @@ function updateTrayMenu() {
         
         // Zoom
         {
-            label: '🔍 Zoom',
+            label: '🔍 Display',
             submenu: [
-                { label: '50%', type: 'radio', checked: settings.window.zoom === 0.5, click: () => setZoom(0.5) },
-                { label: '75%', type: 'radio', checked: settings.window.zoom === 0.75, click: () => setZoom(0.75) },
-                { label: '100%', type: 'radio', checked: settings.window.zoom === 1.0, click: () => setZoom(1.0) },
-                { label: '125%', type: 'radio', checked: settings.window.zoom === 1.25, click: () => setZoom(1.25) },
-                { label: '150%', type: 'radio', checked: settings.window.zoom === 1.5, click: () => setZoom(1.5) },
-                { label: '200%', type: 'radio', checked: settings.window.zoom === 2.0, click: () => setZoom(2.0) }
+                {
+                    label: 'Window Size',
+                    submenu: [
+                        { label: 'Small (300x400)', click: () => resizeWindow(300, 400) },
+                        { label: 'Medium (400x500)', click: () => resizeWindow(400, 500) },
+                        { label: 'Large (500x650)', click: () => resizeWindow(500, 650) },
+                        { label: 'XL (600x800)', click: () => resizeWindow(600, 800) }
+                    ]
+                },
+                {
+                    label: 'Character Size',
+                    submenu: [
+                        { label: '75%', type: 'radio', checked: settings.avatar.modelScale === 0.75, click: () => setModelScale(0.75) },
+                        { label: '100%', type: 'radio', checked: settings.avatar.modelScale === 1.0, click: () => setModelScale(1.0) },
+                        { label: '125%', type: 'radio', checked: settings.avatar.modelScale === 1.25, click: () => setModelScale(1.25) },
+                        { label: '150%', type: 'radio', checked: settings.avatar.modelScale === 1.5, click: () => setModelScale(1.5) },
+                        { label: '175%', type: 'radio', checked: settings.avatar.modelScale === 1.75, click: () => setModelScale(1.75) },
+                        { label: '200%', type: 'radio', checked: settings.avatar.modelScale === 2.0, click: () => setModelScale(2.0) }
+                    ]
+                },
+                {
+                    label: 'Focus',
+                    submenu: [
+                        { label: 'Full Body', type: 'radio', checked: settings.avatar.focusMode === 'full', click: () => setFocusMode('full') },
+                        { label: 'Upper Body', type: 'radio', checked: settings.avatar.focusMode === 'upper', click: () => setFocusMode('upper') },
+                        { label: 'Face', type: 'radio', checked: settings.avatar.focusMode === 'face', click: () => setFocusMode('face') }
+                    ]
+                },
+                { type: 'separator' },
+                {
+                    label: 'Move Up',
+                    click: () => adjustModelOffset(-0.1)
+                },
+                {
+                    label: 'Move Down',
+                    click: () => adjustModelOffset(0.1)
+                },
+                {
+                    label: 'Center',
+                    click: () => setModelOffset(0)
+                }
             ]
         },
         
@@ -469,6 +508,42 @@ function triggerExpression(expression) {
     mainWindow.webContents.send('trigger-expression', expression);
 }
 
+// Display control functions
+function resizeWindow(width, height) {
+    settings.window.width = width;
+    settings.window.height = height;
+    mainWindow.setSize(width, height);
+    saveSettings();
+    mainWindow.webContents.send('window-resized');
+    updateTrayMenu();
+}
+
+function setModelScale(scale) {
+    settings.avatar.modelScale = scale;
+    saveSettings();
+    mainWindow.webContents.send('set-model-scale', scale);
+    updateTrayMenu();
+}
+
+function setFocusMode(mode) {
+    settings.avatar.focusMode = mode;
+    saveSettings();
+    mainWindow.webContents.send('set-focus-mode', mode);
+    updateTrayMenu();
+}
+
+function setModelOffset(offset) {
+    settings.avatar.modelOffsetY = Math.max(-1, Math.min(1, offset));
+    saveSettings();
+    mainWindow.webContents.send('set-model-offset', settings.avatar.modelOffsetY);
+    updateTrayMenu();
+}
+
+function adjustModelOffset(delta) {
+    const newOffset = (settings.avatar.modelOffsetY || 0) + delta;
+    setModelOffset(newOffset);
+}
+
 // Settings window
 function createSettingsWindow() {
     if (settingsWindow) {
@@ -616,6 +691,12 @@ ipcMain.handle('get-monitors', () => getAllMonitors());
 
 ipcMain.handle('move-to-monitor', (event, index) => {
     moveToMonitor(index);
+});
+
+// Window resize IPC
+ipcMain.handle('resize-window', (event, width, height) => {
+    resizeWindow(width, height);
+    return { width, height };
 });
 
 // Settings file operations

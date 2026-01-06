@@ -77,15 +77,19 @@ function renderDisplayTab() {
     const container = document.getElementById('display');
     container.innerHTML = `
         <div class="section">
-            <h3>🔍 Zoom & Size</h3>
+            <h3>📐 Window Size</h3>
             <div class="setting-row">
                 <div class="setting-label">
-                    <span>Avatar Zoom</span>
-                    <small>Scale: ${Math.round(settings.window.zoom * 100)}%</small>
+                    <span>Window Preset</span>
+                    <small>Quick size presets</small>
                 </div>
-                <input type="range" id="zoom" min="50" max="200" value="${settings.window.zoom * 100}" 
-                    oninput="document.querySelector('#zoom + span').textContent = this.value + '%'">
-                <span>${Math.round(settings.window.zoom * 100)}%</span>
+                <select id="window-preset" onchange="applyWindowPreset(this.value)">
+                    <option value="">Custom</option>
+                    <option value="300,400">Small (300×400)</option>
+                    <option value="400,500">Medium (400×500)</option>
+                    <option value="500,650">Large (500×650)</option>
+                    <option value="600,800">XL (600×800)</option>
+                </select>
             </div>
             <div class="setting-row">
                 <div class="setting-label">
@@ -94,6 +98,37 @@ function renderDisplayTab() {
                 </div>
                 <input type="range" id="opacity" min="30" max="100" value="${settings.window.opacity * 100}">
                 <span>${Math.round(settings.window.opacity * 100)}%</span>
+            </div>
+        </div>
+        <div class="section">
+            <h3>👤 Character Display</h3>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>Character Size</span>
+                    <small>Scale: ${Math.round((settings.avatar?.modelScale || 1) * 100)}%</small>
+                </div>
+                <input type="range" id="model-scale" min="50" max="200" value="${(settings.avatar?.modelScale || 1) * 100}" 
+                    oninput="document.querySelector('#model-scale + span').textContent = this.value + '%'">
+                <span>${Math.round((settings.avatar?.modelScale || 1) * 100)}%</span>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>Focus Mode</span>
+                    <small>What part of character to show</small>
+                </div>
+                <select id="focus-mode">
+                    <option value="full" ${settings.avatar?.focusMode === 'full' ? 'selected' : ''}>Full Body</option>
+                    <option value="upper" ${settings.avatar?.focusMode === 'upper' ? 'selected' : ''}>Upper Body</option>
+                    <option value="face" ${settings.avatar?.focusMode === 'face' ? 'selected' : ''}>Face</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">
+                    <span>Vertical Position</span>
+                    <small>Move character up/down</small>
+                </div>
+                <input type="range" id="model-offset" min="-100" max="100" value="${(settings.avatar?.modelOffsetY || 0) * 100}">
+                <span>${settings.avatar?.modelOffsetY > 0 ? 'Down' : settings.avatar?.modelOffsetY < 0 ? 'Up' : 'Center'}</span>
             </div>
         </div>
         <div class="section">
@@ -366,17 +401,19 @@ function collectSettings() {
     return {
         window: {
             ...settings.window,
-            zoom: parseInt(document.getElementById('zoom')?.value || 100) / 100,
             opacity: parseInt(document.getElementById('opacity')?.value || 100) / 100,
             startMinimized: document.getElementById('start-minimized')?.checked || false,
-            alwaysOnTop: document.getElementById('always-on-top')?.checked || true
+            alwaysOnTop: document.getElementById('always-on-top')?.checked !== false
         },
         avatar: {
             ...settings.avatar,
             currentMaid: document.getElementById('default-maid')?.value || 'aria',
             movementMode: document.getElementById('movement-mode')?.value || 'idle',
             trackingSpeed: parseInt(document.getElementById('tracking-speed')?.value || 50) / 100,
-            useMediaPipe: document.getElementById('use-mediapipe')?.checked || false
+            useMediaPipe: document.getElementById('use-mediapipe')?.checked || false,
+            modelScale: parseInt(document.getElementById('model-scale')?.value || 100) / 100,
+            focusMode: document.getElementById('focus-mode')?.value || 'upper',
+            modelOffsetY: parseInt(document.getElementById('model-offset')?.value || 0) / 100
         },
         autoHide: {
             enabled: document.getElementById('auto-hide-enabled')?.checked || false,
@@ -397,6 +434,15 @@ function collectSettings() {
             showListeningRing: document.getElementById('show-listening-ring')?.checked !== false
         }
     };
+}
+
+// Window preset helper
+async function applyWindowPreset(value) {
+    if (!value) return;
+    const [width, height] = value.split(',').map(Number);
+    await window.electronAPI.resizeWindow(width, height);
+    settings.window.width = width;
+    settings.window.height = height;
 }
 
 document.getElementById('btn-save').addEventListener('click', async () => {
