@@ -526,6 +526,7 @@
             
             // Display control events
             window.electronAPI.onSetModelScale((scale) => {
+                console.log(`📏 Received model scale from main process: ${scale}`);
                 settings.avatar.modelScale = scale;
                 resizeModel();
                 showStatus(`Size: ${Math.round(scale * 100)}%`);
@@ -1440,8 +1441,11 @@
                 const currentScale = settings?.avatar?.modelScale ?? 1.0;
                 
                 // Calculate new scale (scroll up = bigger, scroll down = smaller)
-                const delta = e.deltaY > 0 ? -0.05 : 0.05;
+                // Use 2% increments for mouse wheel (finer than keyboard)
+                const delta = e.deltaY > 0 ? -0.02 : 0.02;
                 const newScale = Math.max(0.3, Math.min(3.0, currentScale + delta));
+                
+                console.log(`🖱️ Mouse wheel scale: ${currentScale.toFixed(2)} → ${newScale.toFixed(2)}`);
                 
                 // Update settings and apply
                 if (settings?.avatar) {
@@ -1578,6 +1582,10 @@
             showStatus('Loading avatar...', 5000);
             
             try {
+                console.log('🚀 Initializing PIXI Application...');
+                console.log(`Canvas size: ${canvas.width}x${canvas.height}`);
+                console.log(`Window size: ${window.innerWidth}x${window.innerHeight}`);
+                
                 pixiApp = new PIXI.Application({
                     view: canvas,
                     autoStart: true,
@@ -1586,10 +1594,16 @@
                     antialias: true
                 });
                 
+                console.log(`✅ PIXI App created - Screen: ${pixiApp.screen.width}x${pixiApp.screen.height}`);
+                
                 await loadMaidModel(currentMaid);
                 
+                // Make debugging functions available
+                window.pixiApp = pixiApp;
+                window.live2dModel = () => live2dModel;
+                
             } catch (error) {
-                console.error('Live2D init failed:', error);
+                console.error('❌ Live2D init failed:', error);
                 showStatus('Avatar failed to load');
             }
         }
@@ -1620,7 +1634,8 @@
                     autoUpdate: true
                 });
                 
-                resizeModel();
+                // Add to stage FIRST
+                pixiApp.stage.addChild(live2dModel);
                 
                 // Enable interaction
                 live2dModel.interactive = true;
@@ -1629,9 +1644,10 @@
                     triggerBlink();
                 });
                 
-                pixiApp.stage.addChild(live2dModel);
+                // THEN resize/scale the model
+                resizeModel();
                 
-                console.log(`✅ Loaded ${maid.name}`);
+                console.log(`✅ Loaded ${maid.name} - Model size: ${live2dModel.width}x${live2dModel.height}`);
                 showStatus(`${maid.name} ready`);
                 
                 // Restart movement mode
@@ -1643,48 +1659,118 @@
             }
         }
 
+        // Debug function to test scaling
+        function testScaling() {
+            if (!live2dModel) {
+                console.log('❌ No model loaded for testing');
+                return;
+            }
+            
+            console.log('🧪 Testing scaling...');
+            console.log(`Current model scale setting: ${settings?.avatar?.modelScale ?? 'undefined'}`);
+            console.log(`Model dimensions: ${live2dModel.width}x${live2dModel.height}`);
+            console.log(`Current PIXI scale: ${live2dModel.scale.x}, ${live2dModel.scale.y}`);
+            console.log(`Model position: ${live2dModel.x}, ${live2dModel.y}`);
+            console.log(`Screen size: ${pixiApp.screen.width}x${pixiApp.screen.height}`);
+            
+            // Test direct scaling
+            console.log('🔧 Testing direct scale to 2.0...');
+            live2dModel.scale.set(2.0);
+            
+            setTimeout(() => {
+                console.log('🔧 Calling resizeModel()...');
+                resizeModel();
+            }, 1000);
+        }
+        
+        // Make it available globally for console testing
+        window.testScaling = testScaling;
+        window.debugModel = () => {
+            console.log('🔍 Model debug info:');
+            console.log('live2dModel:', live2dModel);
+            console.log('pixiApp:', pixiApp);
+            console.log('settings:', settings);
+        };
+
         function resizeModel() {
-            if (!live2dModel || !pixiApp) return;
+            if (!live2dModel || !pixiApp) {
+                console.log('❌ ResizeModel called but model or app not ready');
+                return;
+            }
             
             // Get display settings
             const modelScale = settings?.avatar?.modelScale ?? 1.0;
             const modelOffsetY = settings?.avatar?.modelOffsetY ?? 0; // -1 to 1, negative = up
-            const focusMode = settings?.avatar?.focusMode ?? 'full'; // full, upper, face
+            const focusMode = settings?.avatar?.focusMode ?? 'upper'; // full, upper, face
             
-            // Calculate base scale to fit model in window
-            const baseScale = Math.min(
-                pixiApp.screen.width / live2dModel.width * 0.85,
-                pixiApp.screen.height / live2dModel.height * 0.85
-            );
+            console.log(`🔧 Resizing model - Scale: ${modelScale}, Focus: ${focusMode}, Offset: ${modelOffsetY}`);
+            console.log(`📐 Model dimensions: ${live2dModel.width}x${live2dModel.height}`);
+            console.log(`📐 Screen dimensions: ${pixiApp.screen.width}x${pixiApp.screen.height}`);
             
-            // Apply model scale (separate from window zoom)
-            const scale = baseScale * modelScale;
-            live2dModel.scale.set(scale);
-            
-            // Calculate Y position based on focus mode
-            let yOffset = 0;
+            // Calculate base scale - similar to original but allow more flexibility
+            let baseScale;
             switch (focusMode) {
                 case 'face':
-                    // Show mainly face/head - move model down significantly
-                    yOffset = live2dModel.height * scale * 0.4;
+                    // For face mode, scale larger to focus on face
+                    baseScale = Math.min(
+                        pixiApp.screen.width / live2dModel.width * 1.2,
+                        pixiApp.screen.height / live2dModel.height * 1.2
+                    );
                     break;
                 case 'upper':
-                    // Show upper body - move model down moderately
-                    yOffset = live2dModel.height * scale * 0.2;
+                    // For upper body, use moderate scaling
+                    baseScale = Math.min(
+                        pixiApp.screen.width / live2dModel.width * 0.95,
+                        pixiApp.screen.height / live2dModel.height * 1.0
+                    );
                     break;
                 case 'full':
                 default:
-                    // Show full body - slight offset
-                    yOffset = live2dModel.height * scale * 0.05;
+                    // For full body, use original conservative scaling
+                    baseScale = Math.min(
+                        pixiApp.screen.width / live2dModel.width * 0.9,
+                        pixiApp.screen.height / live2dModel.height * 0.95
+                    );
                     break;
             }
             
-            // Apply manual offset adjustment (-1 to 1 range maps to half screen height)
-            yOffset += modelOffsetY * (pixiApp.screen.height * 0.5);
+            // Apply user's model scale multiplier
+            const finalScale = baseScale * modelScale;
             
+            console.log(`📏 Scale calculation: baseScale=${baseScale.toFixed(3)}, modelScale=${modelScale.toFixed(2)}, finalScale=${finalScale.toFixed(3)}`);
+            
+            // Apply the scale
+            live2dModel.scale.set(finalScale);
+            
+            // Use original simple positioning logic that worked
             live2dModel.x = pixiApp.screen.width / 2;
-            live2dModel.y = pixiApp.screen.height / 2 + yOffset;
+            
+            // Calculate Y position based on focus mode (similar to original)
+            let yPosition;
+            switch (focusMode) {
+                case 'face':
+                    // Show face - move model down more
+                    yPosition = pixiApp.screen.height / 2 + live2dModel.height * finalScale * 0.35;
+                    break;
+                case 'upper':
+                    // Show upper body - moderate offset (close to original)
+                    yPosition = pixiApp.screen.height / 2 + live2dModel.height * finalScale * 0.25;
+                    break;
+                case 'full':
+                default:
+                    // Show full body - minimal offset
+                    yPosition = pixiApp.screen.height / 2 + live2dModel.height * finalScale * 0.15;
+                    break;
+            }
+            
+            // Apply manual offset adjustment
+            yPosition += modelOffsetY * (pixiApp.screen.height * 0.3);
+            
+            live2dModel.y = yPosition;
             live2dModel.anchor.set(0.5, 0.5);
+            
+            console.log(`📍 Final position: (${live2dModel.x.toFixed(1)}, ${live2dModel.y.toFixed(1)})`);
+            console.log(`🎯 Model bounds after scaling: ${(live2dModel.width * finalScale).toFixed(1)}x${(live2dModel.height * finalScale).toFixed(1)}`);
         }
 
         function setModelParameter(paramId, value) {

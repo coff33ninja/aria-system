@@ -293,12 +293,23 @@ function updateTrayMenu() {
                 {
                     label: 'Character Size',
                     submenu: [
-                        { label: '75%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 0.75) < 0.01, click: () => setModelScale(0.75) },
+                        { label: '50%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 0.5) < 0.01, click: () => setModelScale(0.5) },
+                        { label: '60%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 0.6) < 0.01, click: () => setModelScale(0.6) },
+                        { label: '70%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 0.7) < 0.01, click: () => setModelScale(0.7) },
+                        { label: '80%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 0.8) < 0.01, click: () => setModelScale(0.8) },
+                        { label: '90%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 0.9) < 0.01, click: () => setModelScale(0.9) },
                         { label: '100%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.0) < 0.01, click: () => setModelScale(1.0) },
-                        { label: '125%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.25) < 0.01, click: () => setModelScale(1.25) },
+                        { label: '110%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.1) < 0.01, click: () => setModelScale(1.1) },
+                        { label: '120%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.2) < 0.01, click: () => setModelScale(1.2) },
+                        { label: '130%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.3) < 0.01, click: () => setModelScale(1.3) },
+                        { label: '140%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.4) < 0.01, click: () => setModelScale(1.4) },
                         { label: '150%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.5) < 0.01, click: () => setModelScale(1.5) },
-                        { label: '175%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 1.75) < 0.01, click: () => setModelScale(1.75) },
-                        { label: '200%', type: 'radio', checked: Math.abs((settings.avatar.modelScale || 1.0) - 2.0) < 0.01, click: () => setModelScale(2.0) }
+                        { type: 'separator' },
+                        { label: 'Quick Presets', enabled: false },
+                        { label: '75%', click: () => setModelScale(0.75) },
+                        { label: '125%', click: () => setModelScale(1.25) },
+                        { label: '175%', click: () => setModelScale(1.75) },
+                        { label: '200%', click: () => setModelScale(2.0) }
                     ]
                 },
                 {
@@ -642,24 +653,18 @@ function registerHotkeys() {
         updateTrayMenu();
     });
     
-    // Scale up (character size)
+    // Scale up (character size) - smooth 5% increments
     globalShortcut.register('Ctrl+Shift+Plus', () => {
-        const scales = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
         const currentScale = settings.avatar.modelScale || 1.0;
-        const idx = scales.findIndex(s => Math.abs(s - currentScale) < 0.1);
-        if (idx < scales.length - 1) {
-            setModelScale(scales[idx + 1]);
-        }
+        const newScale = Math.min(2.0, Math.round((currentScale + 0.05) * 100) / 100);
+        setModelScale(newScale);
     });
     
-    // Scale down (character size)
+    // Scale down (character size) - smooth 5% decrements
     globalShortcut.register('Ctrl+Shift+-', () => {
-        const scales = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
         const currentScale = settings.avatar.modelScale || 1.0;
-        const idx = scales.findIndex(s => Math.abs(s - currentScale) < 0.1);
-        if (idx > 0) {
-            setModelScale(scales[idx - 1]);
-        }
+        const newScale = Math.max(0.5, Math.round((currentScale - 0.05) * 100) / 100);
+        setModelScale(newScale);
     });
     
     // Cycle maids
@@ -698,31 +703,25 @@ function reregisterHotkeys() {
         console.error(`Failed to register toggle hotkey (${toggleKey}):`, e.message);
     }
     
-    // Scale up
+    // Scale up - smooth 5% increments
     const scaleUpKey = hotkeys.zoomIn || 'Ctrl+Shift+Plus';
     try {
         globalShortcut.register(scaleUpKey, () => {
-            const scales = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
             const currentScale = settings.avatar.modelScale || 1.0;
-            const idx = scales.findIndex(s => Math.abs(s - currentScale) < 0.1);
-            if (idx < scales.length - 1) {
-                setModelScale(scales[idx + 1]);
-            }
+            const newScale = Math.min(2.0, Math.round((currentScale + 0.05) * 100) / 100);
+            setModelScale(newScale);
         });
     } catch (e) {
         console.error(`Failed to register scale up hotkey (${scaleUpKey}):`, e.message);
     }
     
-    // Scale down
+    // Scale down - smooth 5% decrements
     const scaleDownKey = hotkeys.zoomOut || 'Ctrl+Shift+-';
     try {
         globalShortcut.register(scaleDownKey, () => {
-            const scales = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
             const currentScale = settings.avatar.modelScale || 1.0;
-            const idx = scales.findIndex(s => Math.abs(s - currentScale) < 0.1);
-            if (idx > 0) {
-                setModelScale(scales[idx - 1]);
-            }
+            const newScale = Math.max(0.5, Math.round((currentScale - 0.05) * 100) / 100);
+            setModelScale(newScale);
         });
     } catch (e) {
         console.error(`Failed to register scale down hotkey (${scaleDownKey}):`, e.message);
