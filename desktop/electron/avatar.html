@@ -328,11 +328,10 @@
         </div>
     </div>
 
-    <!-- PIXI.js and Live2D -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+    <!-- PIXI.js and Live2D - Use consistent versions -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
     <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
     
     <!-- MediaPipe Face Mesh (loaded conditionally) -->
     <script>
@@ -414,6 +413,17 @@
             mei: { name: "Mei", modelPath: null, localModelPath: null, hasModel: false, color: "#2ecc71" },
             clara: { name: "Clara", modelPath: null, localModelPath: null, hasModel: false, color: "#f39c12" }
         };
+        
+        // Helper to get absolute path for Electron
+        function getAbsoluteModelPath(maidId, modelFile) {
+            if (isElectron) {
+                // In Electron, use path module to get absolute path
+                const path = require('path');
+                const appPath = require('electron').remote?.app.getAppPath() || __dirname;
+                return path.join(appPath, '..', '..', 'live2d', 'models', maidId, modelFile);
+            }
+            return `${LOCAL_MODEL_BASE}/${maidId}/${modelFile}`;
+        }
 
         // State
         let ws = null;
@@ -1671,6 +1681,73 @@
             }
         }
 
+        // ============ Version-Aware Idle Motion Setup ============
+        
+        /**
+         * Setup version-aware idle motion groups
+         * Handles Cubism 2 vs Cubism 4 differences automatically
+         */
+        function setupIdleMotionGroup() {
+            if (!live2dModel) return;
+            
+            const settings = live2dModel.internalModel.settings;
+            const motions = settings.motions || {};
+            
+            let idleGroup = null;
+            
+            // Try Cubism 4 naming first (capitalized)
+            if (motions['Idle']) {
+                idleGroup = 'Idle';
+                console.log('📋 Detected Cubism 4 model (Idle motion group)');
+            }
+            // Fall back to Cubism 2 naming (lowercase)
+            else if (motions['idle']) {
+                idleGroup = 'idle';
+                console.log('📋 Detected Cubism 2 model (idle motion group)');
+            }
+            // Use fallback
+            else {
+                idleGroup = 'idle';
+                console.log('⚠️ Unknown Cubism version, using fallback idle group');
+                console.log('Available motion groups:', Object.keys(motions));
+            }
+            
+            // Set idle group for motion manager
+            live2dModel.internalModel.motionManager.groups.idle = idleGroup;
+        }
+        
+        /**
+         * Get model info for debugging
+         */
+        function getModelInfo() {
+            if (!live2dModel) return null;
+            
+            const settings = live2dModel.internalModel.settings;
+            const motions = settings.motions || {};
+            const expressions = settings.expressions || [];
+            
+            // Detect version
+            let version = 'Unknown';
+            if (motions['Idle']) version = 'Cubism 4+';
+            else if (motions['idle']) version = 'Cubism 2';
+            
+            // Count motions
+            let motionCount = 0;
+            Object.keys(motions).forEach(group => {
+                motionCount += motions[group].length;
+            });
+            
+            return {
+                name: settings.name || currentMaid,
+                version: version,
+                motionGroups: Object.keys(motions),
+                motionCount: motionCount,
+                expressionCount: expressions.length,
+                width: live2dModel.width,
+                height: live2dModel.height
+            };
+        }
+
         async function loadMaidModel(maidId) {
             const maid = MAIDS[maidId];
             
@@ -1697,40 +1774,45 @@
                 
                 console.log(`🔄 Loading model from: ${modelPath}`);
                 
-                // Load new model with error handling and fallback
-                try {
-                    live2dModel = await PIXI.live2d.Live2DModel.from(modelPath, {
-                        autoInteract: false,
-                        autoUpdate: true
-                    });
-                } catch (httpError) {
-                    console.warn(`⚠️ HTTP load failed: ${httpError.message}`);
-                    
-                    // Try local path if HTTP fails and we have a local path
-                    if (maid.localModelPath) {
-                        console.log(`🔄 Trying local path: ${maid.localModelPath}`);
-                        showStatus(`Loading ${maid.name} (local)...`, 5000);
-                        
-                        try {
-                            // For Electron, try to get absolute path from preload
-                            let localPath = maid.localModelPath;
-                            if (window.electronAPI?.getAbsoluteModelPath) {
-                                localPath = await window.electronAPI.getAbsoluteModelPath(maidId, maid.modelFile);
-                            }
-                            
-                            live2dModel = await PIXI.live2d.Live2DModel.from(localPath, {
-                                autoInteract: false,
-                                autoUpdate: true
-                            });
-                            loadedFromLocal = true;
-                            console.log(`✅ Loaded from local path`);
-                        } catch (localError) {
-                            console.error(`❌ Local load also failed: ${localError.message}`);
-                            throw new Error(`Both HTTP and local load failed. Make sure the Python backend is running (python -m desktop.agent) or check that model files exist.`);
-                        }
-                    } else {
-                        throw httpError;
+                // In Electron, try local path FIRST (more reliable)
+                let tryPaths = [];
+                
+                if (isElectron && maid.localModelPath) {
+                    // For Electron, prioritize local file access
+                    let localPath = maid.localModelPath;
+                    if (window.electronAPI?.getAbsoluteModelPath) {
+                        localPath = await window.electronAPI.getAbsoluteModelPath(maidId, maid.modelFile);
                     }
+                    tryPaths.push({ path: localPath, type: 'local' });
+                    tryPaths.push({ path: modelPath, type: 'http' });
+                } else {
+                    // For browser, try HTTP first
+                    tryPaths.push({ path: modelPath, type: 'http' });
+                    if (maid.localModelPath) {
+                        tryPaths.push({ path: maid.localModelPath, type: 'local' });
+                    }
+                }
+                
+                let lastError = null;
+                for (const { path: tryPath, type } of tryPaths) {
+                    try {
+                        console.log(`🔄 Trying ${type} path: ${tryPath}`);
+                        live2dModel = await PIXI.live2d.Live2DModel.from(tryPath, {
+                            autoInteract: false,
+                            autoUpdate: true,
+                            motionPreload: PIXI.live2d.MotionPreloadStrategy.IDLE
+                        });
+                        loadedFromLocal = (type === 'local');
+                        console.log(`✅ Loaded from ${type} path`);
+                        break;
+                    } catch (error) {
+                        console.warn(`⚠️ ${type} load failed: ${error.message}`);
+                        lastError = error;
+                    }
+                }
+                
+                if (!live2dModel && lastError) {
+                    throw new Error(`Failed to load model from all paths.\n\nTroubleshooting:\n1. Check model files exist in: live2d/models/${maidId}/\n2. For HTTP: Start Python backend with: python -m desktop.agent\n3. Check console for detailed errors\n\nLast error: ${lastError.message}`);
                 }
                 
                 if (!live2dModel) {
@@ -1738,6 +1820,20 @@
                 }
                 
                 console.log(`✅ Model loaded successfully - Dimensions: ${live2dModel.width}x${live2dModel.height}${loadedFromLocal ? ' (local)' : ''}`);
+                
+                // Setup version-aware idle motions
+                setupIdleMotionGroup();
+                
+                // Log model info for debugging
+                const modelInfo = getModelInfo();
+                if (modelInfo) {
+                    console.log(`📊 Model Info:`);
+                    console.log(`   Name: ${modelInfo.name}`);
+                    console.log(`   Version: ${modelInfo.version}`);
+                    console.log(`   Motion Groups: ${modelInfo.motionGroups.join(', ')}`);
+                    console.log(`   Total Motions: ${modelInfo.motionCount}`);
+                    console.log(`   Expressions: ${modelInfo.expressionCount}`);
+                }
                 
                 // Configure model IMMEDIATELY after loading
                 live2dModel.anchor.set(0.5, 0.5);
@@ -2017,6 +2113,96 @@
             } catch (e) {}
         }
 
+        // ============ Click-Through Desktop Mascot Mode ============
+        
+        let hoveredModel = false;
+        const HIT_RADIUS_FACTOR = 0.4; // 40% of canvas size
+        
+        /**
+         * Check if a point is inside the model's circular hit area
+         */
+        function isPointInsideModel(x, y) {
+            if (!live2dModel || !pixiApp) return false;
+            
+            const w = pixiApp.screen.width;
+            const h = pixiApp.screen.height;
+            
+            // Center of canvas (where model is positioned)
+            const cx = w / 2;
+            const cy = h / 2;
+            
+            // Get current model scale
+            const modelScale = settings?.avatar?.modelScale ?? 1.0;
+            
+            // Radius based on canvas size and model scale
+            const baseRadius = Math.min(w, h) * HIT_RADIUS_FACTOR;
+            const radius = baseRadius * modelScale;
+            
+            // Account for model offset
+            const offsetY = (settings?.avatar?.modelOffsetY ?? 0) * (h * 0.2);
+            
+            // Distance from center
+            const dx = x - cx;
+            const dy = y - (cy + offsetY);
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            return distance <= radius;
+        }
+        
+        /**
+         * Update hover state and toggle click-through
+         */
+        function updateHoverState(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const inside = isPointInsideModel(x, y);
+            
+            if (inside !== hoveredModel) {
+                hoveredModel = inside;
+                
+                // Notify Electron to toggle click-through
+                if (window.electronAPI && window.electronAPI.setMouseThrough) {
+                    window.electronAPI.setMouseThrough(!inside);
+                    console.log(`🖱️ Click-through: ${!inside ? 'enabled' : 'disabled'}`);
+                }
+            }
+        }
+        
+        /**
+         * Initialize click-through tracking
+         */
+        function initClickThrough() {
+            if (!window.electronAPI || !window.electronAPI.setMouseThrough) {
+                console.log('⚠️ Click-through not available (not in Electron or API missing)');
+                return;
+            }
+            
+            console.log('✅ Initializing click-through desktop mascot mode');
+            
+            // Track mouse movement for hover detection
+            canvas.addEventListener('mousemove', updateHoverState);
+            
+            // Handle clicks on the model
+            canvas.addEventListener('click', (e) => {
+                if (hoveredModel && live2dModel) {
+                    console.log('👆 Clicked on model!');
+                    triggerBlink();
+                    
+                    // Play a tap motion if available
+                    try {
+                        live2dModel.motion('Tap', 0);
+                    } catch (err) {
+                        // Motion might not exist
+                    }
+                }
+            });
+            
+            // Start with click-through enabled (only model is clickable)
+            window.electronAPI.setMouseThrough(true);
+        }
+
         function animateSpeaking(textLength) {
             if (!live2dModel) return;
             
@@ -2217,6 +2403,9 @@
             
             // Set up modifier-key controls (Ctrl+drag, Ctrl+scroll)
             setupModifierControls();
+            
+            // Initialize click-through desktop mascot mode
+            initClickThrough();
             
             await initLive2D();
             connectWebSocket();

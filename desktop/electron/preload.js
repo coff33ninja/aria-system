@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getWindowBounds: () => ipcRenderer.invoke('get-window-bounds'),
     setClickThrough: (clickThrough) => ipcRenderer.invoke('set-click-through', clickThrough),
     
+    // Dynamic click-through for desktop mascot mode
+    setMouseThrough: (ignore) => ipcRenderer.send('set-mouse-through', ignore),
+    
     // Settings
     getSettings: () => ipcRenderer.invoke('get-settings'),
     saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),

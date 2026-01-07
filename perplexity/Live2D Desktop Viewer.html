@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live2D Desktop Viewer</title>
+    <style>
+        :root {
+            --color-bg-primary: rgba(31, 33, 33, 1);
+            --color-bg-secondary: rgba(38, 40, 40, 1);
+            --color-text-primary: rgba(245, 245, 245, 1);
+            --color-text-secondary: rgba(167, 169, 169, 1);
+            --color-primary: rgba(50, 184, 198, 1);
+            --color-primary-hover: rgba(45, 166, 178, 1);
+            --color-border: rgba(119, 124, 124, 0.3);
+            --color-accent: rgba(33, 128, 141, 1);
+            --radius-base: 8px;
+            --space-8: 8px;
+            --space-12: 12px;
+            --space-16: 16px;
+            --space-20: 20px;
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            gap: var(--space-16);
+            padding: var(--space-16);
+        }
+
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-base);
+            border: 1px solid var(--color-border);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+
+        .canvas-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-12) var(--space-16);
+            border-bottom: 1px solid var(--color-border);
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .canvas-header h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .canvas-controls {
+            display: flex;
+            align-items: center;
+            gap: var(--space-8);
+            font-size: 12px;
+            color: var(--color-text-secondary);
+        }
+
+        .canvas-info {
+            display: flex;
+            gap: var(--space-16);
+            align-items: center;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .info-label {
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--color-primary);
+        }
+
+        #canvas {
+            flex: 1;
+            cursor: grab;
+            background: linear-gradient(135deg, rgba(50, 184, 198, 0.05) 0%, rgba(33, 128, 141, 0.05) 100%);
+            position: relative;
+        }
+
+        #canvas:active {
+            cursor: grabbing;
+        }
+
+        .sidebar {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-16);
+        }
+
+        .panel {
+            background: var(--color-bg-secondary);
+            border-radius: var(--radius-base);
+            border: 1px solid var(--color-border);
+            padding: var(--space-16);
+            box-shadow: var(--shadow-md);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-12);
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--color-primary);
+            margin: 0;
+            padding-bottom: var(--space-8);
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-6);
+        }
+
+        .form-label {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            font-weight: 500;
+        }
+
+        .form-input, .form-select {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--color-border);
+            color: var(--color-text-primary);
+            padding: var(--space-8) var(--space-12);
+            border-radius: 4px;
+            font-size: 12px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 2px rgba(50, 184, 198, 0.2);
+        }
+
+        .form-select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2332B8C6' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 28px;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-6);
+        }
+
+        .slider-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .slider-value {
+            background: rgba(50, 184, 198, 0.1);
+            color: var(--color-primary);
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: linear-gradient(to right, var(--color-primary), var(--color-accent));
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+            transition: transform 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+            transition: transform 0.2s;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .button-group {
+            display: flex;
+            gap: var(--space-8);
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 100px;
+            padding: var(--space-8) var(--space-12);
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: var(--color-bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--color-primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(50, 184, 198, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(50, 184, 198, 0.1);
+            color: var(--color-primary);
+            border: 1px solid var(--color-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(50, 184, 198, 0.2);
+        }
+
+        .btn-sm {
+            padding: var(--space-6) var(--space-8);
+            font-size: 11px;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--color-border);
+            margin: var(--space-8) 0;
+        }
+
+        .scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-12);
+        }
+
+        .scroll-area::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scroll-area::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .scroll-area::-webkit-scrollbar-thumb {
+            background: var(--color-primary);
+            border-radius: 3px;
+        }
+
+        .scroll-area::-webkit-scrollbar-thumb:hover {
+            background: var(--color-primary-hover);
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-8);
+        }
+
+        .stat-box {
+            background: rgba(50, 184, 198, 0.1);
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
+            padding: var(--space-8);
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--color-primary);
+            margin-top: 2px;
+        }
+
+        .controls-scrollable {
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 6px;
+        }
+
+        .controls-scrollable::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .controls-scrollable::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .controls-scrollable::-webkit-scrollbar-thumb {
+            background: var(--color-primary);
+            border-radius: 2px;
+        }
+
+        .animation-selector {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
+            padding: var(--space-8);
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .animation-item {
+            padding: var(--space-6) var(--space-8);
+            margin-bottom: 2px;
+            background: rgba(50, 184, 198, 0.1);
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .animation-item:hover {
+            background: rgba(50, 184, 198, 0.2);
+            border-color: var(--color-primary);
+        }
+
+        .animation-item.active {
+            background: var(--color-primary);
+            color: var(--color-bg-primary);
+        }
+
+        .tooltip {
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            padding-top: 2px;
+        }
+
+        @media (max-height: 800px) {
+            .panel {
+                padding: var(--space-12);
+            }
+            .container {
+                padding: var(--space-12);
+                gap: var(--space-12);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Canvas Area -->
+        <div class="canvas-area">
+            <div class="canvas-header">
+                <h2>Live2D Model Viewer</h2>
+                <div class="canvas-info">
+                    <div class="info-item">
+                        <span class="info-label">Zoom</span>
+                        <span class="info-value" id="zoomDisplay">100%</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Pan</span>
+                        <span class="info-value" id="panDisplay">0, 0</span>
+                    </div>
+                </div>
+            </div>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <!-- Sidebar Controls -->
+        <div class="sidebar">
+            <!-- Viewport Panel -->
+            <div class="panel">
+                <h3 class="panel-title">Viewport</h3>
+                <div class="scroll-area">
+                    <div class="slider-group">
+                        <div class="slider-info">
+                            <span class="form-label">Zoom Level</span>
+                            <span class="slider-value" id="zoomValue">1.0x</span>
+                        </div>
+                        <input type="range" id="zoomSlider" min="0.1" max="5" step="0.1" value="1" />
+                        <div class="tooltip">Scroll or use range to zoom in/out</div>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="slider-group">
+                        <div class="slider-info">
+                            <span class="form-label">Pan X</span>
+                            <span class="slider-value" id="panXValue">0px</span>
+                        </div>
+                        <input type="range" id="panXSlider" min="-500" max="500" step="10" value="0" />
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-info">
+                            <span class="form-label">Pan Y</span>
+                            <span class="slider-value" id="panYValue">0px</span>
+                        </div>
+                        <input type="range" id="panYSlider" min="-500" max="500" step="10" value="0" />
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="button-group">
+                        <button class="btn btn-secondary btn-sm" id="resetViewBtn">Reset View</button>
+                        <button class="btn btn-secondary btn-sm" id="fitScreenBtn">Fit Screen</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Panel -->
+            <div class="panel">
+                <h3 class="panel-title">Model</h3>
+                <div class="scroll-area">
+                    <div class="form-group">
+                        <label class="form-label">Load Model</label>
+                        <input type="file" id="modelFile" class="form-input" accept=".json,.model.json" />
+                        <div class="tooltip">Select a Live2D model JSON file</div>
+                    </div>
+
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-label">Width</div>
+                            <div class="stat-value" id="modelWidth">—</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Height</div>
+                            <div class="stat-value" id="modelHeight">—</div>
+                        </div>
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-info">
+                            <span class="form-label">Model Scale</span>
+                            <span class="slider-value" id="scaleValue">1.0x</span>
+                        </div>
+                        <input type="range" id="scaleSlider" min="0.5" max="3" step="0.1" value="1" />
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-info">
+                            <span class="form-label">Rotation</span>
+                            <span class="slider-value" id="rotationValue">0°</span>
+                        </div>
+                        <input type="range" id="rotationSlider" min="-180" max="180" step="5" value="0" />
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-info">
+                            <span class="form-label">Opacity</span>
+                            <span class="slider-value" id="opacityValue">100%</span>
+                        </div>
+                        <input type="range" id="opacitySlider" min="0" max="1" step="0.05" value="1" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Animations Panel -->
+            <div class="panel">
+                <h3 class="panel-title">Animations</h3>
+                <div class="scroll-area">
+                    <div class="form-group">
+                        <label class="form-label">Available Animations</label>
+                        <div class="animation-selector" id="animationList">
+                            <div class="tooltip">Load a model to see animations</div>
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button class="btn btn-secondary btn-sm" id="stopAnimBtn">Stop</button>
+                        <button class="btn btn-primary btn-sm" id="playAnimBtn">Play</button>
+                    </div>
+
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-label">Current</div>
+                            <div class="stat-value" id="currentAnim" style="font-size: 11px; word-break: break-word;">—</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Time</div>
+                            <div class="stat-value" id="animTime">0.0s</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interaction Panel -->
+            <div class="panel">
+                <h3 class="panel-title">Interaction</h3>
+                <div class="scroll-area">
+                    <div class="form-group">
+                        <label class="form-label">Mouse Tracking</label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="eyeTracking" checked style="cursor: pointer;" />
+                            <span>Enable eye tracking</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Interaction Type</label>
+                        <select id="interactionMode" class="form-select">
+                            <option value="pan">Pan (Drag)</option>
+                            <option value="rotate">Rotate</option>
+                            <option value="none">None</option>
+                        </select>
+                    </div>
+
+                    <div class="button-group">
+                        <button class="btn btn-secondary btn-sm" id="resetInteractionBtn">Reset</button>
+                    </div>
+
+                    <div class="tooltip" style="margin-top: 8px;">
+                        • Scroll to zoom<br />
+                        • Drag to interact<br />
+                        • Right-click for menu
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Stats -->
+            <div class="panel">
+                <h3 class="panel-title">Performance</h3>
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">FPS</div>
+                        <div class="stat-value" id="fpsDisplay">—</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Frame Time</div>
+                        <div class="stat-value" id="frameTimeDisplay">—</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Live2D Desktop Viewer - Core Application
+        class Live2DViewer {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resizeCanvas();
+
+                // Viewport state
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.rotation = 0;
+                this.scale = 1;
+                this.opacity = 1;
+
+                // Model data
+                this.modelData = null;
+                this.modelTexture = null;
+                this.animations = [];
+                this.currentAnimation = null;
+                this.animationTime = 0;
+
+                // Interaction
+                this.isDragging = false;
+                this.dragStartX = 0;
+                this.dragStartY = 0;
+                this.mouseX = 0;
+                this.mouseY = 0;
+                this.eyeTracking = true;
+                this.interactionMode = 'pan';
+
+                // Performance
+                this.frameCount = 0;
+                this.fps = 0;
+                this.lastFrameTime = performance.now();
+
+                this.initEventListeners();
+                this.startRenderLoop();
+            }
+
+            initEventListeners() {
+                // Canvas
+                this.canvas.addEventListener('wheel', (e) => this.handleZoom(e), { passive: false });
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+                this.canvas.addEventListener('mouseleave', (e) => this.handleMouseLeave(e));
+                this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+                // Viewport controls
+                document.getElementById('zoomSlider').addEventListener('input', (e) => {
+                    this.zoom = parseFloat(e.target.value);
+                    this.updateDisplay();
+                });
+
+                document.getElementById('panXSlider').addEventListener('input', (e) => {
+                    this.panX = parseFloat(e.target.value);
+                    this.updateDisplay();
+                });
+
+                document.getElementById('panYSlider').addEventListener('input', (e) => {
+                    this.panY = parseFloat(e.target.value);
+                    this.updateDisplay();
+                });
+
+                document.getElementById('resetViewBtn').addEventListener('click', () => this.resetView());
+                document.getElementById('fitScreenBtn').addEventListener('click', () => this.fitScreen());
+
+                // Model controls
+                document.getElementById('modelFile').addEventListener('change', (e) => this.loadModel(e));
+
+                document.getElementById('scaleSlider').addEventListener('input', (e) => {
+                    this.scale = parseFloat(e.target.value);
+                    document.getElementById('scaleValue').textContent = this.scale.toFixed(1) + 'x';
+                });
+
+                document.getElementById('rotationSlider').addEventListener('input', (e) => {
+                    this.rotation = parseFloat(e.target.value);
+                    document.getElementById('rotationValue').textContent = Math.round(this.rotation) + '°';
+                });
+
+                document.getElementById('opacitySlider').addEventListener('input', (e) => {
+                    this.opacity = parseFloat(e.target.value);
+                    document.getElementById('opacityValue').textContent = Math.round(this.opacity * 100) + '%';
+                });
+
+                // Animation controls
+                document.getElementById('playAnimBtn').addEventListener('click', () => this.playAnimation());
+                document.getElementById('stopAnimBtn').addEventListener('click', () => this.stopAnimation());
+
+                // Interaction controls
+                document.getElementById('eyeTracking').addEventListener('change', (e) => {
+                    this.eyeTracking = e.target.checked;
+                });
+
+                document.getElementById('interactionMode').addEventListener('change', (e) => {
+                    this.interactionMode = e.target.value;
+                });
+
+                document.getElementById('resetInteractionBtn').addEventListener('click', () => this.resetInteraction());
+            }
+
+            resizeCanvas() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+            }
+
+            handleZoom(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                this.zoom *= delta;
+                this.zoom = Math.max(0.1, Math.min(5, this.zoom));
+                document.getElementById('zoomSlider').value = this.zoom;
+                this.updateDisplay();
+            }
+
+            handleMouseDown(e) {
+                this.isDragging = true;
+                this.dragStartX = e.clientX;
+                this.dragStartY = e.clientY;
+            }
+
+            handleMouseMove(e) {
+                this.mouseX = e.clientX;
+                this.mouseY = e.clientY;
+
+                if (this.isDragging && this.interactionMode !== 'none') {
+                    const deltaX = e.clientX - this.dragStartX;
+                    const deltaY = e.clientY - this.dragStartY;
+
+                    if (this.interactionMode === 'pan') {
+                        this.panX += deltaX / this.zoom;
+                        this.panY += deltaY / this.zoom;
+                        document.getElementById('panXSlider').value = this.panX;
+                        document.getElementById('panYSlider').value = this.panY;
+                    } else if (this.interactionMode === 'rotate') {
+                        this.rotation += deltaX * 0.5;
+                        document.getElementById('rotationSlider').value = this.rotation;
+                    }
+
+                    this.dragStartX = e.clientX;
+                    this.dragStartY = e.clientY;
+                    this.updateDisplay();
+                }
+            }
+
+            handleMouseUp(e) {
+                this.isDragging = false;
+            }
+
+            handleMouseLeave(e) {
+                this.isDragging = false;
+            }
+
+            updateDisplay() {
+                document.getElementById('zoomDisplay').textContent = Math.round(this.zoom * 100) + '%';
+                document.getElementById('zoomValue').textContent = this.zoom.toFixed(1) + 'x';
+                document.getElementById('panDisplay').textContent = Math.round(this.panX) + ', ' + Math.round(this.panY);
+                document.getElementById('panXValue').textContent = Math.round(this.panX) + 'px';
+                document.getElementById('panYValue').textContent = Math.round(this.panY) + 'px';
+            }
+
+            resetView() {
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.rotation = 0;
+                document.getElementById('zoomSlider').value = 1;
+                document.getElementById('panXSlider').value = 0;
+                document.getElementById('panYSlider').value = 0;
+                document.getElementById('rotationSlider').value = 0;
+                this.updateDisplay();
+            }
+
+            fitScreen() {
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                document.getElementById('zoomSlider').value = 1;
+                document.getElementById('panXSlider').value = 0;
+                document.getElementById('panYSlider').value = 0;
+                this.updateDisplay();
+            }
+
+            loadModel(e) {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        this.modelData = JSON.parse(event.target.result);
+                        this.parseModel();
+                        this.resetView();
+                    } catch (error) {
+                        console.error('Failed to load model:', error);
+                        alert('Failed to load model file. Ensure it is a valid Live2D JSON file.');
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            parseModel() {
+                if (!this.modelData) return;
+
+                // Extract basic model info
+                const canvasWidth = this.modelData.canvasWidth || 2048;
+                const canvasHeight = this.modelData.canvasHeight || 2048;
+
+                document.getElementById('modelWidth').textContent = canvasWidth;
+                document.getElementById('modelHeight').textContent = canvasHeight;
+
+                // Parse animations if available
+                this.animations = this.modelData.animations || [];
+                this.renderAnimationList();
+            }
+
+            renderAnimationList() {
+                const list = document.getElementById('animationList');
+                list.innerHTML = '';
+
+                if (this.animations.length === 0) {
+                    list.innerHTML = '<div class="tooltip">No animations found in model</div>';
+                    return;
+                }
+
+                this.animations.forEach((anim, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'animation-item';
+                    item.textContent = anim || `Animation ${index + 1}`;
+                    item.addEventListener('click', () => this.selectAnimation(index));
+                    list.appendChild(item);
+                });
+            }
+
+            selectAnimation(index) {
+                document.querySelectorAll('.animation-item').forEach((item, i) => {
+                    item.classList.toggle('active', i === index);
+                });
+                this.currentAnimation = this.animations[index];
+                document.getElementById('currentAnim').textContent = this.currentAnimation || '—';
+                this.animationTime = 0;
+            }
+
+            playAnimation() {
+                if (this.currentAnimation) {
+                    this.animationTime = 0;
+                }
+            }
+
+            stopAnimation() {
+                this.animationTime = 0;
+                this.currentAnimation = null;
+                document.getElementById('animTime').textContent = '0.0s';
+            }
+
+            resetInteraction() {
+                this.rotation = 0;
+                this.mouseX = this.canvas.width / 2;
+                this.mouseY = this.canvas.height / 2;
+                document.getElementById('rotationSlider').value = 0;
+            }
+
+            startRenderLoop() {
+                const render = () => {
+                    this.update();
+                    this.draw();
+                    this.frameCount++;
+                    requestAnimationFrame(render);
+                };
+                render();
+            }
+
+            update() {
+                // Update animation time
+                if (this.currentAnimation) {
+                    this.animationTime += 0.016; // Approximate 60fps
+                    document.getElementById('animTime').textContent = this.animationTime.toFixed(1) + 's';
+                }
+
+                // Calculate FPS
+                const now = performance.now();
+                if (now - this.lastFrameTime >= 1000) {
+                    this.fps = this.frameCount;
+                    this.frameCount = 0;
+                    this.lastFrameTime = now;
+                    document.getElementById('fpsDisplay').textContent = this.fps + ' FPS';
+                }
+
+                // Calculate frame time
+                const frameTime = 1000 / this.fps || 0;
+                document.getElementById('frameTimeDisplay').textContent = frameTime.toFixed(1) + ' ms';
+            }
+
+            draw() {
+                // Clear canvas
+                this.ctx.fillStyle = 'rgba(38, 40, 40, 1)';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw gradient background
+                const gradient = this.ctx.createLinearGradient(0, 0, this.canvas.width, this.canvas.height);
+                gradient.addColorStop(0, 'rgba(50, 184, 198, 0.05)');
+                gradient.addColorStop(1, 'rgba(33, 128, 141, 0.05)');
+                this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Save context
+                this.ctx.save();
+
+                // Apply transformations
+                const centerX = this.canvas.width / 2;
+                const centerY = this.canvas.height / 2;
+
+                this.ctx.translate(centerX + this.panX, centerY + this.panY);
+                this.ctx.rotate((this.rotation * Math.PI) / 180);
+                this.ctx.scale(this.zoom * this.scale, this.zoom * this.scale);
+                this.ctx.globalAlpha = this.opacity;
+
+                // Draw placeholder model visualization
+                if (this.modelData) {
+                    this.drawModelVisualization();
+                } else {
+                    this.drawPlaceholder();
+                }
+
+                // Restore context
+                this.ctx.restore();
+
+                // Draw grid
+                this.drawGrid();
+
+                // Draw crosshair at center
+                this.ctx.strokeStyle = 'rgba(50, 184, 198, 0.3)';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                this.ctx.moveTo(centerX - 20, centerY);
+                this.ctx.lineTo(centerX + 20, centerY);
+                this.ctx.moveTo(centerX, centerY - 20);
+                this.ctx.lineTo(centerX, centerY + 20);
+                this.ctx.stroke();
+            }
+
+            drawModelVisualization() {
+                // Draw a representation of the model
+                const canvasWidth = this.modelData.canvasWidth || 2048;
+                const canvasHeight = this.modelData.canvasHeight || 2048;
+                const width = canvasWidth / 1024;
+                const height = canvasHeight / 1024;
+
+                // Draw bounding box
+                this.ctx.strokeStyle = 'rgba(50, 184, 198, 0.5)';
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeRect(-width / 2, -height / 2, width, height);
+
+                // Draw animation indicator
+                if (this.currentAnimation) {
+                    this.ctx.fillStyle = 'rgba(50, 184, 198, 0.3)';
+                    this.ctx.fillRect(-width / 2, -height / 2, width, height);
+
+                    // Draw animation progress
+                    const progress = (this.animationTime % 3) / 3;
+                    this.ctx.fillStyle = 'rgba(50, 184, 198, 0.6)';
+                    this.ctx.fillRect(-width / 2, height / 2 - 10, width * progress, 10);
+                }
+
+                // Draw grid pattern
+                this.ctx.strokeStyle = 'rgba(50, 184, 198, 0.15)';
+                this.ctx.lineWidth = 0.5;
+                const gridSize = 0.2;
+                for (let x = -width / 2; x <= width / 2; x += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, -height / 2);
+                    this.ctx.lineTo(x, height / 2);
+                    this.ctx.stroke();
+                }
+                for (let y = -height / 2; y <= height / 2; y += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(-width / 2, y);
+                    this.ctx.lineTo(width / 2, y);
+                    this.ctx.stroke();
+                }
+            }
+
+            drawPlaceholder() {
+                // Draw placeholder
+                this.ctx.fillStyle = 'rgba(50, 184, 198, 0.1)';
+                this.ctx.fillRect(-1, -1, 2, 2);
+                this.ctx.strokeStyle = 'rgba(50, 184, 198, 0.5)';
+                this.ctx.lineWidth = 0.1;
+                this.ctx.strokeRect(-1, -1, 2, 2);
+
+                // Draw center point
+                this.ctx.fillStyle = 'rgba(50, 184, 198, 0.8)';
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 0.1, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+
+            drawGrid() {
+                const centerX = this.canvas.width / 2;
+                const centerY = this.canvas.height / 2;
+                const gridSpacing = 50;
+
+                this.ctx.strokeStyle = 'rgba(50, 184, 198, 0.1)';
+                this.ctx.lineWidth = 0.5;
+
+                for (let x = 0; x < this.canvas.width; x += gridSpacing) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height);
+                    this.ctx.stroke();
+                }
+
+                for (let y = 0; y < this.canvas.height; y += gridSpacing) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
+                }
+            }
+        }
+
+        // Initialize viewer on load
+        window.addEventListener('DOMContentLoaded', () => {
+            const viewer = new Live2DViewer();
+            window.addEventListener('resize', () => viewer.resizeCanvas());
+        });
+    </script>
+</body>
+</html>

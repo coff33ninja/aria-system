@@ -284,8 +284,22 @@ function setCurrentMaid(maidId) {
 }
 
 // ============================================================================
-// Live2D Avatar
+// Live2D Avatar (Enhanced with perplexity renderer features)
 // ============================================================================
+
+// Version-aware idle motion configuration
+const IDLE_MOTION_CONFIG = {
+    cubism2: 'idle',
+    cubism4: 'Idle',
+    fallback: 'idle'
+};
+
+// Motion priority levels
+const MOTION_PRIORITY = {
+    IDLE: 0,
+    NORMAL: 1,
+    FORCE: 2
+};
 
 async function initLive2D() {
     loadingText.textContent = 'Loading Live2D...';
@@ -296,6 +310,7 @@ async function initLive2D() {
             autoStart: true,
             resizeTo: canvas.parentElement,
             backgroundColor: 0x1a1a2e,
+            backgroundAlpha: 0, // Transparent for desktop mode
             antialias: true
         });
         
@@ -326,34 +341,151 @@ async function loadMaidModel(maidId) {
             live2dModel = null;
         }
         
-        // Load new model
+        // Load new model with idle motion preload
         live2dModel = await PIXI.live2d.Live2DModel.from(maid.modelPath, {
             autoInteract: true,
-            autoUpdate: true
+            autoUpdate: true,
+            motionPreload: PIXI.live2d.MotionPreloadStrategy.IDLE
         });
+        
+        // Setup version-aware idle motions
+        setupIdleMotionGroup();
         
         // Scale and position
         resizeModel();
         
-        // Enable interaction
+        // Enable interaction with hit areas
         live2dModel.interactive = true;
         live2dModel.on('hit', (hitAreas) => {
-            console.log('Hit:', hitAreas);
-            if (hitAreas.includes('body') || hitAreas.includes('Body')) {
-                live2dModel.motion('tap_body');
-            } else if (hitAreas.includes('head') || hitAreas.includes('Head')) {
-                live2dModel.motion('flick_head');
-            }
+            console.log('👆 Hit areas:', hitAreas);
+            handleModelHit(hitAreas);
         });
         
         pixiApp.stage.addChild(live2dModel);
         
         console.log(`✅ Loaded model for ${maid.name}`);
+        console.log(`   Version: ${detectCubismVersion()}`);
+        console.log(`   Motions: ${getAvailableMotions().length}`);
+        console.log(`   Expressions: ${getAvailableExpressions().length}`);
+        
         loadingOverlay.classList.add('hidden');
         
     } catch (error) {
         console.error(`Failed to load model for ${maidId}:`, error);
         loadingOverlay.classList.add('hidden');
+    }
+}
+
+/**
+ * Setup version-aware idle motion groups
+ * Handles Cubism 2 vs Cubism 4 differences automatically
+ */
+function setupIdleMotionGroup() {
+    if (!live2dModel) return;
+    
+    const settings = live2dModel.internalModel.settings;
+    const motions = settings.motions || {};
+    
+    let idleGroup = null;
+    
+    // Try Cubism 4 naming first (capitalized)
+    if (motions[IDLE_MOTION_CONFIG.cubism4]) {
+        idleGroup = IDLE_MOTION_CONFIG.cubism4;
+        console.log('📋 Detected Cubism 4 model (Idle motion group)');
+    }
+    // Fall back to Cubism 2 naming (lowercase)
+    else if (motions[IDLE_MOTION_CONFIG.cubism2]) {
+        idleGroup = IDLE_MOTION_CONFIG.cubism2;
+        console.log('📋 Detected Cubism 2 model (idle motion group)');
+    }
+    // Use fallback
+    else {
+        idleGroup = IDLE_MOTION_CONFIG.fallback;
+        console.log('⚠️ Unknown Cubism version, using fallback idle group');
+    }
+    
+    // Set idle group for motion manager
+    live2dModel.internalModel.motionManager.groups.idle = idleGroup;
+}
+
+/**
+ * Detect Cubism version from model
+ */
+function detectCubismVersion() {
+    if (!live2dModel) return 'Unknown';
+    
+    const settings = live2dModel.internalModel.settings;
+    const motions = settings.motions || {};
+    
+    if (motions['Idle']) return 'Cubism 4+';
+    if (motions['idle']) return 'Cubism 2';
+    return 'Unknown';
+}
+
+/**
+ * Get available motions from model
+ */
+function getAvailableMotions() {
+    if (!live2dModel) return [];
+    
+    const settings = live2dModel.internalModel.settings;
+    const motions = settings.motions || {};
+    const list = [];
+    
+    Object.keys(motions).forEach(group => {
+        motions[group].forEach((motion, idx) => {
+            list.push(`${group}:${idx}`);
+        });
+    });
+    
+    return list;
+}
+
+/**
+ * Get available expressions from model
+ */
+function getAvailableExpressions() {
+    if (!live2dModel) return [];
+    
+    const settings = live2dModel.internalModel.settings;
+    const expressions = settings.expressions || [];
+    
+    return expressions.map(e => e.Name || e.name);
+}
+
+/**
+ * Handle model hit events with motion priorities
+ */
+function handleModelHit(hitAreas) {
+    if (hitAreas.includes('body') || hitAreas.includes('Body')) {
+        playMotionWithPriority('Tap', 0, 'NORMAL');
+    } else if (hitAreas.includes('head') || hitAreas.includes('Head')) {
+        playMotionWithPriority('TapHead', 0, 'NORMAL');
+    }
+}
+
+/**
+ * Play motion with priority system
+ * @param {string} group - Motion group name
+ * @param {number} index - Motion index
+ * @param {string} priority - Priority level (IDLE, NORMAL, FORCE)
+ */
+function playMotionWithPriority(group, index = 0, priority = 'NORMAL') {
+    if (!live2dModel) return;
+    
+    const priorityValue = MOTION_PRIORITY[priority] || MOTION_PRIORITY.NORMAL;
+    
+    console.log(`🎬 Playing motion: ${group}[${index}] (priority: ${priority})`);
+    
+    try {
+        live2dModel.motion(group, index, {
+            priority: priorityValue,
+            onFinish: () => {
+                console.log(`✅ Motion finished: ${group}[${index}]`);
+            }
+        });
+    } catch (error) {
+        console.error(`❌ Failed to play motion ${group}[${index}]:`, error);
     }
 }
 

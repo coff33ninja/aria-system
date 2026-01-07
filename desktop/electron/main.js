@@ -140,7 +140,9 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
             zoomFactor: 1.0,
             // Allow loading local files when HTTP server isn't running
-            webSecurity: false
+            webSecurity: false,
+            // Enable file protocol for local model loading
+            allowRunningInsecureContent: true
         }
     });
 
@@ -941,6 +943,13 @@ ipcMain.handle('reset-settings', () => {
 
 ipcMain.handle('set-click-through', (event, clickThrough) => {
     mainWindow.setIgnoreMouseEvents(clickThrough, { forward: true });
+});
+
+// Dynamic click-through for desktop mascot mode (from Live2DController)
+ipcMain.on('set-mouse-through', (_event, ignore) => {
+    if (mainWindow) {
+        mainWindow.setIgnoreMouseEvents(ignore, { forward: true });
+    }
 });
 
 ipcMain.handle('get-cursor-position', () => {

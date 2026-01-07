@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live2D Model Loading Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: monospace;
+        }
+        #canvas {
+            border: 2px solid #ff6b9d;
+            background: #16213e;
+        }
+        #log {
+            margin-top: 20px;
+            padding: 10px;
+            background: #0f3460;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error { color: #ff4757; }
+        .success { color: #2ed573; }
+        .info { color: #ffa502; }
+    </style>
+</head>
+<body>
+    <h1>Live2D Model Loading Test</h1>
+    <canvas id="canvas" width="400" height="500"></canvas>
+    <div id="log"></div>
+
+    <!-- PIXI.js and Live2D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+
+    <script>
+        const log = document.getElementById('log');
+        
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+            console.log(message);
+        }
+
+        async function testModelLoading() {
+            addLog('Starting Live2D test...', 'info');
+            
+            // Check if libraries loaded
+            if (typeof PIXI === 'undefined') {
+                addLog('ERROR: PIXI.js not loaded!', 'error');
+                return;
+            }
+            addLog('✓ PIXI.js loaded', 'success');
+            
+            if (typeof PIXI.live2d === 'undefined') {
+                addLog('ERROR: pixi-live2d-display not loaded!', 'error');
+                return;
+            }
+            addLog('✓ pixi-live2d-display loaded', 'success');
+            
+            // Create PIXI app
+            const canvas = document.getElementById('canvas');
+            const app = new PIXI.Application({
+                view: canvas,
+                width: 400,
+                height: 500,
+                backgroundAlpha: 0,
+                antialias: true
+            });
+            addLog('✓ PIXI Application created', 'success');
+            
+            // Test paths
+            const paths = [
+                '../../live2d/models/aria/长离.model3.json',
+                'http://localhost:8080/live2d/models/aria/长离.model3.json'
+            ];
+            
+            for (const modelPath of paths) {
+                addLog(`Trying to load: ${modelPath}`, 'info');
+                
+                try {
+                    const model = await PIXI.live2d.Live2DModel.from(modelPath, {
+                        autoInteract: false,
+                        autoUpdate: true
+                    });
+                    
+                    addLog(`✓ Model loaded successfully!`, 'success');
+                    addLog(`  Dimensions: ${model.width}x${model.height}`, 'success');
+                    
+                    // Position model
+                    model.anchor.set(0.5, 0.5);
+                    model.x = app.screen.width / 2;
+                    model.y = app.screen.height * 0.65;
+                    
+                    // Scale to fit
+                    const scale = Math.min(
+                        app.screen.width / model.width * 0.9,
+                        app.screen.height / model.height * 0.9
+                    );
+                    model.scale.set(scale);
+                    
+                    app.stage.addChild(model);
+                    addLog(`✓ Model added to stage and positioned`, 'success');
+                    addLog(`  Position: (${model.x}, ${model.y})`, 'info');
+                    addLog(`  Scale: ${scale.toFixed(3)}`, 'info');
+                    
+                    return; // Success!
+                    
+                } catch (error) {
+                    addLog(`✗ Failed: ${error.message}`, 'error');
+                }
+            }
+            
+            addLog('All loading attempts failed!', 'error');
+        }
+
+        // Run test when page loads
+        window.addEventListener('load', () => {
+            setTimeout(testModelLoading, 500);
+        });
+    </script>
+</body>
+</html>
