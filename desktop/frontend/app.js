@@ -407,10 +407,52 @@ function setExpression(name) {
     }
 }
 
+// ============================================================================
+// Lip Sync System
+// ============================================================================
+
+let lipSyncAnalyzer = null;
+let lipSyncAudioElement = null;
+
+async function initLipSync() {
+    try {
+        // Dynamically import LipSyncAnalyzer
+        const { default: LipSyncAnalyzer } = await import('./LipSyncAnalyzer.js');
+        
+        lipSyncAnalyzer = new LipSyncAnalyzer({
+            smoothing: 0.7,
+            sensitivity: 1.2,
+            minVolume: 0.01,
+            maxMouthOpen: 0.9
+        });
+        
+        await lipSyncAnalyzer.initialize();
+        
+        // Set up mouth update callback
+        lipSyncAnalyzer.onMouthUpdate = (mouthOpen) => {
+            if (live2dModel) {
+                setModelParameter('ParamMouthOpenY', mouthOpen);
+            }
+        };
+        
+        console.log('✨ Lip sync system initialized');
+        
+    } catch (error) {
+        console.warn('⚠️ Lip sync not available:', error);
+        // Fallback to simple animation
+    }
+}
+
 function animateSpeaking(textLength) {
     if (!live2dModel) return;
     
-    // Simple mouth animation based on text length
+    // If we have real lip sync, it will handle mouth movement automatically
+    // This is just a fallback for when audio analysis isn't available
+    if (lipSyncAnalyzer && lipSyncAnalyzer.isActive) {
+        return; // Let the real lip sync handle it
+    }
+    
+    // Simple mouth animation based on text length (fallback)
     const duration = Math.min(textLength * 50, 3000);
     const startTime = Date.now();
     
@@ -716,4 +758,7 @@ loadMaidModel = loadMaidModelWithControls;
 init().then(() => {
     // Initialize advanced controls after main app is ready
     initAdvancedControls();
+    
+    // Initialize lip sync system
+    initLipSync();
 });
