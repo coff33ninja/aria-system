@@ -360,13 +360,19 @@ async function loadMaidModel(maidId) {
 function resizeModel() {
     if (!live2dModel || !pixiApp) return;
     
+    // Get original model dimensions (unscaled)
+    const originalWidth = live2dModel.width / (live2dModel.scale.x || 1);
+    const originalHeight = live2dModel.height / (live2dModel.scale.y || 1);
+    
     const scale = Math.min(
-        pixiApp.screen.width / live2dModel.width * 0.8,
-        pixiApp.screen.height / live2dModel.height * 0.9
+        pixiApp.screen.width / originalWidth * 0.8,
+        pixiApp.screen.height / originalHeight * 0.85
     );
     live2dModel.scale.set(scale);
+    
+    // Center the model properly
     live2dModel.x = pixiApp.screen.width / 2;
-    live2dModel.y = pixiApp.screen.height / 2 + live2dModel.height * scale * 0.3;
+    live2dModel.y = pixiApp.screen.height / 2;
     live2dModel.anchor.set(0.5, 0.5);
 }
 
