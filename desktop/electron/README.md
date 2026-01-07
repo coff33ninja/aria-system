@@ -62,6 +62,7 @@ Edit `main.js` to change:
 **Avatar not loading?**
 - Make sure the Python backend is running first
 - Check that http://localhost:8080 serves the Live2D models
+- The app will show "Starting... (run: python -m desktop.agent)" if the server isn't detected
 
 **Window not transparent?**
 - Some Linux window managers don't support transparency
@@ -70,3 +71,29 @@ Edit `main.js` to change:
 **Can't interact with avatar?**
 - The avatar area is interactive, background is click-through
 - Drag from the edges if needed
+
+## Debugging
+
+Run with DevTools to see console logs and network requests:
+
+```bash
+npm run dev
+```
+
+Or add `--dev` flag:
+```bash
+npm start -- --dev
+```
+
+**Useful console logs to look for:**
+- `✅ HTTP server is running` - Backend detected
+- `⚠️ HTTP server not running on port 8080` - Backend not found, will try local files
+- `🔄 Loading model from: ...` - Model load attempt
+- `✅ Model loaded successfully` - Model loaded OK
+- `❌ Failed to load ...` - Model load failed (check path/server)
+
+**Check model paths:**
+- HTTP: `http://localhost:8080/live2d/models/aria/长离.model3.json`
+- Local fallback: `file:///path/to/live2d/models/aria/长离.model3.json`
+
+**Network tab:** Look for failed requests to `localhost:8080` if models aren't loading.

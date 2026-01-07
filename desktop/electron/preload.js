@@ -13,6 +13,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+    // Model paths - handled via IPC to main process instead
+    getAbsoluteModelPath: (maidId, modelFile) => ipcRenderer.invoke('get-model-path', maidId, modelFile),
+    
     // Window
     getWindowBounds: () => ipcRenderer.invoke('get-window-bounds'),
     setClickThrough: (clickThrough) => ipcRenderer.invoke('set-click-through', clickThrough),

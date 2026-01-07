@@ -372,24 +372,47 @@
         const WS_URL = 'ws://localhost:8765';
         const RECONNECT_DELAY = 3000;
         
+        // Try HTTP server first, fallback to local file paths
         const MODEL_BASE_URL = 'http://localhost:8080';
+        const LOCAL_MODEL_BASE = '../../live2d/models';  // Relative path from electron folder
+        
+        // Detect if running in Electron and get proper paths
+        const isElectron = window.electronAPI !== undefined;
+        
+        function getModelPath(maidId, modelFile) {
+            // In Electron, we'll try HTTP first, then fall back to local
+            return `${MODEL_BASE_URL}/live2d/models/${maidId}/${modelFile}`;
+        }
+        
+        function getLocalModelPath(maidId, modelFile) {
+            // Local file path for Electron fallback
+            if (isElectron && window.electronAPI?.getModelPath) {
+                return window.electronAPI.getModelPath(maidId, modelFile);
+            }
+            return `${LOCAL_MODEL_BASE}/${maidId}/${modelFile}`;
+        }
+        
         const MAIDS = {
             aria: {
                 name: "Aria",
                 modelPath: `${MODEL_BASE_URL}/live2d/models/aria/长离.model3.json`,
+                localModelPath: `${LOCAL_MODEL_BASE}/aria/长离.model3.json`,
+                modelFile: "长离.model3.json",
                 hasModel: true,
                 color: "#ff6b9d"
             },
-            sophia: { name: "Sophia", modelPath: null, hasModel: false, color: "#9b59b6" },
+            sophia: { name: "Sophia", modelPath: null, localModelPath: null, hasModel: false, color: "#9b59b6" },
             luna: {
                 name: "Luna",
                 modelPath: `${MODEL_BASE_URL}/live2d/models/luna/Nicole.model3.json`,
+                localModelPath: `${LOCAL_MODEL_BASE}/luna/Nicole.model3.json`,
+                modelFile: "Nicole.model3.json",
                 hasModel: true,
                 color: "#3498db"
             },
-            rose: { name: "Rose", modelPath: null, hasModel: false, color: "#e74c3c" },
-            mei: { name: "Mei", modelPath: null, hasModel: false, color: "#2ecc71" },
-            clara: { name: "Clara", modelPath: null, hasModel: false, color: "#f39c12" }
+            rose: { name: "Rose", modelPath: null, localModelPath: null, hasModel: false, color: "#e74c3c" },
+            mei: { name: "Mei", modelPath: null, localModelPath: null, hasModel: false, color: "#2ecc71" },
+            clara: { name: "Clara", modelPath: null, localModelPath: null, hasModel: false, color: "#f39c12" }
         };
 
         // State
@@ -1593,10 +1616,33 @@
             maidBadge.style.background = maid?.color || '#ff6b9d';
         }
 
+        // ============ Server Check ============
+        
+        async function checkHttpServer() {
+            try {
+                const response = await fetch(`${MODEL_BASE_URL}/live2d/models/aria/长离.model3.json`, {
+                    method: 'HEAD',
+                    mode: 'cors'
+                });
+                return response.ok;
+            } catch (e) {
+                return false;
+            }
+        }
+
         // ============ Live2D ============
         
         async function initLive2D() {
             showStatus('Loading avatar...', 5000);
+            
+            // Check if HTTP server is running
+            const serverRunning = await checkHttpServer();
+            if (!serverRunning) {
+                console.warn('⚠️ HTTP server not running on port 8080');
+                showStatus('Starting... (run: python -m desktop.agent)', 10000);
+            } else {
+                console.log('✅ HTTP server is running');
+            }
             
             try {
                 console.log('🚀 Initializing PIXI Application...');
@@ -1645,19 +1691,53 @@
                     live2dModel = null;
                 }
                 
-                console.log(`🔄 Loading model from: ${maid.modelPath}`);
+                // Try HTTP server first, then fall back to local path
+                let modelPath = maid.modelPath;
+                let loadedFromLocal = false;
                 
-                // Load new model with error handling
-                live2dModel = await PIXI.live2d.Live2DModel.from(maid.modelPath, {
-                    autoInteract: false, // We handle interaction
-                    autoUpdate: true
-                });
+                console.log(`🔄 Loading model from: ${modelPath}`);
+                
+                // Load new model with error handling and fallback
+                try {
+                    live2dModel = await PIXI.live2d.Live2DModel.from(modelPath, {
+                        autoInteract: false,
+                        autoUpdate: true
+                    });
+                } catch (httpError) {
+                    console.warn(`⚠️ HTTP load failed: ${httpError.message}`);
+                    
+                    // Try local path if HTTP fails and we have a local path
+                    if (maid.localModelPath) {
+                        console.log(`🔄 Trying local path: ${maid.localModelPath}`);
+                        showStatus(`Loading ${maid.name} (local)...`, 5000);
+                        
+                        try {
+                            // For Electron, try to get absolute path from preload
+                            let localPath = maid.localModelPath;
+                            if (window.electronAPI?.getAbsoluteModelPath) {
+                                localPath = await window.electronAPI.getAbsoluteModelPath(maidId, maid.modelFile);
+                            }
+                            
+                            live2dModel = await PIXI.live2d.Live2DModel.from(localPath, {
+                                autoInteract: false,
+                                autoUpdate: true
+                            });
+                            loadedFromLocal = true;
+                            console.log(`✅ Loaded from local path`);
+                        } catch (localError) {
+                            console.error(`❌ Local load also failed: ${localError.message}`);
+                            throw new Error(`Both HTTP and local load failed. Make sure the Python backend is running (python -m desktop.agent) or check that model files exist.`);
+                        }
+                    } else {
+                        throw httpError;
+                    }
+                }
                 
                 if (!live2dModel) {
                     throw new Error('Model loaded but is null/undefined');
                 }
                 
-                console.log(`✅ Model loaded successfully - Dimensions: ${live2dModel.width}x${live2dModel.height}`);
+                console.log(`✅ Model loaded successfully - Dimensions: ${live2dModel.width}x${live2dModel.height}${loadedFromLocal ? ' (local)' : ''}`);
                 
                 // Configure model IMMEDIATELY after loading
                 live2dModel.anchor.set(0.5, 0.5);
@@ -1698,16 +1778,6 @@
                 updateMovementMode();
                 
             } catch (error) {
-                console.error(`❌ Failed to load ${maidId}:`, error);
-                showStatus(`Failed to load ${maid.name}: ${error.message}`);
-                
-                // Try to recover by showing a placeholder or fallback
-                if (maidId !== 'aria') {
-                    console.log('🔄 Attempting fallback to Aria model...');
-                    setTimeout(() => loadMaidModel('aria'), 2000);
-                }
-            }
-        }
                 console.error(`❌ Failed to load ${maidId}:`, error);
                 showStatus(`Failed to load ${maid.name}: ${error.message}`);
                 
@@ -1776,26 +1846,6 @@
             pixiApp.renderer.render(pixiApp.stage);
         };
         
-        // Test scale function
-        window.testScale = (scale) => {
-            if (!live2dModel) {
-                console.log('❌ No model loaded');
-                return;
-            }
-            
-            console.log(`🧪 Testing scale: ${scale}`);
-            
-            // Update settings
-            if (settings?.avatar) {
-                settings.avatar.modelScale = scale;
-            }
-            
-            // Apply via resizeModel
-            resizeModel();
-            
-            console.log(`Scale applied: ${scale}`);
-        };
-        
         // Force center function
         window.forceCenter = () => {
             if (!live2dModel || !pixiApp) {
@@ -1819,22 +1869,6 @@
             }
             
             console.log(`✅ Model centered at (${live2dModel.x}, ${live2dModel.y})`);
-        };
-            
-            console.log('🧪 Testing positioning...');
-            console.log(`Current position: (${live2dModel.x}, ${live2dModel.y})`);
-            console.log(`Current anchor: (${live2dModel.anchor.x}, ${live2dModel.anchor.y})`);
-            console.log(`Screen size: ${pixiApp.screen.width}x${pixiApp.screen.height}`);
-            
-            // Force center position
-            live2dModel.anchor.set(0.5, 0.5);
-            live2dModel.x = pixiApp.screen.width / 2;
-            live2dModel.y = pixiApp.screen.height / 2;
-            
-            console.log(`✅ Forced to center: (${live2dModel.x}, ${live2dModel.y})`);
-            
-            // Force render
-            pixiApp.renderer.render(pixiApp.stage);
         };
         
         // Test scale function

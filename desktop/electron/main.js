@@ -138,7 +138,9 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js'),
-            zoomFactor: 1.0
+            zoomFactor: 1.0,
+            // Allow loading local files when HTTP server isn't running
+            webSecurity: false
         }
     });
 
@@ -844,6 +846,13 @@ function reregisterHotkeys() {
 // IPC handlers
 ipcMain.handle('get-window-bounds', () => mainWindow.getBounds());
 ipcMain.handle('get-settings', () => settings);
+
+// Model path handler for local file loading
+ipcMain.handle('get-model-path', (event, maidId, modelFile) => {
+    const modelPath = path.join(__dirname, '..', '..', 'live2d', 'models', maidId, modelFile);
+    // Convert to file:// URL
+    return `file:///${modelPath.replace(/\\/g, '/')}`;
+});
 
 // Enhanced save-settings with proper synchronization
 ipcMain.handle('save-settings', (event, newSettings) => {
