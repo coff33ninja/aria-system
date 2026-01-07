@@ -474,6 +474,264 @@ class LiveKitLive2DAvatar {
     }
     
     /**
+     * Get all model parameters
+     */
+    getAllParameters() {
+        if (!this.model) return [];
+        
+        const parameters = [];
+        const paramCount = this.model.getParameterCount();
+        
+        for (let i = 0; i < paramCount; i++) {
+            parameters.push({
+                id: this.model.getParameterId(i),
+                value: this.model.getParameterValueById(this.model.getParameterId(i)),
+                min: this.model.getParameterMinimumValue(i),
+                max: this.model.getParameterMaximumValue(i),
+                default: this.model.getParameterDefaultValue(i)
+            });
+        }
+        
+        return parameters;
+    }
+    
+    /**
+     * Get parameter value by ID
+     */
+    getParameter(parameterId) {
+        if (!this.model) return null;
+        return this.model.getParameterValueById(parameterId);
+    }
+    
+    /**
+     * Batch update multiple parameters
+     */
+    updateParameters(parameterMap) {
+        if (!this.model) return;
+        
+        for (const [paramId, value] of Object.entries(parameterMap)) {
+            this._setParameter(paramId, value);
+        }
+    }
+    
+    /**
+     * Reset all parameters to default values
+     */
+    resetParameters() {
+        if (!this.model) return;
+        
+        const paramCount = this.model.getParameterCount();
+        for (let i = 0; i < paramCount; i++) {
+            const paramId = this.model.getParameterId(i);
+            const defaultValue = this.model.getParameterDefaultValue(i);
+            this._setParameter(paramId, defaultValue);
+        }
+    }
+    
+    /**
+     * Get viewport state
+     */
+    getViewportState() {
+        return {
+            x: this.model ? this.model.x : 0,
+            y: this.model ? this.model.y : 0,
+            scale: this.model ? this.model.scale.x : 1.0,
+            rotation: this.model ? this.model.rotation : 0
+        };
+    }
+    
+    /**
+     * Set viewport state
+     */
+    setViewportState(state) {
+        if (!this.model) return;
+        
+        if (state.x !== undefined) this.model.x = state.x;
+        if (state.y !== undefined) this.model.y = state.y;
+        if (state.scale !== undefined) {
+            this.model.scale.x = state.scale;
+            this.model.scale.y = state.scale;
+        }
+        if (state.rotation !== undefined) this.model.rotation = state.rotation;
+    }
+    
+    /**
+     * Pan viewport
+     */
+    panViewport(dx, dy) {
+        if (!this.model) return;
+        this.model.x += dx;
+        this.model.y += dy;
+    }
+    
+    /**
+     * Zoom viewport
+     */
+    zoomViewport(factor) {
+        if (!this.model) return;
+        this.model.scale.x *= factor;
+        this.model.scale.y *= factor;
+    }
+    
+    /**
+     * Reset viewport to default
+     */
+    resetViewport() {
+        if (!this.model) return;
+        
+        // Reset to center with default scale
+        this.model.x = this.canvas.width / 2;
+        this.model.y = this.canvas.height / 2;
+        this.model.scale.x = 1.0;
+        this.model.scale.y = 1.0;
+        this.model.rotation = 0;
+    }
+    
+    /**
+     * Get available animations
+     */
+    getAvailableAnimations() {
+        if (!this.model || !this.modelSetting) return [];
+        
+        const animations = [];
+        const motionGroupCount = this.modelSetting.getMotionGroupCount();
+        
+        for (let i = 0; i < motionGroupCount; i++) {
+            const groupName = this.modelSetting.getMotionGroupName(i);
+            const motionCount = this.modelSetting.getMotionCount(groupName);
+            
+            for (let j = 0; j < motionCount; j++) {
+                animations.push({
+                    group: groupName,
+                    index: j,
+                    name: `${groupName}_${j}`
+                });
+            }
+        }
+        
+        return animations;
+    }
+    
+    /**
+     * Play animation by group and index
+     */
+    playAnimation(group, index = 0, priority = 2) {
+        if (!this.model) return;
+        
+        this.model.startMotion(group, index, priority);
+        console.log(`🎬 Playing animation: ${group}[${index}]`);
+    }
+    
+    /**
+     * Stop current animation
+     */
+    stopAnimation() {
+        if (!this.model) return;
+        this.model.stopAllMotions();
+    }
+    
+    /**
+     * Get performance metrics
+     */
+    getPerformanceMetrics() {
+        return {
+            fps: this._calculateFPS(),
+            frameTime: this._getFrameTime(),
+            memory: this._getMemoryUsage(),
+            drawCalls: this._getDrawCalls()
+        };
+    }
+    
+    /**
+     * Get model metadata
+     */
+    getModelMetadata() {
+        if (!this.model || !this.modelSetting) {
+            return null;
+        }
+        
+        return {
+            name: this.maidName,
+            parameterCount: this.model.getParameterCount(),
+            partCount: this.model.getPartCount(),
+            drawableCount: this.model.getDrawableCount(),
+            textureCount: this.modelSetting.getTextureCount(),
+            expressionCount: this.modelSetting.getExpressionCount(),
+            motionGroupCount: this.modelSetting.getMotionGroupCount()
+        };
+    }
+    
+    /**
+     * Export current state as JSON
+     */
+    exportState() {
+        if (!this.model) return null;
+        
+        const parameters = {};
+        const paramCount = this.model.getParameterCount();
+        
+        for (let i = 0; i < paramCount; i++) {
+            const paramId = this.model.getParameterId(i);
+            parameters[paramId] = this.model.getParameterValueById(paramId);
+        }
+        
+        return {
+            maid: this.maidName,
+            expression: this.currentExpression,
+            parameters: parameters,
+            viewport: this.getViewportState(),
+            timestamp: new Date().toISOString()
+        };
+    }
+    
+    /**
+     * Import state from JSON
+     */
+    importState(state) {
+        if (!this.model || !state) return;
+        
+        // Apply parameters
+        if (state.parameters) {
+            this.updateParameters(state.parameters);
+        }
+        
+        // Apply viewport
+        if (state.viewport) {
+            this.setViewportState(state.viewport);
+        }
+        
+        // Apply expression
+        if (state.expression) {
+            this.setExpression(state.expression);
+        }
+        
+        console.log('📥 State imported successfully');
+    }
+    
+    // Private helper methods for performance monitoring
+    _calculateFPS() {
+        // Implement FPS calculation
+        return 60; // Placeholder
+    }
+    
+    _getFrameTime() {
+        // Implement frame time calculation
+        return 16.67; // Placeholder (60 FPS)
+    }
+    
+    _getMemoryUsage() {
+        if (performance.memory) {
+            return (performance.memory.usedJSHeapSize / 1048576).toFixed(2);
+        }
+        return 0;
+    }
+    
+    _getDrawCalls() {
+        // Implement draw call counting
+        return 0; // Placeholder
+    }
+    
+    /**
      * Clean up resources
      */
     dispose() {

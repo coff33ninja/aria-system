@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live2D Advanced Testing Tool - Aria System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: rgba(0,0,0,0.4);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.3em;
+            background: linear-gradient(90deg, #ff6b9d, #c44569);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .btn-primary {
+            background: #ff6b9d;
+        }
+        
+        .btn-primary:hover {
+            background: #c44569;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            height: calc(100vh - 50px);
+        }
+        
+        .canvas-section {
+            position: relative;
+            background: rgba(0,0,0,0.2);
+        }
+        
+        #live2d-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        
+        .controls-section {
+            background: rgba(0,0,0,0.3);
+            overflow-y: auto;
+            border-left: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .control-panel {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .panel-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #ff6b9d;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .model-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .model-btn {
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            font-size: 13px;
+        }
+        
+        .model-btn:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.3);
+        }
+        
+        .model-btn.active {
+            background: rgba(255,107,157,0.2);
+            border-color: #ff6b9d;
+        }
+        
+        .model-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .info-box {
+            background: rgba(255,107,157,0.1);
+            border: 1px solid rgba(255,107,157,0.3);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .loading-overlay.hidden {
+            display: none;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top-color: #ff6b9d;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        
+        .status-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 15px;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #2ed573;
+        }
+        
+        .status-dot.error {
+            background: #ff4757;
+        }
+        
+        /* Scrollbar */
+        .controls-section::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .controls-section::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .controls-section::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+        }
+        
+        .controls-section::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎭 Live2D Advanced Testing Tool</h1>
+        <div class="header-actions">
+            <button class="btn" id="import-btn">📥 Import Settings</button>
+            <button class="btn" id="export-btn">📤 Export Settings</button>
+            <button class="btn" id="export-params-btn">📋 Export Parameters</button>
+            <button class="btn" id="screenshot-btn">📸 Screenshot</button>
+            <button class="btn btn-primary" id="reset-btn">🔄 Reset All</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="canvas-section">
+            <canvas id="live2d-canvas"></canvas>
+            <div class="canvas-overlay" id="canvas-overlay"></div>
+            
+            <div class="loading-overlay" id="loading-overlay">
+                <div class="spinner"></div>
+                <div class="loading-text" id="loading-text">Initializing...</div>
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="status-text">Ready</span>
+                </div>
+                <div class="status-item">
+                    <span>FPS: <span id="fps-display">0</span></span>
+                </div>
+                <div class="status-item">
+                    <span id="model-info">No model loaded</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls-section">
+            <!-- Model Selection -->
+            <div class="control-panel">
+                <div class="panel-title">Model Selection</div>
+                <div class="info-box">
+                    Select a Live2D model to load. Use the controls below to test parameters, animations, and expressions.
+                </div>
+                <div class="model-selector" id="model-selector"></div>
+            </div>
+            
+            <!-- Viewport Controls -->
+            <div class="control-panel" id="viewport-panel"></div>
+            
+            <!-- Parameter Panel -->
+            <div class="control-panel" id="parameter-panel"></div>
+            
+            <!-- Animation Manager -->
+            <div class="control-panel" id="animation-panel"></div>
+            
+            <!-- Expression Manager -->
+            <div class="control-panel" id="expression-panel"></div>
+            
+            <!-- Grid Overlay -->
+            <div class="control-panel" id="grid-panel"></div>
+            
+            <!-- Performance Monitor -->
+            <div class="control-panel" id="performance-panel"></div>
+            
+            <!-- Model Info -->
+            <div class="control-panel">
+                <div class="panel-title">Model Information</div>
+                <div id="model-info-panel"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIXI.js and Live2D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+    
+    <!-- Control Components -->
+    <script type="module">
+        import { ViewportControls } from './electron/components/ViewportControls.js';
+        import { ParameterPanel } from './electron/components/ParameterPanel.js';
+        import { AnimationManager } from './electron/components/AnimationManager.js';
+        import { GridOverlay } from './electron/components/GridOverlay.js';
+        import { PerformanceMonitor } from './electron/components/PerformanceMonitor.js';
+        import { SettingsManager } from './electron/components/SettingsManager.js';
+        import { KeyboardShortcutManager } from './electron/components/KeyboardShortcutManager.js';
+        import { DefaultShortcuts } from './electron/components/DefaultShortcuts.js';
+        import { Live2DControlsIntegration } from './electron/components/Live2DControlsIntegration.js';
+        import { ModelInfoPanel, MODEL_INFO_PANEL_STYLES } from './electron/components/ModelInfoPanel.js';
+        import { LoadingErrorHandler, LOADING_ERROR_HANDLER_STYLES } from './electron/components/LoadingErrorHandler.js';
+        
+        // Inject styles
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = MODEL_INFO_PANEL_STYLES + '\n' + LOADING_ERROR_HANDLER_STYLES;
+        document.head.appendChild(styleSheet);
+        
+        // Model configuration
+        const MODELS = {
+            aria: {
+                name: "Aria (Changli)",
+                path: "/live2d/models/aria/长离.model3.json",
+                available: true,
+                description: "Head Maid - Elegant and commanding"
+            },
+            luna: {
+                name: "Luna (Nicole)",
+                path: "/live2d/models/luna/Nicole.model3.json",
+                available: true,
+                description: "Entertainment Maid - Playful and energetic"
+            },
+            sophia: {
+                name: "Sophia",
+                path: null,
+                available: false,
+                description: "Research Maid - Coming soon"
+            },
+            rose: {
+                name: "Rose",
+                path: null,
+                available: false,
+                description: "Scheduling Maid - Coming soon"
+            },
+            mei: {
+                name: "Mei",
+                path: null,
+                available: false,
+                description: "Smart Home Maid - Coming soon"
+            },
+            clara: {
+                name: "Clara",
+                path: null,
+                available: false,
+                description: "Communication Maid - Coming soon"
+            }
+        };
+        
+        // Application state
+        let pixiApp = null;
+        let live2dModel = null;
+        let currentModelId = null;
+        let controlsIntegration = null;
+        let settingsManager = null;
+        let shortcutManager = null;
+        let modelInfoPanel = null;
+        let loadingErrorHandler = null;
+        
+        // DOM elements
+        const canvas = document.getElementById('live2d-canvas');
+        const canvasOverlay = document.getElementById('canvas-overlay');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const fpsDisplay = document.getElementById('fps-display');
+        const modelInfo = document.getElementById('model-info');
+        
+        /**
+         * Initialize the application
+         */
+        async function init() {
+            console.log('🎭 Live2D Advanced Testing Tool - Initializing...');
+            
+            try {
+                // Initialize LoadingErrorHandler for canvas section
+                const canvasSection = document.querySelector('.canvas-section');
+                loadingErrorHandler = new LoadingErrorHandler(canvasSection, {
+                    spinnerColor: '#ff6b9d',
+                    errorColor: '#f87171',
+                    successColor: '#4ade80'
+                });
+                
+                // Initialize PIXI application
+                await loadingErrorHandler.wrapAsync(
+                    async () => {
+                        pixiApp = new PIXI.Application({
+                            view: canvas,
+                            autoStart: true,
+                            resizeTo: canvas.parentElement,
+                            backgroundColor: 0x1a1a2e,
+                            antialias: true,
+                            resolution: window.devicePixelRatio || 1,
+                            autoDensity: true
+                        });
+                    },
+                    {
+                        loadingMessage: 'Initializing PIXI...',
+                        errorMessage: 'Failed to initialize PIXI renderer'
+                    }
+                );
+                
+                // Initialize settings manager
+                settingsManager = new SettingsManager('live2d-testing-tool');
+                await settingsManager.initialize();
+                
+                // Initialize controls integration
+                controlsIntegration = new Live2DControlsIntegration(
+                    pixiApp,
+                    canvasOverlay,
+                    settingsManager
+                );
+                await controlsIntegration.initialize();
+                
+                // Initialize keyboard shortcuts
+                shortcutManager = new KeyboardShortcutManager();
+                setupKeyboardShortcuts();
+                
+                // Initialize ModelInfoPanel
+                modelInfoPanel = new ModelInfoPanel('model-info-panel');
+                
+                // Setup UI
+                setupModelSelector();
+                setupHeaderActions();
+                setupControlPanels();
+                
+                // Load saved model or default
+                const savedSettings = settingsManager.getSettings();
+                const modelToLoad = savedSettings.lastModel || 'aria';
+                
+                if (MODELS[modelToLoad]?.available) {
+                    await loadModel(modelToLoad);
+                }
+                
+                // Hide old loading overlay
+                loadingOverlay.classList.add('hidden');
+                updateStatus('ready', 'Ready');
+                
+                console.log('✅ Initialization complete');
+                
+            } catch (error) {
+                console.error('❌ Initialization failed:', error);
+                
+                // Show error using LoadingErrorHandler if available
+                if (loadingErrorHandler) {
+                    loadingErrorHandler.showError(error, {
+                        message: `Initialization failed: ${error.message}`,
+                        retryCallback: () => {
+                            window.location.reload();
+                        }
+                    });
+                } else {
+                    loadingText.textContent = `Error: ${error.message}`;
+                }
+                
+                updateStatus('error', 'Initialization failed');
+            }
+        }
+        
+        /**
+         * Setup model selector UI
+         */
+        function setupModelSelector() {
+            const selector = document.getElementById('model-selector');
+            selector.innerHTML = '';
+            
+            for (const [id, model] of Object.entries(MODELS)) {
+                const btn = document.createElement('button');
+                btn.className = `model-btn ${!model.available ? 'disabled' : ''}`;
+                btn.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 4px;">${model.name}</div>
+                    <div style="font-size: 11px; opacity: 0.7;">${model.description}</div>
+                `;
+                
+                if (model.available) {
+                    btn.addEventListener('click', () => loadModel(id));
+                }
+                
+                selector.appendChild(btn);
+            }
+        }
+        
+        /**
+         * Setup header action buttons
+         */
+        function setupHeaderActions() {
+            document.getElementById('import-btn').addEventListener('click', importSettings);
+            document.getElementById('export-btn').addEventListener('click', exportSettings);
+            document.getElementById('export-params-btn').addEventListener('click', exportParameters);
+            document.getElementById('screenshot-btn').addEventListener('click', takeScreenshot);
+            document.getElementById('reset-btn').addEventListener('click', resetAll);
+        }
+        
+        /**
+         * Setup control panels
+         */
+        function setupControlPanels() {
+            // Panels are automatically created by Live2DControlsIntegration
+            // We just need to move them to the correct containers
+            
+            const viewportPanel = document.getElementById('viewport-panel');
+            const parameterPanel = document.getElementById('parameter-panel');
+            const animationPanel = document.getElementById('animation-panel');
+            const gridPanel = document.getElementById('grid-panel');
+            const performancePanel = document.getElementById('performance-panel');
+            
+            // The integration creates these panels, we'll let them render in place
+        }
+        
+        /**
+         * Load a Live2D model
+         */
+        async function loadModel(modelId) {
+            const model = MODELS[modelId];
+            
+            if (!model || !model.available) {
+                console.warn(`Model ${modelId} not available`);
+                return;
+            }
+            
+            if (!loadingErrorHandler) {
+                console.error('LoadingErrorHandler not initialized');
+                return;
+            }
+            
+            updateStatus('loading', 'Loading model...');
+            
+            try {
+                await loadingErrorHandler.wrapAsync(
+                    async () => {
+                        // Remove existing model
+                        if (live2dModel) {
+                            controlsIntegration.detachModel();
+                            pixiApp.stage.removeChild(live2dModel);
+                            live2dModel.destroy();
+                            live2dModel = null;
+                        }
+                        
+                        // Load new model
+                        live2dModel = await PIXI.live2d.Live2DModel.from(model.path, {
+                            autoInteract: false,
+                            autoUpdate: true
+                        });
+                        
+                        // Scale and position
+                        const scale = Math.min(
+                            pixiApp.screen.width / live2dModel.width * 0.8,
+                            pixiApp.screen.height / live2dModel.height * 0.85
+                        );
+                        live2dModel.scale.set(scale);
+                        live2dModel.x = pixiApp.screen.width / 2;
+                        live2dModel.y = pixiApp.screen.height / 2;
+                        live2dModel.anchor.set(0.5, 0.5);
+                        
+                        // Add to stage
+                        pixiApp.stage.addChild(live2dModel);
+                        
+                        // Attach to controls
+                        controlsIntegration.attachModel(live2dModel);
+                        
+                        // Extract and update model info
+                        const modelInfo = modelInfoPanel.extractModelInfo(live2dModel);
+                        modelInfoPanel.updateModelInfo(modelInfo);
+                        
+                        // Update UI
+                        currentModelId = modelId;
+                        document.querySelectorAll('.model-btn').forEach((btn, index) => {
+                            const id = Object.keys(MODELS)[index];
+                            btn.classList.toggle('active', id === modelId);
+                        });
+                        
+                        document.getElementById('model-info').textContent = model.name;
+                        
+                        // Save to settings
+                        settingsManager.updateSettings({ lastModel: modelId });
+                    },
+                    {
+                        loadingMessage: `Loading ${model.name}...`,
+                        successMessage: `${model.name} loaded successfully!`,
+                        retryCallback: () => loadModel(modelId)
+                    }
+                );
+                
+                updateStatus('ready', `${model.name} loaded`);
+                console.log(`✅ Loaded model: ${model.name}`);
+                
+            } catch (error) {
+                console.error(`❌ Failed to load model ${modelId}:`, error);
+                updateStatus('error', `Failed to load ${model.name}`);
+            }
+        }
+        
+        /**
+         * Setup keyboard shortcuts
+         */
+        function setupKeyboardShortcuts() {
+            const shortcuts = DefaultShortcuts.getDefaultShortcuts();
+            
+            // Register all shortcuts
+            for (const [action, shortcut] of Object.entries(shortcuts)) {
+                shortcutManager.registerShortcut(
+                    action,
+                    shortcut.keys,
+                    () => handleShortcutAction(action),
+                    shortcut.description
+                );
+            }
+            
+            console.log('⌨️ Keyboard shortcuts registered');
+        }
+        
+        /**
+         * Handle keyboard shortcut actions
+         */
+        function handleShortcutAction(action) {
+            if (!controlsIntegration) return;
+            
+            switch (action) {
+                case 'toggleGrid':
+                    controlsIntegration.gridOverlay?.toggle();
+                    break;
+                case 'togglePerformance':
+                    controlsIntegration.performanceMonitor?.toggle();
+                    break;
+                case 'resetView':
+                    controlsIntegration.viewportControls?.reset();
+                    break;
+                case 'playPauseAnimation':
+                    controlsIntegration.animationManager?.togglePlayback();
+                    break;
+                case 'zoomIn':
+                    controlsIntegration.viewportControls?.zoomIn();
+                    break;
+                case 'zoomOut':
+                    controlsIntegration.viewportControls?.zoomOut();
+                    break;
+                case 'resetZoom':
+                    controlsIntegration.viewportControls?.resetZoom();
+                    break;
+                case 'panUp':
+                    controlsIntegration.viewportControls?.pan(0, -20);
+                    break;
+                case 'panDown':
+                    controlsIntegration.viewportControls?.pan(0, 20);
+                    break;
+                case 'panLeft':
+                    controlsIntegration.viewportControls?.pan(-20, 0);
+                    break;
+                case 'panRight':
+                    controlsIntegration.viewportControls?.pan(20, 0);
+                    break;
+            }
+        }
+        
+        /**
+         * Import settings from file
+         */
+        async function importSettings() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                try {
+                    const text = await file.text();
+                    const settings = JSON.parse(text);
+                    
+                    await settingsManager.importSettings(settings);
+                    
+                    // Reload model if changed
+                    if (settings.lastModel && settings.lastModel !== currentModelId) {
+                        await loadModel(settings.lastModel);
+                    }
+                    
+                    // Refresh controls
+                    controlsIntegration.refreshFromSettings();
+                    
+                    updateStatus('ready', 'Settings imported');
+                    console.log('✅ Settings imported');
+                    
+                } catch (error) {
+                    console.error('❌ Import failed:', error);
+                    alert(`Failed to import settings: ${error.message}`);
+                }
+            };
+            
+            input.click();
+        }
+        
+        /**
+         * Export settings to file
+         */
+        function exportSettings() {
+            try {
+                const settings = settingsManager.exportSettings();
+                const blob = new Blob([settings], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `live2d-settings-${Date.now()}.json`;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                
+                updateStatus('ready', 'Settings exported');
+                console.log('✅ Settings exported');
+                
+            } catch (error) {
+                console.error('❌ Export failed:', error);
+                alert(`Failed to export settings: ${error.message}`);
+            }
+        }
+        
+        /**
+         * Export current parameter values
+         */
+        function exportParameters() {
+            if (!live2dModel || !controlsIntegration) {
+                alert('No model loaded');
+                return;
+            }
+            
+            try {
+                // Get current parameter values from ParameterPanel
+                const parameters = {};
+                
+                if (live2dModel.internalModel && live2dModel.internalModel.coreModel) {
+                    const coreModel = live2dModel.internalModel.coreModel;
+                    const paramCount = coreModel.getParameterCount();
+                    
+                    for (let i = 0; i < paramCount; i++) {
+                        const paramId = coreModel.getParameterId(i);
+                        const value = coreModel.getParameterValueByIndex(i);
+                        parameters[paramId] = value;
+                    }
+                }
+                
+                // Get viewport state
+                const viewport = controlsIntegration.viewportControls?.getState() || {};
+                
+                // Get animation state
+                const animation = {
+                    currentAnimation: controlsIntegration.animationManager?.getCurrentAnimation() || null,
+                    isPlaying: controlsIntegration.animationManager?.isPlaying() || false,
+                    speed: controlsIntegration.animationManager?.getSpeed() || 1.0
+                };
+                
+                // Create export object
+                const exportData = {
+                    metadata: {
+                        timestamp: new Date().toISOString(),
+                        modelId: currentModelId,
+                        modelName: MODELS[currentModelId]?.name || 'Unknown',
+                        version: '1.0.0'
+                    },
+                    parameters,
+                    viewport,
+                    animation
+                };
+                
+                // Download as JSON
+                const json = JSON.stringify(exportData, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `live2d-parameters-${currentModelId}-${Date.now()}.json`;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                
+                updateStatus('ready', 'Parameters exported');
+                console.log('✅ Parameters exported:', exportData);
+                
+            } catch (error) {
+                console.error('❌ Parameter export failed:', error);
+                alert(`Failed to export parameters: ${error.message}`);
+            }
+        }
+        
+        /**
+         * Take screenshot of current canvas
+         */
+        function takeScreenshot() {
+            if (!pixiApp || !live2dModel) {
+                alert('No model loaded');
+                return;
+            }
+            
+            try {
+                // Extract canvas data
+                const canvas = pixiApp.view;
+                
+                // Convert to blob and download
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `live2d-screenshot-${currentModelId}-${Date.now()}.png`;
+                    a.click();
+                    
+                    URL.revokeObjectURL(url);
+                    
+                    updateStatus('ready', 'Screenshot saved');
+                    console.log('✅ Screenshot saved');
+                });
+                
+            } catch (error) {
+                console.error('❌ Screenshot failed:', error);
+                alert(`Failed to take screenshot: ${error.message}`);
+            }
+        }
+        
+        /**
+         * Reset all settings and controls
+         */
+        async function resetAll() {
+            if (!confirm('Reset all settings to defaults? This cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                await settingsManager.resetToDefaults();
+                controlsIntegration.refreshFromSettings();
+                
+                updateStatus('ready', 'Settings reset');
+                console.log('✅ Settings reset to defaults');
+                
+            } catch (error) {
+                console.error('❌ Reset failed:', error);
+                alert(`Failed to reset settings: ${error.message}`);
+            }
+        }
+        
+        /**
+         * Update status indicator
+         */
+        function updateStatus(state, text) {
+            statusDot.className = `status-dot ${state === 'error' ? 'error' : ''}`;
+            statusText.textContent = text;
+        }
+        
+        /**
+         * Update FPS display
+         */
+        function updateFPS() {
+            if (controlsIntegration?.performanceMonitor) {
+                const metrics = controlsIntegration.performanceMonitor.getMetrics();
+                fpsDisplay.textContent = Math.round(metrics.fps);
+            }
+        }
+        
+        // Update FPS every second
+        setInterval(updateFPS, 1000);
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (pixiApp && live2dModel) {
+                const scale = Math.min(
+                    pixiApp.screen.width / live2dModel.width * 0.8,
+                    pixiApp.screen.height / live2dModel.height * 0.85
+                );
+                live2dModel.scale.set(scale);
+                live2dModel.x = pixiApp.screen.width / 2;
+                live2dModel.y = pixiApp.screen.height / 2;
+            }
+        });
+        
+        // Start application
+        init();
+    </script>
+</body>
+</html>

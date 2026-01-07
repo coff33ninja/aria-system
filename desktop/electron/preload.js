@@ -55,5 +55,48 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     onTriggerAction: (callback) => {
         ipcRenderer.on('trigger-action', (event, action) => callback(action));
+    },
+    
+    // Debug Panel event listeners
+    onDebugParameterUpdate: (callback) => {
+        ipcRenderer.on('debug-parameter-update', (event, data) => callback(data));
+    },
+    onDebugViewportUpdate: (callback) => {
+        ipcRenderer.on('debug-viewport-update', (event, data) => callback(data));
+    },
+    onDebugAnimationCommand: (callback) => {
+        ipcRenderer.on('debug-animation-command', (event, data) => callback(data));
+    },
+    onDebugGridUpdate: (callback) => {
+        ipcRenderer.on('debug-grid-update', (event, data) => callback(data));
+    },
+    
+    // Debug Panel
+    send: (channel, data) => {
+        // Whitelist of allowed channels
+        const validChannels = [
+            'debug-panel-dock',
+            'debug-parameter-update',
+            'debug-viewport-update',
+            'debug-animation-command',
+            'debug-grid-update'
+        ];
+        if (validChannels.includes(channel)) {
+            ipcRenderer.send(channel, data);
+        }
+    },
+    on: (channel, callback) => {
+        // Whitelist of allowed channels
+        const validChannels = [
+            'model-loaded',
+            'parameter-changed',
+            'debug-parameter-update',
+            'debug-viewport-update',
+            'debug-animation-command',
+            'debug-grid-update'
+        ];
+        if (validChannels.includes(channel)) {
+            ipcRenderer.on(channel, (event, data) => callback(data));
+        }
     }
 });

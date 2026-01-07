@@ -57,7 +57,149 @@
             border-radius: 15px;
             padding: 15px;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
+        
+        .control-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .tab-btn {
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            color: rgba(255,255,255,0.6);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .tab-btn:hover { color: rgba(255,255,255,0.9); }
+        .tab-btn.active {
+            color: #ff6b9d;
+            border-bottom-color: #ff6b9d;
+        }
+        
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .tab-content.active { display: block; }
+        
+        .viewport-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .viewport-btn-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+        
+        .viewport-btn {
+            padding: 6px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+        
+        .viewport-btn:hover { background: rgba(255,255,255,0.2); }
+        .viewport-btn:active { transform: scale(0.95); }
+        
+        .grid-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .toggle-btn {
+            padding: 8px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+        
+        .toggle-btn:hover { background: rgba(255,255,255,0.2); }
+        .toggle-btn.active { background: #2ed573; }
+        
+        .perf-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        
+        .perf-stat {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        .perf-stat-label {
+            font-size: 9px;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .perf-stat-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2ed573;
+            margin-top: 4px;
+        }
+        
+        .animation-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .animation-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+        
+        .animation-name {
+            flex: 1;
+            font-size: 11px;
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .animation-play-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(46, 213, 115, 0.3);
+            color: white;
+            cursor: pointer;
+            font-size: 10px;
+        }
+        
+        .animation-play-btn:hover { background: rgba(46, 213, 115, 0.5); }
         
         .maid-selector {
             display: flex;
@@ -242,58 +384,143 @@
         
         <div class="controls-section">
             <div class="info-box">
-                Click on the avatar to interact. Use sliders to control parameters in real-time.
+                Click on the avatar to interact. Use tabs below for advanced controls.
             </div>
             
-            <div class="section-title">Select Maid</div>
-            <div class="maid-selector" id="maid-selector"></div>
+            <div class="control-tabs">
+                <button class="tab-btn active" data-tab="basic">Basic</button>
+                <button class="tab-btn" data-tab="viewport">Viewport</button>
+                <button class="tab-btn" data-tab="parameters">Parameters</button>
+                <button class="tab-btn" data-tab="animations">Animations</button>
+                <button class="tab-btn" data-tab="performance">Performance</button>
+            </div>
             
-            <div class="section-title">Expressions</div>
-            <div class="expression-grid" id="expression-grid"></div>
-            
-            <button class="motion-btn" id="random-motion-btn">🎲 Random Motion</button>
-            
-            <div class="section-title">Parameters</div>
-            <div id="param-controls">
-                <div class="param-control">
-                    <label><span>Mouth Open</span><span id="val-mouth">0</span></label>
-                    <input type="range" id="param-mouth" min="0" max="1" step="0.01" value="0">
+            <!-- Basic Tab -->
+            <div class="tab-content active" id="tab-basic">
+                <div class="section-title">Select Maid</div>
+                <div class="maid-selector" id="maid-selector"></div>
+                
+                <div class="section-title">Expressions</div>
+                <div class="expression-grid" id="expression-grid"></div>
+                
+                <button class="motion-btn" id="random-motion-btn">🎲 Random Motion</button>
+                
+                <div class="section-title">Quick Parameters</div>
+                <div id="quick-param-controls">
+                    <div class="param-control">
+                        <label><span>Mouth Open</span><span id="val-mouth">0</span></label>
+                        <input type="range" id="param-mouth" min="0" max="1" step="0.01" value="0">
+                    </div>
+                    <div class="param-control">
+                        <label><span>Eye Ball X</span><span id="val-eyeball-x">0</span></label>
+                        <input type="range" id="param-eyeball-x" min="-1" max="1" step="0.01" value="0">
+                    </div>
+                    <div class="param-control">
+                        <label><span>Eye Ball Y</span><span id="val-eyeball-y">0</span></label>
+                        <input type="range" id="param-eyeball-y" min="-1" max="1" step="0.01" value="0">
+                    </div>
                 </div>
-                <div class="param-control">
-                    <label><span>Eye L</span><span id="val-eye-l">1</span></label>
-                    <input type="range" id="param-eye-l" min="0" max="1" step="0.01" value="1">
-                </div>
-                <div class="param-control">
-                    <label><span>Eye R</span><span id="val-eye-r">1</span></label>
-                    <input type="range" id="param-eye-r" min="0" max="1" step="0.01" value="1">
-                </div>
-                <div class="param-control">
-                    <label><span>Eye Ball X</span><span id="val-eyeball-x">0</span></label>
-                    <input type="range" id="param-eyeball-x" min="-1" max="1" step="0.01" value="0">
-                </div>
-                <div class="param-control">
-                    <label><span>Eye Ball Y</span><span id="val-eyeball-y">0</span></label>
-                    <input type="range" id="param-eyeball-y" min="-1" max="1" step="0.01" value="0">
-                </div>
-                <div class="param-control">
-                    <label><span>Mouth Form</span><span id="val-mouth-form">0</span></label>
-                    <input type="range" id="param-mouth-form" min="-1" max="1" step="0.01" value="0">
+                
+                <div class="section-title">Status</div>
+                <div class="status-panel">
+                    <div class="status-item">
+                        <span>Model:</span>
+                        <span class="status-value" id="status-model">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span>Expression:</span>
+                        <span class="status-value" id="status-expression">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span>FPS:</span>
+                        <span class="status-value" id="status-fps">0</span>
+                    </div>
                 </div>
             </div>
             
-            <div class="section-title">Status</div>
-            <div class="status-panel">
-                <div class="status-item">
-                    <span>Model:</span>
-                    <span class="status-value" id="status-model">-</span>
+            <!-- Viewport Tab -->
+            <div class="tab-content" id="tab-viewport">
+                <div class="section-title">Viewport Controls</div>
+                <div class="viewport-controls">
+                    <div class="viewport-btn-group">
+                        <button class="viewport-btn" id="btn-zoom-in">🔍 Zoom In</button>
+                        <button class="viewport-btn" id="btn-zoom-out">🔍 Zoom Out</button>
+                        <button class="viewport-btn" id="btn-reset-view">↺ Reset</button>
+                    </div>
+                    <div class="viewport-btn-group">
+                        <button class="viewport-btn" id="btn-pan-up">↑</button>
+                        <button class="viewport-btn" id="btn-pan-left">←</button>
+                        <button class="viewport-btn" id="btn-pan-right">→</button>
+                    </div>
+                    <div class="viewport-btn-group">
+                        <button class="viewport-btn" id="btn-pan-down">↓</button>
+                        <button class="viewport-btn" id="btn-fit-screen">⛶ Fit</button>
+                        <button class="viewport-btn" id="btn-center">⊙ Center</button>
+                    </div>
                 </div>
-                <div class="status-item">
-                    <span>Expression:</span>
-                    <span class="status-value" id="status-expression">-</span>
+                
+                <div class="section-title">Grid Overlay</div>
+                <div class="grid-controls">
+                    <button class="toggle-btn" id="btn-toggle-grid">Grid: OFF</button>
+                    <div class="param-control">
+                        <label><span>Grid Spacing</span><span id="val-grid-spacing">50</span></label>
+                        <input type="range" id="grid-spacing" min="10" max="200" step="10" value="50">
+                    </div>
+                    <div class="param-control">
+                        <label><span>Grid Opacity</span><span id="val-grid-opacity">0.3</span></label>
+                        <input type="range" id="grid-opacity" min="0" max="1" step="0.1" value="0.3">
+                    </div>
                 </div>
-                <div class="status-item">
-                    <span>FPS:</span>
-                    <span class="status-value" id="status-fps">0</span>
+            </div>
+            
+            <!-- Parameters Tab -->
+            <div class="tab-content" id="tab-parameters">
+                <div class="section-title">All Parameters</div>
+                <div id="all-param-controls">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+            
+            <!-- Animations Tab -->
+            <div class="tab-content" id="tab-animations">
+                <div class="section-title">Available Animations</div>
+                <div class="animation-list" id="animation-list">
+                    <!-- Will be populated dynamically -->
+                </div>
+                
+                <div class="section-title">Playback Controls</div>
+                <div class="param-control">
+                    <label><span>Speed</span><span id="val-anim-speed">1.0</span></label>
+                    <input type="range" id="anim-speed" min="0.1" max="3.0" step="0.1" value="1.0">
+                </div>
+                <button class="toggle-btn" id="btn-toggle-loop">Loop: OFF</button>
+            </div>
+            
+            <!-- Performance Tab -->
+            <div class="tab-content" id="tab-performance">
+                <div class="section-title">Performance Metrics</div>
+                <div class="perf-stats">
+                    <div class="perf-stat">
+                        <div class="perf-stat-label">FPS</div>
+                        <div class="perf-stat-value" id="perf-fps">0</div>
+                    </div>
+                    <div class="perf-stat">
+                        <div class="perf-stat-label">Frame Time</div>
+                        <div class="perf-stat-value" id="perf-frame-time">0ms</div>
+                    </div>
+                    <div class="perf-stat">
+                        <div class="perf-stat-label">Memory</div>
+                        <div class="perf-stat-value" id="perf-memory">0MB</div>
+                    </div>
+                    <div class="perf-stat">
+                        <div class="perf-stat-label">Draw Calls</div>
+                        <div class="perf-stat-value" id="perf-draw-calls">0</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Model Info</div>
+                <div id="model-info-panel-container">
+                    <!-- ModelInfoPanel will be rendered here -->
                 </div>
             </div>
             
@@ -305,6 +532,37 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js"></script>
     <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+    
+    <!-- Advanced Controls Components -->
+    <script type="module">
+        // Import control components (these would be loaded from separate files in production)
+        import { ViewportControls } from '../../desktop/electron/components/ViewportControls.js';
+        import { ParameterPanel } from '../../desktop/electron/components/ParameterPanel.js';
+        import { AnimationManager } from '../../desktop/electron/components/AnimationManager.js';
+        import { GridOverlay } from '../../desktop/electron/components/GridOverlay.js';
+        import { PerformanceMonitor } from '../../desktop/electron/components/PerformanceMonitor.js';
+        import { SettingsManager } from '../../desktop/electron/components/SettingsManager.js';
+        import { KeyboardShortcutManager } from '../../desktop/electron/components/KeyboardShortcutManager.js';
+        import { DefaultShortcuts } from '../../desktop/electron/components/DefaultShortcuts.js';
+        import { ModelInfoPanel, MODEL_INFO_PANEL_STYLES } from '../../desktop/electron/components/ModelInfoPanel.js';
+        
+        // Inject ModelInfoPanel styles
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = MODEL_INFO_PANEL_STYLES;
+        document.head.appendChild(styleSheet);
+        
+        // Store control instances globally
+        window.advancedControls = {
+            viewport: null,
+            parameters: null,
+            animations: null,
+            grid: null,
+            performance: null,
+            settings: null,
+            shortcuts: null,
+            modelInfo: null
+        };
+    </script>
 </body>
 </html>
 
@@ -326,6 +584,9 @@
 
         let app, model, currentMaid = null;
         let frameCount = 0, lastTime = performance.now();
+        let gridEnabled = false, gridSpacing = 50, gridOpacity = 0.3;
+        let animationSpeed = 1.0, animationLoop = false;
+        let viewportState = { x: 0, y: 0, scale: 1.0, rotation: 0 };
 
         // DOM
         const canvas = document.getElementById('live2d-canvas');
@@ -333,9 +594,18 @@
         const loadingText = document.getElementById('loading-text');
 
         async function init() {
+            setupTabs();
             setupMaidSelector();
             setupParameterControls();
+            setupViewportControls();
+            setupGridControls();
+            setupAnimationControls();
+            setupPerformanceMonitoring();
             startFPSCounter();
+            
+            // Initialize ModelInfoPanel
+            const { ModelInfoPanel } = await import('../../desktop/electron/components/ModelInfoPanel.js');
+            window.advancedControls.modelInfo = new ModelInfoPanel('model-info-panel-container');
             
             // Initialize PIXI
             loadingText.textContent = 'Initializing PIXI...';
@@ -348,8 +618,239 @@
                 antialias: true
             });
             
+            // Add grid graphics layer
+            window.gridGraphics = new PIXI.Graphics();
+            app.stage.addChild(window.gridGraphics);
+            
             // Load Aria by default
             await loadMaid('aria');
+        }
+        
+        function setupTabs() {
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tabName = btn.dataset.tab;
+                    
+                    // Update buttons
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // Update content
+                    tabContents.forEach(content => {
+                        content.classList.toggle('active', content.id === `tab-${tabName}`);
+                    });
+                });
+            });
+        }
+        
+        function setupViewportControls() {
+            document.getElementById('btn-zoom-in').addEventListener('click', () => zoomModel(1.2));
+            document.getElementById('btn-zoom-out').addEventListener('click', () => zoomModel(0.8));
+            document.getElementById('btn-reset-view').addEventListener('click', resetView);
+            document.getElementById('btn-fit-screen').addEventListener('click', fitToScreen);
+            document.getElementById('btn-center').addEventListener('click', centerModel);
+            document.getElementById('btn-pan-up').addEventListener('click', () => panModel(0, -50));
+            document.getElementById('btn-pan-down').addEventListener('click', () => panModel(0, 50));
+            document.getElementById('btn-pan-left').addEventListener('click', () => panModel(-50, 0));
+            document.getElementById('btn-pan-right').addEventListener('click', () => panModel(50, 0));
+        }
+        
+        function setupGridControls() {
+            const toggleBtn = document.getElementById('btn-toggle-grid');
+            toggleBtn.addEventListener('click', () => {
+                gridEnabled = !gridEnabled;
+                toggleBtn.textContent = `Grid: ${gridEnabled ? 'ON' : 'OFF'}`;
+                toggleBtn.classList.toggle('active', gridEnabled);
+                drawGrid();
+            });
+            
+            document.getElementById('grid-spacing').addEventListener('input', (e) => {
+                gridSpacing = parseInt(e.target.value);
+                document.getElementById('val-grid-spacing').textContent = gridSpacing;
+                if (gridEnabled) drawGrid();
+            });
+            
+            document.getElementById('grid-opacity').addEventListener('input', (e) => {
+                gridOpacity = parseFloat(e.target.value);
+                document.getElementById('val-grid-opacity').textContent = gridOpacity.toFixed(1);
+                if (gridEnabled) drawGrid();
+            });
+        }
+        
+        function setupAnimationControls() {
+            document.getElementById('anim-speed').addEventListener('input', (e) => {
+                animationSpeed = parseFloat(e.target.value);
+                document.getElementById('val-anim-speed').textContent = animationSpeed.toFixed(1);
+                if (model && model.internalModel.motionManager) {
+                    model.internalModel.motionManager.settings.motionFadeInTime *= animationSpeed;
+                }
+            });
+            
+            const loopBtn = document.getElementById('btn-toggle-loop');
+            loopBtn.addEventListener('click', () => {
+                animationLoop = !animationLoop;
+                loopBtn.textContent = `Loop: ${animationLoop ? 'ON' : 'OFF'}`;
+                loopBtn.classList.toggle('active', animationLoop);
+            });
+        }
+        
+        function setupPerformanceMonitoring() {
+            setInterval(() => {
+                if (!model) return;
+                
+                // Update performance metrics
+                const fps = Math.round(frameCount / 1);
+                document.getElementById('perf-fps').textContent = fps;
+                
+                const frameTime = fps > 0 ? (1000 / fps).toFixed(1) : 0;
+                document.getElementById('perf-frame-time').textContent = frameTime + 'ms';
+                
+                // Memory (if available)
+                if (performance.memory) {
+                    const memoryMB = (performance.memory.usedJSHeapSize / 1048576).toFixed(1);
+                    document.getElementById('perf-memory').textContent = memoryMB + 'MB';
+                }
+                
+                // Draw calls (approximate)
+                document.getElementById('perf-draw-calls').textContent = app.renderer.plugins.batch.currentBatchSize || 0;
+            }, 1000);
+        }
+        
+        function zoomModel(factor) {
+            if (!model) return;
+            viewportState.scale *= factor;
+            model.scale.set(model.scale.x * factor);
+        }
+        
+        function panModel(dx, dy) {
+            if (!model) return;
+            model.x += dx;
+            model.y += dy;
+            viewportState.x = model.x;
+            viewportState.y = model.y;
+        }
+        
+        function resetView() {
+            if (!model) return;
+            const scale = Math.min(
+                app.screen.width / model.width * 0.8,
+                app.screen.height / model.height * 0.9
+            );
+            model.scale.set(scale);
+            model.x = app.screen.width / 2;
+            model.y = app.screen.height / 2 + model.height * scale * 0.3;
+            viewportState = { x: model.x, y: model.y, scale: scale, rotation: 0 };
+        }
+        
+        function fitToScreen() {
+            if (!model) return;
+            const scale = Math.min(
+                app.screen.width / model.width,
+                app.screen.height / model.height
+            );
+            model.scale.set(scale);
+            centerModel();
+        }
+        
+        function centerModel() {
+            if (!model) return;
+            model.x = app.screen.width / 2;
+            model.y = app.screen.height / 2;
+            viewportState.x = model.x;
+            viewportState.y = model.y;
+        }
+        
+        function drawGrid() {
+            if (!window.gridGraphics) return;
+            
+            window.gridGraphics.clear();
+            
+            if (!gridEnabled) return;
+            
+            window.gridGraphics.lineStyle(1, 0xffffff, gridOpacity);
+            
+            // Vertical lines
+            for (let x = 0; x < app.screen.width; x += gridSpacing) {
+                window.gridGraphics.moveTo(x, 0);
+                window.gridGraphics.lineTo(x, app.screen.height);
+            }
+            
+            // Horizontal lines
+            for (let y = 0; y < app.screen.height; y += gridSpacing) {
+                window.gridGraphics.moveTo(0, y);
+                window.gridGraphics.lineTo(app.screen.width, y);
+            }
+        }
+        
+        function populateAllParameters() {
+            if (!model || !model.internalModel || !model.internalModel.coreModel) return;
+            
+            const container = document.getElementById('all-param-controls');
+            container.innerHTML = '';
+            
+            const coreModel = model.internalModel.coreModel;
+            const paramCount = coreModel.getParameterCount();
+            
+            for (let i = 0; i < paramCount; i++) {
+                const paramId = coreModel.getParameterId(i);
+                const paramValue = coreModel.getParameterValueByIndex(i);
+                const paramMin = coreModel.getParameterMinimumValue(i);
+                const paramMax = coreModel.getParameterMaximumValue(i);
+                
+                const control = document.createElement('div');
+                control.className = 'param-control';
+                control.innerHTML = `
+                    <label>
+                        <span>${paramId}</span>
+                        <span id="val-${i}">${paramValue.toFixed(2)}</span>
+                    </label>
+                    <input type="range" id="param-${i}" 
+                           min="${paramMin}" max="${paramMax}" 
+                           step="0.01" value="${paramValue}"
+                           data-param-id="${paramId}">
+                `;
+                
+                const slider = control.querySelector('input');
+                slider.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    document.getElementById(`val-${i}`).textContent = val.toFixed(2);
+                    setParameter(paramId, val);
+                });
+                
+                container.appendChild(control);
+            }
+            
+            // Update model info
+            document.getElementById('info-params').textContent = paramCount;
+        }
+        
+        function populateAnimations() {
+            if (!model || !model.internalModel || !model.internalModel.settings) return;
+            
+            const container = document.getElementById('animation-list');
+            container.innerHTML = '';
+            
+            const motions = model.internalModel.settings.motions || {};
+            
+            for (const [group, motionList] of Object.entries(motions)) {
+                motionList.forEach((motion, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'animation-item';
+                    item.innerHTML = `
+                        <span class="animation-name">${group} #${index + 1}</span>
+                        <button class="animation-play-btn">▶ Play</button>
+                    `;
+                    
+                    item.querySelector('button').addEventListener('click', () => {
+                        model.motion(group, index);
+                    });
+                    
+                    container.appendChild(item);
+                });
+            }
         }
 
         function setupMaidSelector() {
@@ -473,6 +974,16 @@
                 
                 document.getElementById('status-model').textContent = maid.name;
                 loadingOverlay.classList.add('hidden');
+                
+                // Populate advanced controls
+                populateAllParameters();
+                populateAnimations();
+                
+                // Update ModelInfoPanel
+                if (window.advancedControls.modelInfo) {
+                    const modelInfo = window.advancedControls.modelInfo.extractModelInfo(model);
+                    window.advancedControls.modelInfo.updateModelInfo(modelInfo);
+                }
                 
                 console.log('Model loaded:', model);
                 console.log('Expressions:', model.internalModel.settings.expressions);

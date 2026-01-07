@@ -265,6 +265,55 @@
                         break;
                 }
             });
+            
+            // Debug Panel IPC handlers
+            window.electronAPI.onDebugParameterUpdate((data) => {
+                console.log(`🔧 Debug parameter update: ${data.parameter} = ${data.value}`);
+                setModelParameter(data.parameter, data.value);
+            });
+            
+            window.electronAPI.onDebugViewportUpdate((data) => {
+                console.log(`🔧 Debug viewport update:`, data);
+                if (data.action === 'zoom') {
+                    currentZoom *= data.factor;
+                    resizeModel();
+                } else if (data.action === 'pan') {
+                    if (live2dModel) {
+                        live2dModel.x += data.dx || 0;
+                        live2dModel.y += data.dy || 0;
+                    }
+                } else if (data.action === 'reset') {
+                    currentZoom = 1.0;
+                    resizeModel();
+                } else if (data.action === 'center') {
+                    if (live2dModel && pixiApp) {
+                        live2dModel.x = pixiApp.screen.width / 2;
+                        live2dModel.y = pixiApp.screen.height / 2;
+                    }
+                }
+            });
+            
+            window.electronAPI.onDebugAnimationCommand((data) => {
+                console.log(`🔧 Debug animation command:`, data);
+                if (data.action === 'play' && data.group !== undefined) {
+                    if (live2dModel) {
+                        live2dModel.motion(data.group, data.index || 0);
+                    }
+                } else if (data.action === 'stop') {
+                    // Stop current animation
+                    if (live2dModel?.internalModel?.motionManager) {
+                        live2dModel.internalModel.motionManager.stopAllMotions();
+                    }
+                } else if (data.action === 'expression' && data.expression) {
+                    setExpression(data.expression);
+                }
+            });
+            
+            window.electronAPI.onDebugGridUpdate((data) => {
+                console.log(`🔧 Debug grid update:`, data);
+                // Grid rendering would be handled by a separate overlay
+                // For now, just log the update
+            });
         }
 
         // ============ Movement Modes ============

@@ -17,6 +17,7 @@ const fs = require('fs');
 
 let mainWindow = null;
 let settingsWindow = null;
+let debugPanelWindow = null;
 let tray = null;
 let settings = null;
 
@@ -45,6 +46,10 @@ const DEFAULT_SETTINGS = {
         enabled: false,
         inactivityMinutes: 5,
         hideInFullscreen: false
+    },
+    debug: {
+        enabled: false,
+        panelDocked: false
     }
 };
 
@@ -417,6 +422,18 @@ function updateTrayMenu() {
             click: () => createSettingsWindow()
         },
         
+        // Debug Panel
+        {
+            label: settings.debug.enabled ? '🔧 Hide Debug Panel' : '🔧 Show Debug Panel',
+            click: () => {
+                if (debugPanelWindow) {
+                    debugPanelWindow.close();
+                } else {
+                    createDebugPanelWindow();
+                }
+            }
+        },
+        
         { type: 'separator' },
         
         {
@@ -477,6 +494,59 @@ function createSettingsWindow() {
     settingsWindow.on('closed', () => {
         settingsWindow = null;
     });
+}
+
+// Debug panel window
+function createDebugPanelWindow() {
+    if (debugPanelWindow) {
+        debugPanelWindow.focus();
+        return;
+    }
+    
+    const mainBounds = mainWindow.getBounds();
+    
+    debugPanelWindow = new BrowserWindow({
+        width: 400,
+        height: 600,
+        x: mainBounds.x + mainBounds.width + 10,
+        y: mainBounds.y,
+        resizable: true,
+        minimizable: true,
+        maximizable: false,
+        alwaysOnTop: settings.window.alwaysOnTop,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        }
+    });
+    
+    debugPanelWindow.loadFile(path.join(__dirname, 'debug-panel.html'));
+    debugPanelWindow.setMenuBarVisibility(false);
+    
+    // Keep panel with main window if docked
+    if (settings.debug.panelDocked) {
+        mainWindow.on('move', updateDebugPanelPosition);
+    }
+    
+    debugPanelWindow.on('closed', () => {
+        debugPanelWindow = null;
+        mainWindow.removeListener('move', updateDebugPanelPosition);
+        settings.debug.enabled = false;
+        saveSettings();
+        updateTrayMenu();
+    });
+    
+    settings.debug.enabled = true;
+    saveSettings();
+    updateTrayMenu();
+}
+
+function updateDebugPanelPosition() {
+    if (debugPanelWindow && settings.debug.panelDocked) {
+        const mainBounds = mainWindow.getBounds();
+        debugPanelWindow.setPosition(mainBounds.x + mainBounds.width + 10, mainBounds.y);
+    }
 }
 
 // Multi-monitor support
@@ -643,6 +713,47 @@ ipcMain.handle('import-settings', async () => {
         }
     }
     return null;
+});
+
+// Debug Panel IPC handlers
+ipcMain.on('debug-panel-dock', (event, docked) => {
+    settings.debug.panelDocked = docked;
+    saveSettings();
+    
+    if (docked) {
+        mainWindow.on('move', updateDebugPanelPosition);
+        updateDebugPanelPosition();
+    } else {
+        mainWindow.removeListener('move', updateDebugPanelPosition);
+    }
+});
+
+ipcMain.on('debug-parameter-update', (event, data) => {
+    // Forward to main window
+    if (mainWindow) {
+        mainWindow.webContents.send('debug-parameter-update', data);
+    }
+});
+
+ipcMain.on('debug-viewport-update', (event, data) => {
+    // Forward to main window
+    if (mainWindow) {
+        mainWindow.webContents.send('debug-viewport-update', data);
+    }
+});
+
+ipcMain.on('debug-animation-command', (event, data) => {
+    // Forward to main window
+    if (mainWindow) {
+        mainWindow.webContents.send('debug-animation-command', data);
+    }
+});
+
+ipcMain.on('debug-grid-update', (event, data) => {
+    // Forward to main window
+    if (mainWindow) {
+        mainWindow.webContents.send('debug-grid-update', data);
+    }
 });
 
 // App lifecycle

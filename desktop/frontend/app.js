@@ -348,6 +348,12 @@ async function loadMaidModel(maidId) {
         
         pixiApp.stage.addChild(live2dModel);
         
+        // Update model info panel if available
+        if (window.modelInfoPanel) {
+            const modelInfo = window.modelInfoPanel.extractModelInfo(live2dModel);
+            window.modelInfoPanel.updateModelInfo(modelInfo);
+        }
+        
         console.log(`✅ Loaded model for ${maid.name}`);
         loadingOverlay.classList.add('hidden');
         
@@ -426,6 +432,99 @@ function animateSpeaking(textLength) {
 }
 
 // ============================================================================
+// Quick Controls Panel
+// ============================================================================
+
+function setupQuickControls() {
+    const controlsToggle = document.getElementById('controls-toggle');
+    const controlsPanel = document.getElementById('controls-panel');
+    const quickExpressions = document.getElementById('quick-expressions');
+    
+    // Toggle panel visibility
+    controlsToggle.addEventListener('click', () => {
+        controlsPanel.classList.toggle('visible');
+        
+        // Save state
+        if (settingsManager) {
+            settingsManager.updateSettings({
+                controlsPanelVisible: controlsPanel.classList.contains('visible')
+            });
+        }
+    });
+    
+    // Setup expression buttons
+    function updateExpressionButtons() {
+        const maid = MAIDS[currentMaid];
+        if (!maid || !maid.expressions) return;
+        
+        quickExpressions.innerHTML = '';
+        
+        maid.expressions.forEach(expr => {
+            const btn = document.createElement('button');
+            btn.className = 'expr-btn';
+            btn.textContent = expr.replace(/_/g, ' ');
+            btn.addEventListener('click', () => {
+                setExpression(expr);
+                
+                // Update active state
+                document.querySelectorAll('.expr-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Reset after 2 seconds
+                setTimeout(() => btn.classList.remove('active'), 2000);
+            });
+            quickExpressions.appendChild(btn);
+        });
+    }
+    
+    // Setup parameter sliders
+    const paramMouth = document.getElementById('param-mouth');
+    const paramEye = document.getElementById('param-eye');
+    const paramSmile = document.getElementById('param-smile');
+    
+    const valMouth = document.getElementById('val-mouth');
+    const valEye = document.getElementById('val-eye');
+    const valSmile = document.getElementById('val-smile');
+    
+    paramMouth.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        valMouth.textContent = val.toFixed(2);
+        setModelParameter('ParamMouthOpenY', val);
+    });
+    
+    paramEye.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        valEye.textContent = val.toFixed(2);
+        setModelParameter('ParamEyeLOpen', val);
+        setModelParameter('ParamEyeROpen', val);
+    });
+    
+    paramSmile.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        valSmile.textContent = val.toFixed(2);
+        setModelParameter('ParamMouthForm', val);
+    });
+    
+    // Update expressions when maid changes
+    const originalSetCurrentMaid = setCurrentMaid;
+    setCurrentMaid = function(maidId) {
+        originalSetCurrentMaid(maidId);
+        updateExpressionButtons();
+    };
+    
+    // Initial setup
+    updateExpressionButtons();
+    
+    // Restore panel state
+    if (settingsManager) {
+        const settings = settingsManager.getSettings();
+        if (settings.controlsPanelVisible) {
+            controlsPanel.classList.add('visible');
+        }
+    }
+}
+
+// ============================================================================
 // Event Listeners
 // ============================================================================
 
@@ -473,6 +572,9 @@ async function init() {
     // Initialize Live2D
     await initLive2D();
     
+    // Setup quick controls
+    setupQuickControls();
+    
     // Connect to backend
     connectWebSocket();
     
@@ -484,5 +586,134 @@ async function init() {
     }, 30000);
 }
 
+// ============================================================================
+// Advanced Controls Integration
+// ============================================================================
+
+let controlsIntegration = null;
+let settingsManager = null;
+let shortcutManager = null;
+
+async function initAdvancedControls() {
+    try {
+        // Dynamically import control components
+        const { SettingsManager } = await import('../electron/components/SettingsManager.js');
+        const { KeyboardShortcutManager } = await import('../electron/components/KeyboardShortcutManager.js');
+        const { DefaultShortcuts } = await import('../electron/components/DefaultShortcuts.js');
+        const { Live2DControlsIntegration } = await import('../electron/components/Live2DControlsIntegration.js');
+        const { ModelInfoPanel, MODEL_INFO_PANEL_STYLES } = await import('../electron/components/ModelInfoPanel.js');
+        
+        // Inject ModelInfoPanel styles
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = MODEL_INFO_PANEL_STYLES;
+        document.head.appendChild(styleSheet);
+        
+        // Initialize ModelInfoPanel
+        const modelInfoPanel = new ModelInfoPanel('model-info-panel');
+        
+        // Setup collapsible toggle
+        const modelInfoToggle = document.getElementById('model-info-toggle');
+        const modelInfoArrow = document.getElementById('model-info-arrow');
+        const modelInfoContainer = document.getElementById('model-info-panel');
+        
+        modelInfoToggle.addEventListener('click', () => {
+            const isVisible = modelInfoContainer.style.display !== 'none';
+            modelInfoContainer.style.display = isVisible ? 'none' : 'block';
+            modelInfoArrow.textContent = isVisible ? '▶' : '▼';
+        });
+        
+        // Update model info when model loads
+        if (live2dModel) {
+            const modelInfo = modelInfoPanel.extractModelInfo(live2dModel);
+            modelInfoPanel.updateModelInfo(modelInfo);
+        }
+        
+        // Store reference for later updates
+        window.modelInfoPanel = modelInfoPanel;
+        
+        // Initialize settings manager
+        settingsManager = new SettingsManager('aria-desktop-frontend');
+        await settingsManager.initialize();
+        
+        // Initialize controls integration
+        const controlsContainer = document.getElementById('controls-overlay');
+        controlsIntegration = new Live2DControlsIntegration(
+            pixiApp,
+            controlsContainer,
+            settingsManager
+        );
+        await controlsIntegration.initialize();
+        
+        // Attach model if already loaded
+        if (live2dModel) {
+            controlsIntegration.attachModel(live2dModel);
+        }
+        
+        // Initialize keyboard shortcuts
+        shortcutManager = new KeyboardShortcutManager();
+        const shortcuts = DefaultShortcuts.getDefaultShortcuts();
+        
+        for (const [action, shortcut] of Object.entries(shortcuts)) {
+            shortcutManager.registerShortcut(
+                action,
+                shortcut.keys,
+                () => handleShortcutAction(action),
+                shortcut.description
+            );
+        }
+        
+        console.log('✨ Advanced controls initialized');
+        
+    } catch (error) {
+        console.warn('⚠️ Advanced controls not available:', error);
+        // Gracefully degrade - app still works without advanced controls
+    }
+}
+
+function handleShortcutAction(action) {
+    if (!controlsIntegration) return;
+    
+    switch (action) {
+        case 'toggleGrid':
+            controlsIntegration.gridOverlay?.toggle();
+            break;
+        case 'togglePerformance':
+            controlsIntegration.performanceMonitor?.toggle();
+            break;
+        case 'resetView':
+            controlsIntegration.viewportControls?.reset();
+            break;
+        case 'playPauseAnimation':
+            controlsIntegration.animationManager?.togglePlayback();
+            break;
+        case 'zoomIn':
+            controlsIntegration.viewportControls?.zoomIn();
+            break;
+        case 'zoomOut':
+            controlsIntegration.viewportControls?.zoomOut();
+            break;
+        case 'resetZoom':
+            controlsIntegration.viewportControls?.resetZoom();
+            break;
+    }
+}
+
+// Update loadMaidModel to attach controls
+const originalLoadMaidModel = loadMaidModel;
+async function loadMaidModelWithControls(maidId) {
+    await originalLoadMaidModel(maidId);
+    
+    // Attach controls to new model
+    if (controlsIntegration && live2dModel) {
+        controlsIntegration.attachModel(live2dModel);
+    }
+}
+
+// Replace the function
+loadMaidModel = loadMaidModelWithControls;
+
 // Start
-init();
+init().then(() => {
+    // Initialize advanced controls after main app is ready
+    initAdvancedControls();
+});
